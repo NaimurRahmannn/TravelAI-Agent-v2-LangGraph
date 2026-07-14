@@ -3,13 +3,13 @@ from time import perf_counter
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
-from app.graph.state import TravelState
+from app.graph.subgraphs.research_state import ResearchState
 
 logger = get_logger(__name__)
 
 
 def weather_worker(
-    state: TravelState,
+    state: ResearchState,
     config: RunnableConfig,
 ) -> dict[str, dict[str, str]]:
     """Research likely weather for the extracted destination."""
@@ -17,7 +17,7 @@ def weather_worker(
     started_at = perf_counter()
     trip = state["trip"]
     destination = trip.destination if trip and trip.destination else "the destination"
-    logger.info("weather_worker entered destination=%s", destination)
+    logger.info("ResearchGraph.Worker.weather entered destination=%s", destination)
 
     result = (
         f"Weather in {destination}: expect mild to warm conditions around "
@@ -27,7 +27,7 @@ def weather_worker(
 
     duration = perf_counter() - started_at
     logger.info(
-        "weather_worker exited destination=%s duration=%.4fs",
+        "ResearchGraph.Worker.weather exited destination=%s duration=%.4fs",
         destination,
         duration,
     )

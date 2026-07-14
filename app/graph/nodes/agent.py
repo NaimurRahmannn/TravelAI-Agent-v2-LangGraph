@@ -17,10 +17,12 @@ def agent_node(
     """Reason over the conversation and decide whether tools are needed."""
 
     started_at = perf_counter()
+    has_research = bool(state.get("research_results", {}).get("summary"))
     logger.info(
-        "agent_node entered tool_count=%s tool_names=%s",
+        "MainGraph.Agent entered tool_count=%s tool_names=%s has_research=%s",
         0,
         [],
+        has_research,
     )
 
     llm = get_tool_enabled_llm()
@@ -36,9 +38,10 @@ def agent_node(
     ]
     duration = perf_counter() - started_at
     logger.info(
-        "agent_node exited tool_count=%s tool_names=%s duration=%.4fs",
+        "MainGraph.Agent exited tool_count=%s tool_names=%s has_research=%s duration=%.4fs",
         len(tool_names),
         tool_names,
+        has_research,
         duration,
     )
 

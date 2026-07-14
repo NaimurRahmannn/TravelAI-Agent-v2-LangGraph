@@ -3,13 +3,13 @@ from time import perf_counter
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
-from app.graph.state import TravelState
+from app.graph.subgraphs.research_state import ResearchState
 
 logger = get_logger(__name__)
 
 
 def research_merger(
-    state: TravelState,
+    state: ResearchState,
     config: RunnableConfig,
 ) -> dict[str, dict[str, str]]:
     """Combine parallel research outputs into a unified summary."""
@@ -22,7 +22,7 @@ def research_merger(
         if key != "summary"
     ]
     logger.info(
-        "research_merger entered result_count=%s result_keys=%s",
+        "ResearchGraph.Merger entered result_count=%s result_keys=%s",
         len(result_keys),
         result_keys,
     )
@@ -37,7 +37,7 @@ def research_merger(
 
     duration = perf_counter() - started_at
     logger.info(
-        "research_merger completed result_count=%s result_keys=%s duration=%.4fs",
+        "ResearchGraph.Merger completed result_count=%s result_keys=%s duration=%.4fs",
         len(result_keys),
         result_keys,
         duration,

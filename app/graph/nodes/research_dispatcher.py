@@ -4,14 +4,14 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send
 
 from app.core.logging import get_logger
-from app.graph.state import TravelState
+from app.graph.subgraphs.research_state import ResearchState
 from app.models import Trip
 
 logger = get_logger(__name__)
 
 
 def research_dispatcher_node(
-    state: TravelState,
+    state: ResearchState,
     config: RunnableConfig,
 ) -> dict[str, list[str]]:
     """Record the independent research tasks needed for an extracted trip."""
@@ -19,14 +19,14 @@ def research_dispatcher_node(
     started_at = perf_counter()
     tasks = _get_research_tasks(state.get("trip"))
     logger.info(
-        "research_dispatcher_node entered task_count=%s tasks=%s",
+        "ResearchGraph.Dispatcher entered task_count=%s tasks=%s",
         len(tasks),
         tasks,
     )
 
     duration = perf_counter() - started_at
     logger.info(
-        "research_dispatcher_node exited task_count=%s tasks=%s duration=%.4fs",
+        "ResearchGraph.Dispatcher exited task_count=%s tasks=%s duration=%.4fs",
         len(tasks),
         tasks,
         duration,
@@ -37,7 +37,7 @@ def research_dispatcher_node(
 
 
 def research_dispatcher(
-    state: TravelState,
+    state: ResearchState,
 ) -> list[Send]:
     """Create parallel Send tasks for independent destination research."""
 
@@ -45,7 +45,7 @@ def research_dispatcher(
     trip = state.get("trip")
     tasks = _get_research_tasks(trip)
     logger.info(
-        "research_dispatcher creating parallel tasks task_count=%s tasks=%s",
+        "ResearchGraph.Dispatcher creating parallel tasks task_count=%s tasks=%s",
         len(tasks),
         tasks,
     )
@@ -83,7 +83,7 @@ def research_dispatcher(
 
     duration = perf_counter() - started_at
     logger.info(
-        "research_dispatcher created parallel tasks send_count=%s tasks=%s duration=%.4fs",
+        "ResearchGraph.Dispatcher created parallel tasks send_count=%s tasks=%s duration=%.4fs",
         len(sends),
         tasks,
         duration,

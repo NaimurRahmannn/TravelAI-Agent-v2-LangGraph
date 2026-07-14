@@ -3,13 +3,13 @@ from time import perf_counter
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
-from app.graph.state import TravelState
+from app.graph.subgraphs.research_state import ResearchState
 
 logger = get_logger(__name__)
 
 
 def visa_worker(
-    state: TravelState,
+    state: ResearchState,
     config: RunnableConfig,
 ) -> dict[str, dict[str, str]]:
     """Research simple visa guidance for the extracted destination."""
@@ -19,7 +19,7 @@ def visa_worker(
     destination = trip.destination if trip and trip.destination else "the destination"
     nationality = trip.origin if trip and trip.origin else "the traveler's nationality"
     logger.info(
-        "visa_worker entered destination=%s nationality=%s",
+        "ResearchGraph.Worker.visa entered destination=%s nationality=%s",
         destination,
         nationality,
     )
@@ -33,7 +33,7 @@ def visa_worker(
 
     duration = perf_counter() - started_at
     logger.info(
-        "visa_worker exited destination=%s nationality=%s duration=%.4fs",
+        "ResearchGraph.Worker.visa exited destination=%s nationality=%s duration=%.4fs",
         destination,
         nationality,
         duration,

@@ -10,13 +10,21 @@ from app.graph.nodes.research_dispatcher import (
 from app.graph.nodes.research_merger import research_merger
 from app.graph.nodes.visa_worker import visa_worker
 from app.graph.nodes.weather_worker import weather_worker
-from app.graph.state import TravelState
+from app.graph.subgraphs.research_state import (
+    ResearchInput,
+    ResearchOutput,
+    ResearchState,
+)
 
 
 def build_research_graph() -> Any:
     """Build the parallel research subgraph using LangGraph Send."""
 
-    builder = StateGraph(TravelState)
+    builder = StateGraph(
+        ResearchState,
+        input_schema=ResearchInput,
+        output_schema=ResearchOutput,
+    )
 
     builder.add_node("research_dispatcher", research_dispatcher_node)
     builder.add_node("weather_worker", weather_worker)
