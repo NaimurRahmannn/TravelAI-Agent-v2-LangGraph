@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
+
+StreamMode = Literal["updates", "messages", "debug"]
 
 
 class ChatRequest(BaseModel):
@@ -8,6 +10,7 @@ class ChatRequest(BaseModel):
 
     message: str
     thread_id: Optional[str] = None
+    stream_mode: StreamMode = "messages"
 
 
 class ChatResponse(BaseModel):

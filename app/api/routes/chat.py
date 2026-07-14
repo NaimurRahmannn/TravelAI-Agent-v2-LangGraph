@@ -11,4 +11,4 @@ service = GraphService()
 async def chat(request: ChatRequest) -> ChatResponse:
     """Handle a chat request through the graph service."""
 
-    return service.invoke(request)
+    return await service.ainvoke(request)
