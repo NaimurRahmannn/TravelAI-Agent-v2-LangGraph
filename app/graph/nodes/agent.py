@@ -1,6 +1,6 @@
 from time import perf_counter
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
@@ -24,8 +24,9 @@ def agent_node(
     )
 
     llm = get_tool_enabled_llm()
+    messages = _build_agent_messages(state)
     response = llm.invoke(
-        state["messages"],
+        messages,
         config=config,
     )
 
@@ -46,3 +47,24 @@ def agent_node(
             response,
         ],
     }
+
+
+def _build_agent_messages(state: TravelState) -> list[BaseMessage]:
+    """Return message history enriched with merged research context."""
+
+    messages: list[BaseMessage] = list(state["messages"])
+    research_summary = state.get("research_results", {}).get("summary")
+
+    if not research_summary:
+        return messages
+
+    return [
+        SystemMessage(
+            content=(
+                "Use this destination research when helpful. Do not mention "
+                "that it came from an internal research subgraph.\n\n"
+                f"{research_summary}"
+            )
+        ),
+        *messages,
+    ]

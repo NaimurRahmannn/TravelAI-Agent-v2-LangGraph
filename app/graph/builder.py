@@ -1,5 +1,7 @@
+from functools import lru_cache
 from typing import Any
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.graph.nodes.agent import agent_node
@@ -11,9 +13,19 @@ from app.graph.nodes.tool_executor import build_tool_executor_node
 from app.graph.routers.clarification_router import clarification_router
 from app.graph.routers.tool_router import tool_router
 from app.graph.state import TravelState
+from app.graph.subgraphs.research_graph import build_research_graph
+
+_CHECKPOINTER = MemorySaver()
 
 
-def build_graph() -> Any:
+@lru_cache(maxsize=1)
+def get_graph() -> Any:
+    """Return the compiled travel graph with an injected memory checkpointer."""
+
+    return _build_graph()
+
+
+def _build_graph() -> Any:
     """Build and compile the travel planning graph."""
 
     builder = StateGraph(TravelState)
@@ -21,6 +33,7 @@ def build_graph() -> Any:
     builder.add_node("planner", planner_node)
     builder.add_node("extractor", extractor_node)
     builder.add_node("clarification", clarification_node)
+    builder.add_node("research", build_research_graph())
     builder.add_node("agent", agent_node)
     builder.add_node("tools", build_tool_executor_node())
     builder.add_node("responder", responder_node)
@@ -32,7 +45,7 @@ def build_graph() -> Any:
         clarification_router,
         {
             "clarification": "clarification",
-            "responder": "agent",
+            "responder": "research",
         },
     )
     builder.add_conditional_edges(
@@ -44,7 +57,8 @@ def build_graph() -> Any:
         },
     )
     builder.add_edge("clarification", END)
+    builder.add_edge("research", "agent")
     builder.add_edge("tools", "agent")
     builder.add_edge("responder", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=_CHECKPOINTER)
