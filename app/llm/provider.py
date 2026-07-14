@@ -1,22 +1,17 @@
+from functools import lru_cache
+
 from langchain_groq import ChatGroq
 
-from app.config import (
-    GROQ_API_KEY,
-    MODEL_NAME,
-    TEMPERATURE,
-)
+from app.config import get_settings
 
 
+@lru_cache(maxsize=1)
 def get_llm() -> ChatGroq:
-    """
-    Return the application's default chat model.
+    """Return the singleton Groq chat model instance."""
 
-    Every graph node should obtain its LLM through this
-    function instead of instantiating ChatGroq directly.
-    """
-
+    settings = get_settings()
     return ChatGroq(
-        api_key=GROQ_API_KEY,
-        model=MODEL_NAME,
-        temperature=TEMPERATURE,
+        api_key=settings.GROQ_API_KEY,
+        model=settings.MODEL_NAME,
+        temperature=settings.TEMPERATURE,
     )

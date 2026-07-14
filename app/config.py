@@ -1,15 +1,24 @@
-from dotenv import load_dotenv
-import os
+from functools import lru_cache
 
-load_dotenv()
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-MODEL_NAME = os.getenv(
-    "MODEL_NAME",
-    "llama-3.3-70b-versatile"
-)
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
 
-TEMPERATURE = float(
-    os.getenv("TEMPERATURE", 0)
-)
+    GROQ_API_KEY: str
+    MODEL_NAME: str = "llama-3.3-70b-versatile"
+    TEMPERATURE: float = 0.0
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the cached application settings instance."""
+
+    return Settings()
