@@ -1,9 +1,17 @@
-from app.graph.builder import graph
+from fastapi import FastAPI
 
-result = graph.invoke(
-    {
-        "messages": []
-    }
+from app.api.routes.health import router as health_router
+
+app = FastAPI(
+    title="Travel AI Agent",
+    version="1.0.0",
 )
 
-print(result)
+app.include_router(health_router)
+
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Travel AI Agent"
+    }
