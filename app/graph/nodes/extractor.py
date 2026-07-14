@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
@@ -16,7 +18,12 @@ def extractor_node(
 ) -> dict[str, Trip | list[str] | bool]:
     """Extract structured trip details from the conversation state."""
 
-    logger.info("extractor_node started")
+    started_at = perf_counter()
+    logger.info(
+        "extractor_node entered tool_count=%s tool_names=%s",
+        0,
+        [],
+    )
     llm = get_llm()
 
     chain = (
@@ -36,7 +43,13 @@ def extractor_node(
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }
-    logger.info("extractor_node finished")
+    duration = perf_counter() - started_at
+    logger.info(
+        "extractor_node exited tool_count=%s tool_names=%s duration=%.4fs",
+        0,
+        [],
+        duration,
+    )
     return result
 
 
