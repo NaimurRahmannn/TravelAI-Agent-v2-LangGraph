@@ -1,24 +1,29 @@
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.llm import get_llm
 from app.models import Trip
+
+from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
-from app.graph.prompts.extractor import EXTRACT_TRIP_PROMPT
 
 
-def extractor_node(state: TravelState):
-
+def extractor_node(
+    state: TravelState,
+    config: RunnableConfig,
+):
     llm = get_llm()
 
-    structured_llm = llm.with_structured_output(Trip)
+    chain = (
+        extractor_prompt
+        | llm.with_structured_output(Trip)
+    )
 
-    messages = [
-        SystemMessage(content=EXTRACT_TRIP_PROMPT),
-        *state["messages"],
-    ]
-
-    trip = structured_llm.invoke(messages)
+    trip = chain.invoke(
+        {
+            "messages": state["messages"],
+        }
+    )
 
     return {
-        "trip": trip
+        "trip": trip,
     }

@@ -1,14 +1,22 @@
-EXTRACT_TRIP_PROMPT = """
-You are an expert travel information extractor.
+from langchain_core.prompts import ChatPromptTemplate
 
-Extract the user's travel information.
+extractor_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+You are a travel information extraction assistant.
 
-Only extract information explicitly mentioned.
+Extract every travel detail.
 
-Do NOT guess.
+Do not guess.
 
-If information is missing,
-leave the field empty.
-
-Return structured data.
-"""
+Return structured output.
+""",
+        ),
+        (
+            "placeholder",
+            "{messages}",
+        ),
+    ]
+)
