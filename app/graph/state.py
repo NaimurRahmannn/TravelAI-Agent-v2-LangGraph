@@ -32,3 +32,7 @@ class TravelState(MessagesState):
     missing_fields: list[str]
     needs_clarification: bool
     research_results: Annotated[dict[str, str], merge_research_results]
+    approval_required: bool
+    approval_context: dict | None
+    approved: bool | None
+    response: str

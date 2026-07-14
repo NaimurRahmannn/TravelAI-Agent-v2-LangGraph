@@ -25,11 +25,14 @@ def responder_node(
         tool_names,
     )
 
-    final_message = messages[-1]
-    if isinstance(final_message, AIMessage):
-        response = _message_content_to_text(final_message.content)
+    if state.get("response"):
+        response = state["response"]
     else:
-        response = _message_content_to_text(final_message.content)
+        final_message = messages[-1]
+        if isinstance(final_message, AIMessage):
+            response = _message_content_to_text(final_message.content)
+        else:
+            response = _message_content_to_text(final_message.content)
 
     result = {
         "response": response,

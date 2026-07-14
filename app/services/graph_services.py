@@ -6,9 +6,11 @@ from uuid import uuid4
 from fastapi import HTTPException
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command
 
 from app.core.logging import get_logger
 from app.graph.builder import get_graph
+from app.schemas.approval import ApprovalRequest, ApprovalResponse
 from app.schemas.api import ChatRequest, ChatResponse, StreamMode
 
 logger = get_logger(__name__)
@@ -37,6 +39,11 @@ class GraphService:
                 self.build_input(request),
                 config=config,
             )
+            if "__interrupt__" in result:
+                return ChatResponse(
+                    response="Approval required before continuing.",
+                    thread_id=thread_id,
+                )
 
             logger.info("checkpoint save thread_id=%s", thread_id)
             self._graph.get_state(config)
@@ -67,6 +74,11 @@ class GraphService:
                 self.build_input(request),
                 config=config,
             )
+            if "__interrupt__" in result:
+                return ChatResponse(
+                    response="Approval required before continuing.",
+                    thread_id=thread_id,
+                )
 
             logger.info("checkpoint save thread_id=%s", thread_id)
             await self._graph.aget_state(config)
@@ -80,6 +92,82 @@ class GraphService:
             raise HTTPException(
                 status_code=500,
                 detail="Failed to process chat request.",
+            ) from exc
+
+    def resume(self, request: ApprovalRequest) -> ApprovalResponse:
+        """Resume an interrupted graph after a human approval decision."""
+
+        started_at = perf_counter()
+        config = self.build_config(request.thread_id)
+
+        try:
+            logger.info(
+                "interrupt resumed thread_id=%s approved=%s",
+                request.thread_id,
+                request.approved,
+            )
+            self._graph.invoke(
+                Command(
+                    resume={
+                        "approved": request.approved,
+                    }
+                ),
+                config=config,
+            )
+            duration = perf_counter() - started_at
+            logger.info(
+                "resume duration thread_id=%s approved=%s duration=%.4fs",
+                request.thread_id,
+                request.approved,
+                duration,
+            )
+            return ApprovalResponse(
+                status="accepted" if request.approved else "rejected",
+                thread_id=request.thread_id,
+            )
+        except Exception as exc:
+            logger.exception("Graph resume failed thread_id=%s", request.thread_id)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to resume chat request.",
+            ) from exc
+
+    async def aresume(self, request: ApprovalRequest) -> ApprovalResponse:
+        """Resume an interrupted graph asynchronously after human approval."""
+
+        started_at = perf_counter()
+        config = self.build_config(request.thread_id)
+
+        try:
+            logger.info(
+                "interrupt resumed thread_id=%s approved=%s",
+                request.thread_id,
+                request.approved,
+            )
+            await self._graph.ainvoke(
+                Command(
+                    resume={
+                        "approved": request.approved,
+                    }
+                ),
+                config=config,
+            )
+            duration = perf_counter() - started_at
+            logger.info(
+                "resume duration thread_id=%s approved=%s duration=%.4fs",
+                request.thread_id,
+                request.approved,
+                duration,
+            )
+            return ApprovalResponse(
+                status="accepted" if request.approved else "rejected",
+                thread_id=request.thread_id,
+            )
+        except Exception as exc:
+            logger.exception("Async graph resume failed thread_id=%s", request.thread_id)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to resume chat request.",
             ) from exc
 
     def stream(

@@ -5,11 +5,17 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.graph.nodes.agent import agent_node
+from app.graph.nodes.approval import (
+    approval_decision_router,
+    approval_gate_node,
+    approval_node,
+)
 from app.graph.nodes.clarification import clarification_node
 from app.graph.nodes.extractor import extractor_node
 from app.graph.nodes.planner import planner_node
 from app.graph.nodes.responder import responder_node
 from app.graph.nodes.tool_executor import build_tool_executor_node
+from app.graph.routers.approval_router import approval_router
 from app.graph.routers.clarification_router import clarification_router
 from app.graph.routers.tool_router import tool_router
 from app.graph.state import TravelState
@@ -35,6 +41,8 @@ def _build_graph() -> Any:
     builder.add_node("clarification", clarification_node)
     builder.add_node("research", build_research_graph())
     builder.add_node("agent", agent_node)
+    builder.add_node("approval_gate", approval_gate_node)
+    builder.add_node("approval", approval_node)
     builder.add_node("tools", build_tool_executor_node())
     builder.add_node("responder", responder_node)
 
@@ -51,6 +59,22 @@ def _build_graph() -> Any:
     builder.add_conditional_edges(
         "agent",
         tool_router,
+        {
+            "approval_gate": "approval_gate",
+            "responder": "responder",
+        },
+    )
+    builder.add_conditional_edges(
+        "approval_gate",
+        approval_router,
+        {
+            "approval": "approval",
+            "tools": "tools",
+        },
+    )
+    builder.add_conditional_edges(
+        "approval",
+        approval_decision_router,
         {
             "tools": "tools",
             "responder": "responder",

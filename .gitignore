@@ -1,26 +1,50 @@
 
-# Virtual Environment
+# Virtual environments
 venv/
+.venv/
+env/
 
-# Environment Variables
+# Environment variables
 .env
+.env.*
+!.env.example
+!.env.local.example
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
 
-# VS Code
+# Next.js / Node
+node_modules/
+.next/
+out/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors
 .vscode/
+.idea/
 
-# macOS
+# OS files
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log
-
-# Pytest
-.pytest_cache/
-
-# Coverage
-.coverage
-htmlcov/
