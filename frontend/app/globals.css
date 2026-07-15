@@ -51,6 +51,7 @@ textarea:disabled {
 .shell {
   display: grid;
   grid-template-columns: 312px minmax(0, 1fr);
+  height: 100vh;
   min-height: 100vh;
 }
 
@@ -224,7 +225,11 @@ textarea:disabled {
 }
 
 .workspace {
+  display: flex;
+  min-height: 0;
   min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
   padding: 20px;
 }
 
@@ -257,7 +262,8 @@ textarea:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
-  min-height: calc(100vh - 104px);
+  flex: 1;
+  min-height: 0;
 }
 
 .chatSurface,
@@ -272,11 +278,13 @@ textarea:disabled {
 .chatSurface {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
   overflow: hidden;
 }
 
 .messages {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   gap: 12px;
   overflow: auto;
@@ -402,6 +410,7 @@ textarea:disabled {
 
 .eventList {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   gap: 10px;
   overflow: auto;
