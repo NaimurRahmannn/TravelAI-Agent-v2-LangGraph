@@ -1,3 +1,3 @@
 from .trip import Trip
-
-__all__=["Trip"]
+from .itinerary import Itinerary, ItineraryDay, BudgetBreakdown
+__all__=["Trip", "Itinerary", "ItineraryDay", "BudgetBreakdown"]

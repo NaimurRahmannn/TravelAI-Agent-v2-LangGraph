@@ -193,42 +193,31 @@ def _build_preference_instruction(preferences: list[str]) -> str:
 
 
 def _build_relevant_history(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Keep user history and the active tool exchange, dropping stale final answers."""
+    """Keep prior human messages plus the full tool exchange for the current turn."""
 
-    relevant_messages: list[BaseMessage] = [
+    last_human_index = _get_last_human_message_index(messages)
+    if last_human_index == -1:
+        return list(messages)
+
+    prior_human_messages = [
         message
-        for message in messages
+        for message in messages[:last_human_index]
         if isinstance(message, HumanMessage)
     ]
 
-    active_tool_messages = _get_active_tool_exchange(messages)
-    relevant_messages.extend(active_tool_messages)
+    current_turn_messages = messages[last_human_index:]
 
-    return relevant_messages
+    return [*prior_human_messages, *current_turn_messages]
 
 
-def _get_active_tool_exchange(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Return the latest AI tool-call message and its ToolMessages, if present."""
+def _get_last_human_message_index(messages: list[BaseMessage]) -> int:
+    """Return the index of the most recent human message, or -1 if none exists."""
 
-    last_tool_message_index = -1
-    for index, message in enumerate(messages):
-        if isinstance(message, ToolMessage):
-            last_tool_message_index = index
+    for index in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[index], HumanMessage):
+            return index
 
-    if last_tool_message_index == -1:
-        return []
-
-    tool_call_index = -1
-    for index in range(last_tool_message_index, -1, -1):
-        message = messages[index]
-        if isinstance(message, AIMessage) and message.tool_calls:
-            tool_call_index = index
-            break
-
-    if tool_call_index == -1:
-        return []
-
-    return list(messages[tool_call_index : last_tool_message_index + 1])
+    return -1
 
 
 def _build_approval_context(message: AIMessage) -> dict[str, Any] | None:

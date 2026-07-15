@@ -25,14 +25,13 @@ def responder_node(
         tool_names,
     )
 
-    if state.get("response"):
-        response = state["response"]
+    final_message = messages[-1] if messages else None
+    if isinstance(final_message, AIMessage):
+        response = _message_content_to_text(final_message.content)
     else:
-        final_message = messages[-1]
-        if isinstance(final_message, AIMessage):
-            response = _message_content_to_text(final_message.content)
-        else:
-            response = _message_content_to_text(final_message.content)
+        # No fresh AI message to read from (e.g. edge case) — fall back
+        # to whatever was last stored, instead of caching it as truth.
+        response = state.get("response", "")
 
     result = {
         "response": response,
@@ -45,7 +44,6 @@ def responder_node(
         duration,
     )
     return result
-
 
 def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
     """Return tool names requested by the latest AI message."""

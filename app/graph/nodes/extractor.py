@@ -1,5 +1,6 @@
 from time import perf_counter
 
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
@@ -16,7 +17,7 @@ def extractor_node(
     state: TravelState,
     config: RunnableConfig,
 ) -> dict[str, Trip | list[str] | bool]:
-    """Extract structured trip details from the conversation state."""
+    """Extract structured trip details from the latest user message."""
 
     started_at = perf_counter()
     logger.info(
@@ -31,10 +32,12 @@ def extractor_node(
         | llm.with_structured_output(Trip)
     )
 
+    latest_user_message = _get_latest_human_message(state["messages"])
+
     extracted_trip = chain.invoke(
         {
             "existing_trip": _format_existing_trip(state.get("trip")),
-            "messages": state["messages"],
+            "messages": [latest_user_message] if latest_user_message else [],
         }
     )
 
@@ -56,6 +59,16 @@ def extractor_node(
         duration,
     )
     return result
+
+
+def _get_latest_human_message(messages: list[BaseMessage]) -> HumanMessage | None:
+    """Return the most recent human message, if any."""
+
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            return message
+
+    return None
 
 
 def _get_missing_required_fields(trip: Trip) -> list[str]:
