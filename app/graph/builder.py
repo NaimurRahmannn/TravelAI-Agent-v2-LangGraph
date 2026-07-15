@@ -12,6 +12,7 @@ from app.graph.nodes.approval import (
 )
 from app.graph.nodes.clarification import clarification_node
 from app.graph.nodes.extractor import extractor_node
+from app.graph.nodes.itinerary import itinerary_node
 from app.graph.nodes.planner import planner_node
 from app.graph.nodes.responder import responder_node
 from app.graph.nodes.tool_executor import build_tool_executor_node
@@ -44,6 +45,7 @@ def _build_graph() -> Any:
     builder.add_node("approval_gate", approval_gate_node)
     builder.add_node("approval", approval_node)
     builder.add_node("tools", build_tool_executor_node())
+    builder.add_node("itinerary", itinerary_node)
     builder.add_node("responder", responder_node)
 
     builder.add_edge(START, "planner")
@@ -61,7 +63,7 @@ def _build_graph() -> Any:
         tool_router,
         {
             "approval_gate": "approval_gate",
-            "responder": "responder",
+            "responder": "itinerary",       # normal completion -> format it
         },
     )
     builder.add_conditional_edges(
@@ -77,12 +79,14 @@ def _build_graph() -> Any:
         approval_decision_router,
         {
             "tools": "tools",
-            "responder": "responder",
+            "responder": "responder",       # rejection -> straight to responder, skip itinerary
         },
     )
+
     builder.add_edge("clarification", END)
     builder.add_edge("research", "agent")
     builder.add_edge("tools", "agent")
+    builder.add_edge("itinerary", "responder")
     builder.add_edge("responder", END)
 
     return builder.compile(checkpointer=_CHECKPOINTER)

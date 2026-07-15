@@ -9,6 +9,7 @@ from app.models import Trip
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
+from app.services.currency_converter import convert_to_usd
 
 logger = get_logger(__name__)
 
@@ -38,13 +39,16 @@ def extractor_node(
         {
             "existing_trip": _format_existing_trip(state.get("trip")),
             "messages": [latest_user_message] if latest_user_message else [],
-        }
+        },
+        config=config,
     )
 
     trip = _merge_trip(
         existing_trip=state.get("trip"),
         extracted_trip=extracted_trip,
     )
+    trip = _normalize_budget_to_usd(trip)
+
     missing_fields = _get_missing_required_fields(trip)
     result = {
         "trip": trip,
@@ -137,3 +141,28 @@ def _format_existing_trip(trip: Trip | None) -> str:
         return "None"
 
     return trip.model_dump_json()
+
+
+def _normalize_budget_to_usd(trip: Trip) -> Trip:
+    """Convert a stated budget into USD so downstream math is consistent."""
+
+    if trip.budget is None or not trip.currency:
+        return trip
+
+    code = trip.currency.strip().upper()
+    if code in ("USD", "US$", "$"):
+        return trip
+
+    converted_budget = convert_to_usd(trip.budget, code)
+    if converted_budget is None:
+        # Live rate unavailable (bad code, network hiccup, etc.) — keep the
+        # original figure rather than guessing at a rate.
+        logger.warning("no exchange rate available for currency=%s", code)
+        return trip
+
+    return trip.model_copy(
+        update={
+            "budget_original": trip.budget,
+            "budget": converted_budget,
+        }
+    )

@@ -12,10 +12,13 @@ def get_llm() -> ChatGroq:
     """Return the singleton Groq chat model instance."""
 
     settings = get_settings()
+    # app/llm/provider.py
     return ChatGroq(
         api_key=settings.GROQ_API_KEY,
         model=settings.MODEL_NAME,
         temperature=settings.TEMPERATURE,
+        timeout=30,
+        max_retries=0,   # fail fast — retrying won't help against a daily cap anyway
     )
 
 
