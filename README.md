@@ -4,8 +4,6 @@ An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, 
 
 The repository contains both the Python API and a browser client for regular chat, server-sent event streaming, thread continuation, and human approval workflows.
 
-![Travel AI Agent architecture](docs/architecture_diagram.png)
-
 ## Table of Contents
 
 - [Highlights](#highlights)
@@ -368,6 +366,4 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - The existing test is an integration smoke test; broad automated test coverage is still needed.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 
-## License
 
-No license file is currently included. Add one before distributing or accepting external contributions.
