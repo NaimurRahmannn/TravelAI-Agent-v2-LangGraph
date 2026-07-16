@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
 
     message: str
     thread_id: Optional[str] = None
+    user_id: Optional[str] = None
     stream_mode: StreamMode = "messages"
 
 

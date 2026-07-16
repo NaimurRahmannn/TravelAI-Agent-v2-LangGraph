@@ -276,11 +276,12 @@ class GraphService:
         }
 
     @staticmethod
-    def build_input(request: ChatRequest) -> dict[str, list[HumanMessage]]:
+    def build_input(request: ChatRequest) -> dict[str, list[HumanMessage] | str | None]:
         """Build the graph input from an API chat request."""
 
         return {
             "messages": [
                 HumanMessage(content=request.message),
             ],
+            "user_id": request.user_id,
         }

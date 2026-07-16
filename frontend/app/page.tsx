@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  Brain,
   Check,
   CircleAlert,
   Compass,
+  KeyRound,
   Loader2,
   Play,
   RefreshCcw,
@@ -13,7 +15,7 @@ import {
   SquareActivity,
   X,
 } from "lucide-react";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveAction,
   sendChat,
@@ -30,9 +32,11 @@ type ChatMessage = {
 
 const SUGGESTIONS = [
   "I want to visit Japan from Bangladesh for 7 days with a budget of $2000",
-  "I prefer temples, food, and nature.",
+  "Remember this: I am vegetarian and I prefer slow-paced trips.",
   "Plan a Thailand trip for 5 days under $1200 from Dhaka.",
 ];
+
+const TRAVELER_ID_STORAGE_KEY = "travel-ai-user-id";
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -45,6 +49,7 @@ export default function Home() {
   ]);
   const [input, setInput] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
   const [streamMode, setStreamMode] = useState<StreamMode>("messages");
   const [useStreaming, setUseStreaming] = useState(false);
   const [events, setEvents] = useState<StreamEvent[]>([]);
@@ -60,6 +65,14 @@ export default function Home() {
         .reverse(),
     [events],
   );
+
+  useEffect(() => {
+    const savedUserId = window.localStorage.getItem(TRAVELER_ID_STORAGE_KEY);
+    const nextUserId = savedUserId || `traveler-${crypto.randomUUID()}`;
+
+    window.localStorage.setItem(TRAVELER_ID_STORAGE_KEY, nextUserId);
+    setUserId(nextUserId);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,6 +124,7 @@ export default function Home() {
     const response = await sendChat({
       message,
       thread_id: threadId,
+      user_id: userId || null,
     });
 
     setThreadId(response.thread_id);
@@ -142,6 +156,7 @@ export default function Home() {
       {
         message,
         thread_id: threadId,
+        user_id: userId || null,
         stream_mode: streamMode,
       },
       (event) => {
@@ -209,6 +224,23 @@ export default function Home() {
     ]);
   }
 
+  function resetTravelerMemory() {
+    const nextUserId = `traveler-${crypto.randomUUID()}`;
+
+    window.localStorage.setItem(TRAVELER_ID_STORAGE_KEY, nextUserId);
+    setUserId(nextUserId);
+    setThreadId(null);
+    setEvents([]);
+    setError(null);
+    setMessages([
+      {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: "New traveler profile started. Long-term memory will use the new traveler id.",
+      },
+    ]);
+  }
+
   function applySuggestion(suggestion: string) {
     setInput(suggestion);
     inputRef.current?.focus();
@@ -238,6 +270,25 @@ export default function Home() {
           <button className="secondaryButton" type="button" onClick={resetThread}>
             <RefreshCcw size={16} />
             Reset
+          </button>
+        </section>
+
+        <section className="panel memoryPanel">
+          <div className="panelHeader">
+            <Brain size={16} />
+            <span>Traveler Memory</span>
+          </div>
+          <div className="memoryState">
+            <KeyRound size={15} />
+            <span>{userId || "Creating traveler id..."}</span>
+          </div>
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={resetTravelerMemory}
+          >
+            <RefreshCcw size={16} />
+            New traveler
           </button>
         </section>
 
@@ -301,7 +352,7 @@ export default function Home() {
         <div className="chatHeader">
           <div>
             <h2>Trip Conversation</h2>
-            <p>Ask, refine, stream, and continue the same itinerary thread.</p>
+            <p>Ask, refine, stream, and reuse traveler preferences across threads.</p>
           </div>
           <div className="statusPill">
             {isLoading ? <Loader2 className="spin" size={16} /> : <Play size={16} />}

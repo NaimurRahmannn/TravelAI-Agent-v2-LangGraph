@@ -3,6 +3,7 @@ export type StreamMode = "updates" | "messages" | "debug";
 export type ChatRequest = {
   message: string;
   thread_id?: string | null;
+  user_id?: string | null;
   stream_mode?: StreamMode;
 };
 

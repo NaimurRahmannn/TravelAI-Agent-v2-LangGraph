@@ -28,12 +28,14 @@ class MemoryService:
                 "config": {
                     "collection_name": "travel_ai_memories",
                     "path": settings.MEM0_VECTOR_STORE_PATH,
+                    "embedding_model_dims": settings.MEM0_EMBEDDING_DIMS,
                 },
             },
             "embedder": {
                 "provider": settings.MEM0_EMBEDDER_PROVIDER,
                 "config": {
                     "model": settings.MEM0_EMBEDDER_MODEL,
+                    "embedding_dims": settings.MEM0_EMBEDDING_DIMS,
                 },
             },
             "llm": {

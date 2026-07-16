@@ -24,6 +24,7 @@ The repository contains both the Python API and a browser client for regular cha
 ## Highlights
 
 - Stateful, multi-turn travel conversations identified by a `thread_id`
+- Long-term traveler memory keyed by `user_id` through Mem0 and Qdrant
 - Structured extraction of destination, origin, dates, duration, budget, travelers, and preferences
 - Clarification prompts when destination, duration, or budget is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
@@ -49,7 +50,8 @@ flowchart TD
     E1 --> F[Research merger]
     E2 --> F
     E3 --> F
-    F --> G[Travel agent]
+    F --> N[Recall traveler memories]
+    N --> G[Travel agent]
     G -->|No tool calls| H[Itinerary formatter]
     G -->|Tool calls| I[Approval gate]
     I -->|Approval required| J[Human decision]
@@ -59,10 +61,12 @@ flowchart TD
     K --> G
     H --> L
     D --> M[Response]
-    L --> M
+    L --> O[Write durable traveler facts]
+    O --> M
 ```
 
 Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's in-memory checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
+When the client also supplies a stable `user_id`, Mem0 recalls and writes durable traveler facts across threads. Anonymous requests skip long-term personalization.
 
 ## Technology
 
@@ -177,6 +181,11 @@ Settings are loaded from environment variables and `app/.env`.
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to Groq |
 | `MODEL_NAME` | No | `llama-3.3-70b-versatile` | Groq chat model used by graph nodes |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
+| `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
+| `MEM0_VECTOR_STORE_PATH` | No | `app/.mem0/qdrant` | Local embedded Qdrant storage path |
+| `MEM0_EMBEDDER_PROVIDER` | No | `huggingface` | Mem0 embedder provider for traveler memory search |
+| `MEM0_EMBEDDER_MODEL` | No | `multi-qa-MiniLM-L6-cos-v1` | Hugging Face embedding model used by Mem0 |
+| `MEM0_EMBEDDING_DIMS` | No | `384` | Vector dimension for the configured embedding model |
 
 Restart the backend after changing these values because settings and LLM clients are cached for the process lifetime.
 
@@ -209,7 +218,8 @@ Content-Type: application/json
 
 ```json
 {
-  "message": "Plan a 7-day Japan trip from Bangladesh with a $2000 budget"
+  "message": "Plan a 7-day Japan trip from Bangladesh with a $2000 budget",
+  "user_id": "traveler-123"
 }
 ```
 
@@ -227,9 +237,12 @@ Send the same `thread_id` with follow-up messages to preserve context:
 ```json
 {
   "message": "Add more temples, local food, and nature",
-  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162"
+  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162",
+  "user_id": "traveler-123"
 }
 ```
+
+`thread_id` restores the current conversation. `user_id` enables long-term traveler memory across conversations. If `user_id` is omitted, memory recall and writes are skipped and the chat still works normally.
 
 ### Stream a message
 
@@ -242,6 +255,7 @@ Content-Type: application/json
 ```json
 {
   "message": "Plan a 5-day Thailand trip from Dhaka under $1200",
+  "user_id": "traveler-123",
   "stream_mode": "messages"
 }
 ```
@@ -313,6 +327,8 @@ The compiled graph currently uses LangGraph's `MemorySaver`:
 
 For production, replace `MemorySaver` in `app/graph/builder.py` with durable shared persistence and add an expiration policy for abandoned threads.
 
+Long-term traveler facts are separate from the checkpointer. Mem0 stores durable preferences and constraints in Qdrant under `user_id`, so a returning traveler can be personalized even when they start a new `thread_id`.
+
 ## Development
 
 ### Backend smoke test
@@ -365,5 +381,4 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - No authentication or per-user thread ownership is implemented.
 - The existing test is an integration smoke test; broad automated test coverage is still needed.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
-
 

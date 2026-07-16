@@ -13,6 +13,8 @@ from app.graph.nodes.approval import (
 from app.graph.nodes.clarification import clarification_node
 from app.graph.nodes.extractor import extractor_node
 from app.graph.nodes.itinerary import itinerary_node
+from app.graph.nodes.memory_recall import memory_recall_node
+from app.graph.nodes.memory_write import memory_write_node
 from app.graph.nodes.planner import planner_node
 from app.graph.nodes.responder import responder_node
 from app.graph.nodes.tool_executor import build_tool_executor_node
@@ -47,6 +49,8 @@ def _build_graph() -> Any:
     builder.add_node("tools", build_tool_executor_node())
     builder.add_node("itinerary", itinerary_node)
     builder.add_node("responder", responder_node)
+    builder.add_node("memory_recall", memory_recall_node)
+    builder.add_node("memory_write", memory_write_node)
 
     builder.add_edge(START, "planner")
     builder.add_edge("planner", "extractor")
@@ -84,9 +88,15 @@ def _build_graph() -> Any:
     )
 
     builder.add_edge("clarification", END)
-    builder.add_edge("research", "agent")
+    # Recall after trip extraction/research routing so clarification-only turns
+    # stay lightweight, but before the agent reasons over a complete trip.
+    builder.add_edge("research", "memory_recall")
+    builder.add_edge("memory_recall", "agent")
     builder.add_edge("tools", "agent")
     builder.add_edge("itinerary", "responder")
-    builder.add_edge("responder", END)
+    # Only final responses are written; clarification prompts skip Mem0 because
+    # they rarely contain durable traveler facts and must remain a short-circuit.
+    builder.add_edge("responder", "memory_write")
+    builder.add_edge("memory_write", END)
 
     return builder.compile(checkpointer=_CHECKPOINTER)

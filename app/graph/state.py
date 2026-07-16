@@ -27,6 +27,7 @@ class PlannerState(TypedDict):
 class TravelState(MessagesState):
     """Shared state passed between travel graph nodes."""
 
+    user_id: str | None
     planner: PlannerState
     trip: Trip | None
     missing_fields: list[str]
@@ -36,3 +37,4 @@ class TravelState(MessagesState):
     approval_context: dict | None
     approved: bool | None
     response: str
+    long_term_memories: list[str]

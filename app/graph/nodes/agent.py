@@ -71,7 +71,11 @@ def _build_agent_messages(state: TravelState) -> list[BaseMessage]:
 
     messages = _build_relevant_history(state["messages"])
     context_messages = [_build_trip_context_message(state)]
+    memory_message = _build_memory_context_message(state)
     research_summary = state.get("research_results", {}).get("summary")
+
+    if memory_message:
+        context_messages.append(memory_message)
 
     if research_summary:
         context_messages.append(
@@ -111,6 +115,22 @@ def _build_trip_context_message(state: TravelState) -> SystemMessage:
             f"{preference_instruction}"
             f"Current trip state:\n{trip_details}\n\n"
             f"Latest user message:\n{latest_user_message}"
+        )
+    )
+
+
+def _build_memory_context_message(state: TravelState) -> SystemMessage | None:
+    """Build durable traveler memory context for the agent, when available."""
+
+    memories = state.get("long_term_memories", [])
+    if not memories:
+        return None
+
+    return SystemMessage(
+        content=(
+            "Known facts about this traveler from past conversations. Use only "
+            "when relevant, and do not force them into the response.\n\n"
+            + "\n".join(f"- {memory}" for memory in memories)
         )
     )
 

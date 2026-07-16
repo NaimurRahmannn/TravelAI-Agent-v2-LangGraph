@@ -138,6 +138,35 @@ textarea:disabled {
   line-height: 1.45;
 }
 
+.memoryPanel {
+  background: #fbf7ef;
+}
+
+.memoryState {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 48px;
+  border: 1px solid #ead8ba;
+  border-radius: 6px;
+  background: #fffaf2;
+  padding: 10px;
+  color: #5f4318;
+}
+
+.memoryState svg {
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.memoryState span {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .secondaryButton,
 .composer button {
   display: inline-flex;
