@@ -186,6 +186,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `MEM0_EMBEDDER_PROVIDER` | No | `huggingface` | Mem0 embedder provider for traveler memory search |
 | `MEM0_EMBEDDER_MODEL` | No | `multi-qa-MiniLM-L6-cos-v1` | Hugging Face embedding model used by Mem0 |
 | `MEM0_EMBEDDING_DIMS` | No | `384` | Vector dimension for the configured embedding model |
+| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated frontend origins allowed to call the API |
 
 Restart the backend after changing these values because settings and LLM clients are cached for the process lifetime.
 
@@ -381,4 +382,3 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - No authentication or per-user thread ownership is implemented.
 - The existing test is an integration smoke test; broad automated test coverage is still needed.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
-
