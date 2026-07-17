@@ -1,9 +1,9 @@
-import sqlite3
-from functools import lru_cache
+import asyncio
 from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+import aiosqlite
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from app.config import get_settings
@@ -27,35 +27,34 @@ from app.graph.routers.tool_router import tool_router
 from app.graph.state import TravelState
 from app.graph.subgraphs.research_graph import build_research_graph
 
-def _build_checkpointer() -> SqliteSaver:
-    """Return a SQLite-backed checkpointer.
-
-    The old MemorySaver kept every thread's full state in a plain Python
-    dict for the life of the process, so RAM climbed with every new
-    conversation and never came back down. SQLite writes checkpoints to
-    disk instead, so the process's own memory footprint stays flat
-    regardless of how many threads have been created.
-    """
-
+async def _build_checkpointer() -> AsyncSqliteSaver:
     db_path = Path(get_settings().CHECKPOINTER_SQLITE_PATH)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
-    saver = SqliteSaver(conn)
-    saver.setup()  # idempotent - creates tables on first run only
+    conn = await aiosqlite.connect(str(db_path))
+    saver = AsyncSqliteSaver(conn)
+    await saver.setup()  # idempotent - creates tables on first run only
     return saver
 
 
-_CHECKPOINTER = _build_checkpointer()
+_graph: Any | None = None
+_build_lock = asyncio.Lock()
 
 
-@lru_cache(maxsize=1)
-def get_graph() -> Any:
-    """Return the compiled travel graph with an injected memory checkpointer."""
+async def get_graph() -> Any:
+    global _graph
 
-    return _build_graph()
+    if _graph is not None:
+        return _graph
+
+    async with _build_lock:
+        if _graph is None:
+            checkpointer = await _build_checkpointer()
+            _graph = _build_graph(checkpointer)
+
+    return _graph
 
 
-def _build_graph() -> Any:
+def _build_graph(checkpointer: AsyncSqliteSaver) -> Any:
     """Build and compile the travel planning graph."""
 
     builder = StateGraph(TravelState)
@@ -120,4 +119,4 @@ def _build_graph() -> Any:
     builder.add_edge("responder", "memory_write")
     builder.add_edge("memory_write", END)
 
-    return builder.compile(checkpointer=_CHECKPOINTER)
+    return builder.compile(checkpointer=checkpointer)

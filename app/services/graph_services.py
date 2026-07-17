@@ -20,44 +20,35 @@ class GraphService:
     """Application service responsible for invoking and streaming the graph."""
 
     def __init__(self) -> None:
-        """Load the singleton compiled graph with its MemorySaver checkpointer."""
+        """Construct the service. The compiled graph is fetched lazily.
 
-        self._graph = get_graph()
+        get_graph() is async (AsyncSqliteSaver needs a running event loop
+        to open its connection), so it can't be resolved here in a plain
+        __init__. Each call below awaits self._get_graph() instead, which
+        builds the graph once on first use and reuses it after that.
+        """
+
+    @staticmethod
+    async def _get_graph() -> Any:
+        """Return the shared compiled graph, building it on first use."""
+
+        return await get_graph()
 
     def invoke(self, request: ChatRequest) -> ChatResponse:
-        """Invoke the travel graph synchronously and return a typed response."""
+        """Synchronous invocation is not supported.
 
-        thread_id = self.resolve_thread_id(request.thread_id)
-        config = self.build_config(thread_id)
+        The graph is compiled with AsyncSqliteSaver, which only implements
+        the async checkpoint API (mirroring the original bug in reverse:
+        AsyncSqliteSaver.get_state()/.invoke() raise, only the a-prefixed
+        methods work). Nothing in this app's routes calls this method; use
+        ainvoke instead.
+        """
 
-        try:
-            logger.info("checkpoint load thread_id=%s", thread_id)
-            self._graph.get_state(config)
-            logger.info("graph invocation started thread_id=%s", thread_id)
-
-            result = self._graph.invoke(
-                self.build_input(request),
-                config=config,
-            )
-            if "__interrupt__" in result:
-                return ChatResponse(
-                    response="Approval required before continuing.",
-                    thread_id=thread_id,
-                )
-
-            logger.info("checkpoint save thread_id=%s", thread_id)
-            self._graph.get_state(config)
-            logger.info("graph invocation finished thread_id=%s", thread_id)
-            return ChatResponse(
-                response=result["response"],
-                thread_id=thread_id,
-            )
-        except Exception as exc:
-            logger.exception("Graph invocation failed thread_id=%s", thread_id)
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to process chat request.",
-            ) from exc
+        raise HTTPException(
+            status_code=501,
+            detail="Synchronous graph execution isn't supported with the "
+            "async SQLite checkpointer. Use ainvoke instead.",
+        )
 
     async def ainvoke(self, request: ChatRequest) -> ChatResponse:
         """Invoke the travel graph asynchronously and return a typed response."""
@@ -66,11 +57,12 @@ class GraphService:
         config = self.build_config(thread_id)
 
         try:
+            graph = await self._get_graph()
             logger.info("checkpoint load thread_id=%s", thread_id)
-            await self._graph.aget_state(config)
+            await graph.aget_state(config)
             logger.info("graph async invocation started thread_id=%s", thread_id)
 
-            result = await self._graph.ainvoke(
+            result = await graph.ainvoke(
                 self.build_input(request),
                 config=config,
             )
@@ -81,7 +73,7 @@ class GraphService:
                 )
 
             logger.info("checkpoint save thread_id=%s", thread_id)
-            await self._graph.aget_state(config)
+            await graph.aget_state(config)
             logger.info("graph async invocation finished thread_id=%s", thread_id)
             return ChatResponse(
                 response=result["response"],
@@ -95,42 +87,13 @@ class GraphService:
             ) from exc
 
     def resume(self, request: ApprovalRequest) -> ApprovalResponse:
-        """Resume an interrupted graph after a human approval decision."""
+        """Synchronous resume is not supported; see invoke() docstring."""
 
-        started_at = perf_counter()
-        config = self.build_config(request.thread_id)
-
-        try:
-            logger.info(
-                "interrupt resumed thread_id=%s approved=%s",
-                request.thread_id,
-                request.approved,
-            )
-            self._graph.invoke(
-                Command(
-                    resume={
-                        "approved": request.approved,
-                    }
-                ),
-                config=config,
-            )
-            duration = perf_counter() - started_at
-            logger.info(
-                "resume duration thread_id=%s approved=%s duration=%.4fs",
-                request.thread_id,
-                request.approved,
-                duration,
-            )
-            return ApprovalResponse(
-                status="accepted" if request.approved else "rejected",
-                thread_id=request.thread_id,
-            )
-        except Exception as exc:
-            logger.exception("Graph resume failed thread_id=%s", request.thread_id)
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to resume chat request.",
-            ) from exc
+        raise HTTPException(
+            status_code=501,
+            detail="Synchronous graph execution isn't supported with the "
+            "async SQLite checkpointer. Use aresume instead.",
+        )
 
     async def aresume(self, request: ApprovalRequest) -> ApprovalResponse:
         """Resume an interrupted graph asynchronously after human approval."""
@@ -144,7 +107,8 @@ class GraphService:
                 request.thread_id,
                 request.approved,
             )
-            await self._graph.ainvoke(
+            graph = await self._get_graph()
+            await graph.ainvoke(
                 Command(
                     resume={
                         "approved": request.approved,
@@ -175,29 +139,13 @@ class GraphService:
         request: ChatRequest,
         stream_mode: StreamMode | None = None,
     ) -> Iterator[Any]:
-        """Stream graph output synchronously using LangGraph native streaming."""
+        """Synchronous streaming is not supported; see invoke() docstring."""
 
-        thread_id = self.resolve_thread_id(request.thread_id)
-        mode = stream_mode or request.stream_mode
-        config = self.build_config(thread_id)
-        started_at = perf_counter()
-        logger.info("stream start thread_id=%s stream_mode=%s", thread_id, mode)
-
-        try:
-            for chunk in self._graph.stream(
-                self.build_input(request),
-                config=config,
-                stream_mode=mode,
-            ):
-                yield chunk
-        finally:
-            duration = perf_counter() - started_at
-            logger.info(
-                "stream end thread_id=%s stream_mode=%s duration=%.4fs",
-                thread_id,
-                mode,
-                duration,
-            )
+        raise HTTPException(
+            status_code=501,
+            detail="Synchronous graph execution isn't supported with the "
+            "async SQLite checkpointer. Use astream instead.",
+        )
 
     async def astream(
         self,
@@ -213,7 +161,8 @@ class GraphService:
         logger.info("astream start thread_id=%s stream_mode=%s", thread_id, mode)
 
         try:
-            async for chunk in self._graph.astream(
+            graph = await self._get_graph()
+            async for chunk in graph.astream(
                 self.build_input(request),
                 config=config,
                 stream_mode=mode,
@@ -242,7 +191,8 @@ class GraphService:
         logger.info("astream_events start thread_id=%s stream_mode=%s", thread_id, mode)
 
         try:
-            async for event in self._graph.astream_events(
+            graph = await self._get_graph()
+            async for event in graph.astream_events(
                 self.build_input(request),
                 config=config,
                 version="v2",
