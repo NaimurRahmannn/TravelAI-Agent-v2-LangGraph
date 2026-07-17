@@ -6,6 +6,7 @@ The repository contains both the Python API and a browser client for regular cha
 
 ## Table of Contents
 
+- [Live Demo](#live-demo)
 - [Highlights](#highlights)
 - [How It Works](#how-it-works)
 - [Technology](#technology)
@@ -20,6 +21,17 @@ The repository contains both the Python API and a browser client for regular cha
 - [Troubleshooting](#troubleshooting)
 - [Current Limitations](#current-limitations)
 - [License](#license)
+
+## Live Demo
+
+| Service | URL |
+| --- | --- |
+| Frontend | [https://travel-ai-sandy.vercel.app](https://travel-ai-sandy.vercel.app/) |
+| Backend API | [https://travelai-8b0i.onrender.com](https://travelai-8b0i.onrender.com) |
+| API docs (Swagger) | [https://travelai-8b0i.onrender.com/docs](https://travelai-8b0i.onrender.com/docs) |
+
+> [!NOTE]
+> The backend runs on Render's free tier, which spins down after inactivity. The first request after a period of idleness may take up to a minute while the instance wakes up; the free-tier disk is also ephemeral, so conversation threads and Mem0 data reset on redeploy or restart (see [Conversation State](#conversation-state)).
 
 ## Highlights
 
@@ -65,7 +77,7 @@ flowchart TD
     O --> M
 ```
 
-Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's in-memory checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
+Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's SQLite checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
 When the client also supplies a stable `user_id`, Mem0 recalls and writes durable traveler facts across threads. Anonymous requests skip long-term personalization.
 
 ## Technology
@@ -77,7 +89,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 | LLM provider | Groq via `langchain-groq` |
 | Frontend | Next.js 16, React 19, TypeScript |
 | Streaming | Server-sent events (SSE) |
-| State | LangGraph `MemorySaver` |
+| State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
 | External data | Frankfurter currency-rate API |
 
 ## Project Layout
@@ -181,6 +193,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to Groq |
 | `MODEL_NAME` | No | `llama-3.3-70b-versatile` | Groq chat model used by graph nodes |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
+| `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
 | `MEM0_VECTOR_STORE_PATH` | No | `app/.mem0/qdrant` | Local embedded Qdrant storage path |
 | `MEM0_EMBEDDER_PROVIDER` | No | `huggingface` | Mem0 embedder provider for traveler memory search |
@@ -196,7 +209,7 @@ Restart the backend after changing these values because settings and LLM clients
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | Base URL of the FastAPI server |
 
-The API currently allows browser requests from `localhost:3000` and `127.0.0.1:3000`. Update the CORS origins in `app/main.py` for other frontend hosts.
+The deployed frontend at [travel-ai-sandy.vercel.app](https://travel-ai-sandy.vercel.app/) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API currently allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
 
 ## API
 
@@ -319,16 +332,17 @@ Budget conversion is the exception: when the extractor identifies a non-USD budg
 
 ## Conversation State
 
-The compiled graph currently uses LangGraph's `MemorySaver`:
+The compiled graph uses LangGraph's `AsyncSqliteSaver`, writing checkpoints to a SQLite file on disk instead of keeping them in an in-memory dict:
 
-- State survives follow-up requests only while the backend process is running.
-- Restarting the API clears all conversation threads.
-- State is local to one process, so multiple Uvicorn workers do not share threads.
-- The SQLite and PostgreSQL checkpointer modules are placeholders and are not wired into the graph yet.
+- State survives follow-up requests for as long as the SQLite file exists.
+- The checkpointer is built lazily on first use (it needs a running event loop) and cached as a singleton for the life of the process, so repeated requests reuse the same connection instead of reopening it.
+- On Render's free tier the filesystem is ephemeral, so a redeploy or instance restart still clears conversation threads, exactly as it did under the old in-memory `MemorySaver` — the difference is that within a single running instance, memory usage no longer grows with every new thread.
+- State is local to one process, so multiple Uvicorn workers do not share threads. Keep `WEB_CONCURRENCY`/worker count at 1 unless threads are moved to shared storage.
+- A PostgreSQL checkpointer module is a placeholder and is not wired into the graph yet.
 
-For production, replace `MemorySaver` in `app/graph/builder.py` with durable shared persistence and add an expiration policy for abandoned threads.
+For production, point `CHECKPOINTER_SQLITE_PATH` at a persistent disk (a paid Render disk, or an external volume) or replace `AsyncSqliteSaver` in `app/graph/builder.py` with a durable shared backend (e.g. Postgres), and add an expiration policy for abandoned threads.
 
-Long-term traveler facts are separate from the checkpointer. Mem0 stores durable preferences and constraints in Qdrant under `user_id`, so a returning traveler can be personalized even when they start a new `thread_id`.
+Long-term traveler facts are separate from the checkpointer. Mem0 stores durable preferences and constraints in Qdrant under `user_id`, so a returning traveler can be personalized even when they start a new `thread_id`. On the free-tier deployment, the local Qdrant path is subject to the same ephemeral-disk caveat above unless `MEM0_QDRANT_URL` is set to point at a remote Qdrant instance.
 
 ## Development
 
@@ -355,7 +369,7 @@ npm run build
 - Add graph behavior in `app/graph/nodes/` and connect it in `app/graph/builder.py`.
 - Expand structured trip fields in `app/models/trip.py` and update the extractor prompt.
 - Replace static research workers in `app/graph/nodes/` with trusted live data providers.
-- Implement a durable checkpointer in `app/graph/checkpointers/`.
+- Implement a durable, persistent-disk-backed checkpointer in `app/graph/checkpointers/` for production use.
 
 ## Troubleshooting
 
@@ -365,11 +379,15 @@ If `/chat` returns HTTP 500 and the backend logs a Pydantic validation error for
 
 ### Frontend cannot reach the API
 
-Confirm the backend is running on port `8000`, check `frontend/.env.local`, and restart Next.js after changing `NEXT_PUBLIC_API_BASE_URL`.
+Confirm the backend is running on port `8000` locally (or that the deployed backend is awake, if using the live Render URL), check `frontend/.env.local` / `NEXT_PUBLIC_API_BASE_URL`, and restart Next.js after changing it.
 
 ### A follow-up loses its context
 
-Reuse the exact `thread_id` returned by the first request. Threads disappear when the backend restarts because persistence is currently in memory.
+Reuse the exact `thread_id` returned by the first request. Threads disappear when the backend's SQLite file is cleared, which happens on every redeploy/restart on Render's free tier since its disk is ephemeral.
+
+### `NotImplementedError: The SqliteSaver does not support async methods`
+
+This means the graph was compiled with the sync `SqliteSaver` while being invoked through async methods (`ainvoke`/`astream`/`aget_state`). Use `AsyncSqliteSaver` from `langgraph.checkpoint.sqlite.aio` instead, built lazily after the event loop starts — see `app/graph/builder.py`.
 
 ### Currency conversion is unavailable
 
@@ -378,7 +396,8 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 ## Current Limitations
 
 - Weather, currency guidance, and visa guidance are static or mock data.
-- No durable conversation persistence is enabled.
+- Conversation persistence is disk-backed but not durable across redeploys on ephemeral hosting (see [Conversation State](#conversation-state)).
 - No authentication or per-user thread ownership is implemented.
 - The existing test is an integration smoke test; broad automated test coverage is still needed.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
+- The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.
