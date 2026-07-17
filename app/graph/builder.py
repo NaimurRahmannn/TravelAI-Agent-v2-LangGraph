@@ -1,9 +1,12 @@
+import sqlite3
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
+from app.config import get_settings
 from app.graph.nodes.agent import agent_node
 from app.graph.nodes.approval import (
     approval_decision_router,
@@ -24,7 +27,25 @@ from app.graph.routers.tool_router import tool_router
 from app.graph.state import TravelState
 from app.graph.subgraphs.research_graph import build_research_graph
 
-_CHECKPOINTER = MemorySaver()
+def _build_checkpointer() -> SqliteSaver:
+    """Return a SQLite-backed checkpointer.
+
+    The old MemorySaver kept every thread's full state in a plain Python
+    dict for the life of the process, so RAM climbed with every new
+    conversation and never came back down. SQLite writes checkpoints to
+    disk instead, so the process's own memory footprint stays flat
+    regardless of how many threads have been created.
+    """
+
+    db_path = Path(get_settings().CHECKPOINTER_SQLITE_PATH)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    saver = SqliteSaver(conn)
+    saver.setup()  # idempotent - creates tables on first run only
+    return saver
+
+
+_CHECKPOINTER = _build_checkpointer()
 
 
 @lru_cache(maxsize=1)

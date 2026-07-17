@@ -22,14 +22,26 @@ class MemoryService:
     def _build_config(settings: Any) -> dict[str, Any]:
         """Build the Mem0 config dict from application settings."""
 
+        if settings.MEM0_QDRANT_URL:
+            # Out-of-process Qdrant (e.g. Qdrant Cloud) - keeps the vector
+            # index out of this service's own memory budget entirely.
+            vector_store_config: dict[str, Any] = {
+                "collection_name": "travel_ai_memories",
+                "url": settings.MEM0_QDRANT_URL,
+                "api_key": settings.MEM0_QDRANT_API_KEY,
+                "embedding_model_dims": settings.MEM0_EMBEDDING_DIMS,
+            }
+        else:
+            vector_store_config = {
+                "collection_name": "travel_ai_memories",
+                "path": settings.MEM0_VECTOR_STORE_PATH,
+                "embedding_model_dims": settings.MEM0_EMBEDDING_DIMS,
+            }
+
         return {
             "vector_store": {
                 "provider": settings.MEM0_VECTOR_STORE_PROVIDER,
-                "config": {
-                    "collection_name": "travel_ai_memories",
-                    "path": settings.MEM0_VECTOR_STORE_PATH,
-                    "embedding_model_dims": settings.MEM0_EMBEDDING_DIMS,
-                },
+                "config": vector_store_config,
             },
             "embedder": {
                 "provider": settings.MEM0_EMBEDDER_PROVIDER,

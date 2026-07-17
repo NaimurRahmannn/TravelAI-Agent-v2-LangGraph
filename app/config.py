@@ -11,11 +11,12 @@ class Settings(BaseSettings):
     TEMPERATURE: float = 0.0
     MEM0_VECTOR_STORE_PROVIDER: str = "qdrant"
     MEM0_VECTOR_STORE_PATH: str = "app/.mem0/qdrant"
-    # Groq is supported by Mem0 as an LLM provider, but not as an embedder.
-    # Hugging Face lets local development run without a second hosted API key.
-    MEM0_EMBEDDER_PROVIDER: str = "huggingface"
-    MEM0_EMBEDDER_MODEL: str = "multi-qa-MiniLM-L6-cos-v1"
+    MEM0_QDRANT_URL: str | None = None
+    MEM0_QDRANT_API_KEY: str | None = None
+    MEM0_EMBEDDER_PROVIDER: str = "fastembed"
+    MEM0_EMBEDDER_MODEL: str = "BAAI/bge-small-en-v1.5"
     MEM0_EMBEDDING_DIMS: int = 384
+    CHECKPOINTER_SQLITE_PATH: str = "app/.data/checkpoints.sqlite"
 
     model_config = SettingsConfigDict(
         env_file="app/.env",
