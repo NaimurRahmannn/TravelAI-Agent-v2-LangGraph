@@ -26,7 +26,7 @@ The repository contains both the Python API and a browser client for regular cha
 
 | Service | URL |
 | --- | --- |
-| Frontend | [https://travel-ai-sandy.vercel.app](https://travel-ai-sandy.vercel.app/) |
+| Frontend | [https://travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) |
 | Backend API | [https://travelai-8b0i.onrender.com](https://travelai-8b0i.onrender.com) |
 | API docs (Swagger) | [https://travelai-8b0i.onrender.com/docs](https://travelai-8b0i.onrender.com/docs) |
 
