@@ -32,8 +32,8 @@ type ChatMessage = {
 
 const SUGGESTIONS = [
   "I want to visit Japan from Bangladesh for 7 days with a budget of $2000",
-  "Remember this: I am vegetarian and I prefer slow-paced trips.",
-  "Plan a Thailand trip for 5 days under $1200 from Dhaka.",
+  "Plan a Thailand trip for 5 days",
+  "I prefer temple,food, culture",
 ];
 
 const TRAVELER_ID_STORAGE_KEY = "travel-ai-user-id";
