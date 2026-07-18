@@ -209,7 +209,7 @@ Restart the backend after changing these values because settings and LLM clients
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | Base URL of the FastAPI server |
 
-The deployed frontend at [travel-ai-sandy.vercel.app](https://travel-ai-sandy.vercel.app/) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API currently allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
+The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API currently allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
 
 ## API
 
