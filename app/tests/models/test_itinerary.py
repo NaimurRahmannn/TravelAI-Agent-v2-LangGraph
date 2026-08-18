@@ -6,6 +6,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    PlaceImage,
     ResolvedPlace,
     TripPlan,
 )
@@ -138,3 +139,72 @@ def test_resolved_place_rejects_unknown_fields():
 
     with pytest.raises(ValidationError):
         ResolvedPlace.model_validate(data)
+
+
+def _place_image(**updates) -> PlaceImage:
+    data = {
+        "provider": "wikimedia_commons",
+        "wikidata_entity_id": "Q660585",
+        "commons_file_title": "File:Wat Mahathat.jpg",
+        "original_url": "https://upload.wikimedia.org/wat.jpg",
+        "thumbnail_url": "https://upload.wikimedia.org/800px-wat.jpg",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Wat.jpg",
+        "width": 1200,
+        "height": 800,
+        "author": "Jane Doe",
+        "license_short_name": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "attribution_text": "Jane Doe / CC BY-SA 4.0 / Wikimedia Commons",
+    }
+    data.update(updates)
+    return PlaceImage.model_validate(data)
+
+
+def test_place_image_validates_and_serializes():
+    serialized = _place_image().model_dump(mode="json")
+
+    assert serialized["provider"] == "wikimedia_commons"
+    assert serialized["wikidata_entity_id"] == "Q660585"
+    assert serialized["width"] == 1200
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("commons_file_title", "   "),
+        ("original_url", "javascript:alert(1)"),
+        ("source_page_url", ""),
+        ("thumbnail_url", "ftp://example.test/image.jpg"),
+        ("width", 0),
+        ("height", -1),
+        ("license_short_name", " "),
+        ("attribution_text", " "),
+    ],
+)
+def test_place_image_rejects_invalid_required_metadata(field, value):
+    with pytest.raises(ValidationError):
+        _place_image(**{field: value})
+
+
+def test_place_image_rejects_unknown_fields():
+    data = _place_image().model_dump()
+    data["raw_wikimedia_payload"] = {"unsafe": True}
+
+    with pytest.raises(ValidationError):
+        PlaceImage.model_validate(data)
+
+
+def test_activity_image_requires_a_fully_resolved_place():
+    with pytest.raises(ValidationError):
+        Activity(name="Wat Mahathat", category="history", image=_place_image())
+
+    place = _resolved_place()
+    activity = Activity(
+        name="Wat Mahathat",
+        category="history",
+        place=place,
+        place_resolution_status="resolved",
+        image=_place_image(),
+    )
+
+    assert activity.image is not None

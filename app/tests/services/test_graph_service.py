@@ -5,6 +5,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    PlaceImage,
     ResolvedPlace,
     TripPlan,
 )
@@ -82,6 +83,17 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
                 resolution_status="resolved",
             ).model_dump(),
             "place_resolution_status": "resolved",
+            "image": PlaceImage(
+                provider="wikimedia_commons",
+                wikidata_entity_id="Q5948",
+                commons_file_title="File:Wat Arun.jpg",
+                original_url="https://upload.wikimedia.org/wat-arun.jpg",
+                thumbnail_url="https://upload.wikimedia.org/800px-wat-arun.jpg",
+                source_page_url="https://commons.wikimedia.org/wiki/File:Wat_Arun.jpg",
+                author="Jane Doe",
+                license_short_name="CC BY 4.0",
+                attribution_text="Jane Doe / CC BY 4.0 / Wikimedia Commons",
+            ).model_dump(),
         }
     )
     response = ChatResponse(
@@ -94,5 +106,8 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
 
     assert '\"provider_place_id\":\"geo-place-1\"' in serialized
     assert '\"latitude\":13.7437' in serialized
+    assert "wikidata_entity_id" in serialized
+    assert "wikimedia_commons" in serialized
     assert "GEOAPIFY_API_KEY" not in serialized
+    assert "WIKIMEDIA_USER_AGENT" not in serialized
     assert "test-geo-key" not in serialized

@@ -4,6 +4,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    PlaceImage,
     ResolvedPlace,
     TripPlan,
 )
@@ -124,6 +125,21 @@ def test_final_sse_serializes_nested_place_without_api_key():
                         category="culture",
                         place=place,
                         place_resolution_status="resolved",
+                        image=PlaceImage(
+                            provider="wikimedia_commons",
+                            wikidata_entity_id="Q5948",
+                            commons_file_title="File:Wat Arun.jpg",
+                            original_url="https://upload.wikimedia.org/wat-arun.jpg",
+                            source_page_url=(
+                                "https://commons.wikimedia.org/wiki/"
+                                "File:Wat_Arun.jpg"
+                            ),
+                            author="Jane Doe",
+                            license_short_name="CC BY 4.0",
+                            attribution_text=(
+                                "Jane Doe / CC BY 4.0 / Wikimedia Commons"
+                            ),
+                        ),
                     )
                 ],
             )
@@ -146,5 +162,9 @@ def test_final_sse_serializes_nested_place_without_api_key():
     assert normalized["itinerary"]["days"][0]["activities"][0]["place"][
         "provider_place_id"
     ] == "geo-place-1"
+    assert normalized["itinerary"]["days"][0]["activities"][0]["image"][
+        "wikidata_entity_id"
+    ] == "Q5948"
     assert "GEOAPIFY_API_KEY" not in formatted
+    assert "WIKIMEDIA_USER_AGENT" not in formatted
     assert "test-geo-key" not in formatted

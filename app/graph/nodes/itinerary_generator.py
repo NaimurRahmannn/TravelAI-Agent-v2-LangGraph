@@ -108,13 +108,14 @@ def _coerce_trip_plan(raw_plan: object) -> TripPlan:
 
 
 def _clear_untrusted_place_enrichment(plan: TripPlan) -> TripPlan:
-    """Remove external metadata that may have been invented by the LLM."""
+    """Remove provider metadata that may have been invented by the LLM."""
 
     plan_data = plan.model_dump()
     for day in plan_data["days"]:
         for activity in day["activities"]:
             activity["place"] = None
             activity["place_resolution_status"] = "unresolved"
+            activity["image"] = None
     return TripPlan.model_validate(plan_data)
 
 

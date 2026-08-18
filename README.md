@@ -42,6 +42,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Parallel weather, currency, and visa research through a LangGraph subgraph
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Geoapify-backed resolution for attraction-like itinerary activities
+- Wikidata and Wikimedia Commons attraction images with reuse metadata
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -73,7 +74,8 @@ flowchart TD
     J -->|Rejected| L[Responder]
     K --> G
     P --> Q[Place enrichment]
-    Q --> L
+    Q --> R[Image enrichment]
+    R --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -85,9 +87,12 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 Complete itineraries now have a structured `TripPlan` representation as the
 backend source of truth. Markdown remains the current frontend presentation and
 is rendered deterministically from that plan. Geoapify enriches attraction-like
-activities with provider-backed identity, addresses, and coordinates. Images,
-maps, routing, live weather upgrades, and itinerary validation remain future
-work.
+activities with provider-backed identity, addresses, and coordinates. Eligible,
+fully resolved places are then matched conservatively to Wikidata entities;
+their P18 claims are resolved through Wikimedia Commons into image URLs and
+attribution-ready licensing metadata. Images are exposed in structured API and
+SSE itinerary data but are not rendered by the frontend yet. Maps, routing,
+live weather upgrades, and itinerary validation remain future work.
 
 ## Technology
 
@@ -99,7 +104,7 @@ work.
 | Frontend | Next.js 16, React 19, TypeScript |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify forward geocoding |
+| External data | Frankfurter currency-rate API, Geoapify, Wikidata, Wikimedia Commons |
 
 ## Project Layout
 
@@ -162,6 +167,7 @@ GEMINI_MODEL_NAME=gemini-2.5-flash-lite
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL_NAME=openai/gpt-oss-20b
 GEOAPIFY_API_KEY=your_geoapify_api_key_here
+WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
 TEMPERATURE=0.0
 ```
 
@@ -207,6 +213,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to the Groq API |
 | `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
 | `GEOAPIFY_API_KEY` | No | None | Resolves itinerary activities to provider-backed place identities, addresses, and coordinates; enrichment is skipped when unset |
+| `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -353,8 +360,21 @@ provider-backed places, addresses, and coordinates. Resolution failures degrade
 gracefully and leave individual activities usable but marked unresolved. Obvious
 transport, accommodation, meal, and logistics activities are skipped because
 they are not attraction-like places. A trip-local circuit stops remaining calls
-after authentication, persistent rate-limit, or provider-outage failures. Place
-images, maps, and routing are not implemented.
+after authentication, persistent rate-limit, or provider-outage failures.
+
+For fully resolved attraction-like places, Wikidata supplies a conservatively
+matched knowledge entity and its P18 image reference. Wikimedia Commons then
+supplies the file URL, an approximately 800px thumbnail URL, source page,
+dimensions, author/credit, license, and deterministic attribution text. Unknown,
+missing, non-commercial, or otherwise unsupported license metadata causes the
+image to be skipped rather than guessed. Image lookups use request-local
+deduplication, bounded retries/concurrency, and a trip-local outage circuit.
+`WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
+descriptive application identity with an appropriate contact method.
+
+Phase 3 enriches structured itinerary data only. The deterministic Markdown and
+current frontend remain unchanged; attraction cards and image rendering belong
+to a later phase. Maps and routing are not implemented.
 
 > [!CAUTION]
 > Visa rules, weather, availability, and prices can change. Verify important travel decisions against official government, airline, hotel, and forecast sources before booking.
@@ -383,7 +403,8 @@ With `app/.env` configured and the virtual environment active, run:
 python -m pytest -q app/tests
 ```
 
-Provider tests construct both clients without consuming API quota.
+Provider tests use mocked HTTP transports and do not call Geoapify, Wikidata, or
+Wikimedia Commons.
 
 ### Frontend checks
 
@@ -429,5 +450,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - No authentication or per-user thread ownership is implemented.
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
+- Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
+- Wikimedia image metadata is exposed through the structured API but is not rendered by the frontend yet.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

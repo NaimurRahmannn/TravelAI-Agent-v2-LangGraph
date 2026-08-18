@@ -1,6 +1,14 @@
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 
 PlaceResolutionStatus = Literal[
@@ -8,6 +16,50 @@ PlaceResolutionStatus = Literal[
     "partially_resolved",
     "unresolved",
 ]
+NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class PlaceImage(BaseModel):
+    """Attribution-ready image metadata from Wikimedia Commons."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["wikimedia_commons"]
+    wikidata_entity_id: str | None = None
+    commons_file_title: NonEmptyString
+    original_url: str
+    thumbnail_url: str | None = None
+    source_page_url: str
+    width: int | None = Field(default=None, ge=1)
+    height: int | None = Field(default=None, ge=1)
+    author: str | None = None
+    credit: str | None = None
+    license_short_name: NonEmptyString
+    license_url: str | None = None
+    usage_terms: str | None = None
+    attribution_text: NonEmptyString
+    description: str | None = None
+
+    @field_validator(
+        "original_url",
+        "thumbnail_url",
+        "source_page_url",
+        "license_url",
+        mode="before",
+    )
+    @classmethod
+    def validate_http_url(cls, value: object) -> object:
+        """Keep serialized URLs as strings while allowing only HTTP(S)."""
+
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            raise ValueError("Image metadata URLs must be strings")
+        normalized = value.strip()
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Image metadata URLs must use HTTP(S)")
+        return normalized
 
 
 class ResolvedPlace(BaseModel):
@@ -46,6 +98,7 @@ class Activity(BaseModel):
     reason_for_recommendation: str | None = None
     place: ResolvedPlace | None = None
     place_resolution_status: PlaceResolutionStatus = "unresolved"
+    image: PlaceImage | None = None
 
     @model_validator(mode="after")
     def validate_place_status(self) -> "Activity":
@@ -58,6 +111,10 @@ class Activity(BaseModel):
             and self.place_resolution_status != self.place.resolution_status
         ):
             raise ValueError("Activity and place resolution statuses must match")
+        if self.image is not None and (
+            self.place is None or self.place.resolution_status != "resolved"
+        ):
+            raise ValueError("An image requires a fully resolved provider-backed place")
         return self
 
 

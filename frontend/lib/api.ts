@@ -24,6 +24,24 @@ export type ResolvedPlace = {
   source_attribution?: string | null;
 };
 
+export type PlaceImage = {
+  provider: "wikimedia_commons";
+  wikidata_entity_id?: string | null;
+  commons_file_title: string;
+  original_url: string;
+  thumbnail_url?: string | null;
+  source_page_url: string;
+  width?: number | null;
+  height?: number | null;
+  author?: string | null;
+  credit?: string | null;
+  license_short_name: string;
+  license_url?: string | null;
+  usage_terms?: string | null;
+  attribution_text: string;
+  description?: string | null;
+};
+
 export type Activity = {
   name: string;
   category: string;
@@ -35,6 +53,7 @@ export type Activity = {
   reason_for_recommendation?: string | null;
   place?: ResolvedPlace | null;
   place_resolution_status: "resolved" | "partially_resolved" | "unresolved";
+  image?: PlaceImage | null;
 };
 
 export type ItineraryDay = {

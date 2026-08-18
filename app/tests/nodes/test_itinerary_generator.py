@@ -12,6 +12,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    PlaceImage,
     ResolvedPlace,
     Trip,
     TripPlan,
@@ -265,6 +266,16 @@ def test_generator_clears_llm_invented_place_enrichment():
                 resolution_status="resolved",
             ).model_dump(),
             "place_resolution_status": "resolved",
+            "image": PlaceImage(
+                provider="wikimedia_commons",
+                wikidata_entity_id="Q999",
+                commons_file_title="File:Fake.jpg",
+                original_url="https://fake.example/image.jpg",
+                source_page_url="https://fake.example/source",
+                author="Fake Author",
+                license_short_name="CC BY 4.0",
+                attribution_text="Fake Author / CC BY 4.0 / Wikimedia Commons",
+            ).model_dump(),
         }
     )
 
@@ -273,3 +284,4 @@ def test_generator_clears_llm_invented_place_enrichment():
     activity = sanitized.days[0].activities[0]
     assert activity.place is None
     assert activity.place_resolution_status == "unresolved"
+    assert activity.image is None
