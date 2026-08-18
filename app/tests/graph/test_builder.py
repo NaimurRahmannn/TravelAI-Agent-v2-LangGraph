@@ -16,6 +16,7 @@ def test_graph_contains_memory_nodes():
 
     assert "memory_recall" in graph.nodes
     assert "memory_write" in graph.nodes
+    assert "itinerary" not in graph.nodes
 
 
 def test_build_input_includes_user_id():
@@ -50,16 +51,9 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
         },
     )
     monkeypatch.setattr(
-        builder,
-        "itinerary_node",
-        lambda state, config: {
-            "messages": [AIMessage(content="Final itinerary.")],
-        },
-    )
-    monkeypatch.setattr(
         agent,
         "get_tool_enabled_llm",
-        lambda: Mock(invoke=Mock(return_value=AIMessage(content="Draft itinerary."))),
+        lambda: Mock(invoke=Mock(return_value=AIMessage(content="Final itinerary."))),
     )
 
     graph = builder._build_graph()
@@ -75,4 +69,4 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
 
     assert result["user_id"] == "user-123"
     assert result["long_term_memories"] == ["Traveler prefers vegetarian meals."]
-    assert result["response"]
+    assert result["response"] == "Final itinerary."

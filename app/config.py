@@ -10,7 +10,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(
         validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     )
-    MODEL_NAME: str = "gemini-2.5-flash"
+    GROQ_API_KEY: str
+    GROQ_MODEL_NAME: str = Field(
+        default="openai/gpt-oss-20b",
+        validation_alias=AliasChoices("GROQ_MODEL_NAME", "MODEL_NAME"),
+    )
+    GEMINI_MODEL_NAME: str = "gemini-2.5-flash-lite"
     TEMPERATURE: float = 0.0
     MEM0_VECTOR_STORE_PROVIDER: str = "qdrant"
     MEM0_VECTOR_STORE_PATH: str = "app/.mem0/qdrant"

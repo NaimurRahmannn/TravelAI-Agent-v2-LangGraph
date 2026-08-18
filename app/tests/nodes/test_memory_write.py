@@ -6,7 +6,7 @@ from app.graph.nodes import memory_write
 
 
 def test_memory_write_calls_service_with_turn_messages(monkeypatch):
-    """Write persists the latest user message and final response for a user."""
+    """Write persists a durable preference without the large final response."""
 
     service = Mock()
     monkeypatch.setattr(memory_write, "get_memory_service", lambda: service)
@@ -17,7 +17,7 @@ def test_memory_write_calls_service_with_turn_messages(monkeypatch):
             "messages": [
                 HumanMessage(content="I prefer slow travel."),
                 AIMessage(content="Great."),
-                HumanMessage(content="Plan Kyoto."),
+                HumanMessage(content="I prefer slow travel for Kyoto."),
             ],
             "response": "A slower Kyoto itinerary would work well.",
         },
@@ -26,11 +26,7 @@ def test_memory_write_calls_service_with_turn_messages(monkeypatch):
 
     service.remember.assert_called_once_with(
         messages=[
-            {"role": "user", "content": "Plan Kyoto."},
-            {
-                "role": "assistant",
-                "content": "A slower Kyoto itinerary would work well.",
-            },
+            {"role": "user", "content": "I prefer slow travel for Kyoto."},
         ],
         user_id="user-123",
     )
@@ -65,6 +61,25 @@ def test_memory_write_noops_without_response(monkeypatch):
         {
             "user_id": "user-123",
             "messages": [HumanMessage(content="I am vegan.")],
+        },
+        config={},
+    )
+
+    service.remember.assert_not_called()
+    assert result == {}
+
+
+def test_memory_write_skips_trip_specific_request(monkeypatch):
+    """A plain itinerary request should not trigger Mem0's extraction LLM."""
+
+    service = Mock()
+    monkeypatch.setattr(memory_write, "get_memory_service", lambda: service)
+
+    result = memory_write.memory_write_node(
+        {
+            "user_id": "user-123",
+            "messages": [HumanMessage(content="Plan Tokyo for three days.")],
+            "response": "Here is your itinerary.",
         },
         config={},
     )

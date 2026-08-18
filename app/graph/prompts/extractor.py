@@ -39,7 +39,9 @@ the caller will merge them with existing ones for you.
 
 Do not guess values the user did not state.
 
-Return structured output.
+Return every key defined by the structured-output schema. Use null for scalar
+fields the latest message does not mention and an empty list for preferences
+when none are mentioned. Never return an empty object.
 """,
         ),
         (

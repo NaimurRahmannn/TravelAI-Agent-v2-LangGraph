@@ -22,3 +22,4 @@ def test_agent_messages_include_long_term_memories_separately():
 
     assert len(memory_messages) == 1
     assert "Traveler is vegetarian." in str(memory_messages[0].content)
+    assert "complete final itinerary directly" in str(messages[0].content)

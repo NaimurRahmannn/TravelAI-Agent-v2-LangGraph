@@ -21,7 +21,7 @@ def memory_recall_node(
     query = _latest_user_message(state)
 
     memories: list[str] = []
-    if user_id and query:
+    if user_id and _is_memory_relevant(query):
         memories = get_memory_service().recall(query, user_id=user_id)
 
     duration = perf_counter() - started_at
@@ -42,3 +42,42 @@ def _latest_user_message(state: TravelState) -> str:
             return str(message.content)
 
     return ""
+
+
+def _is_memory_relevant(query: str) -> bool:
+    """Skip vector searches for acknowledgements and unrelated short turns."""
+
+    normalized = query.strip().lower()
+    if not normalized or normalized in {
+        "ok",
+        "okay",
+        "thanks",
+        "thank you",
+        "yes",
+        "no",
+        "continue",
+    }:
+        return False
+
+    travel_terms = (
+        "trip",
+        "travel",
+        "plan",
+        "itinerary",
+        "hotel",
+        "flight",
+        "food",
+        "dinner",
+        "visit",
+        "budget",
+        "prefer",
+        "avoid",
+        "allerg",
+        "vegetarian",
+        "vegan",
+        "halal",
+        "kosher",
+        "wheelchair",
+        "accessib",
+    )
+    return any(term in normalized for term in travel_terms)

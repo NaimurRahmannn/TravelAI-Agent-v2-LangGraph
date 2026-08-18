@@ -22,11 +22,10 @@ def memory_write_node(
     latest_user_message = _latest_user_message(state)
     response = state.get("response", "")
 
-    if user_id and latest_user_message and response:
+    if user_id and response and _contains_durable_fact(latest_user_message):
         get_memory_service().remember(
             messages=[
                 {"role": "user", "content": latest_user_message},
-                {"role": "assistant", "content": response},
             ],
             user_id=user_id,
         )
@@ -48,3 +47,33 @@ def _latest_user_message(state: TravelState) -> str:
             return str(message.content)
 
     return ""
+
+
+def _contains_durable_fact(message: str) -> bool:
+    """Return whether a user message is likely to contain reusable preferences."""
+
+    normalized = message.strip().lower()
+    durable_markers = (
+        "i prefer",
+        "i like",
+        "i love",
+        "i dislike",
+        "i hate",
+        "i avoid",
+        "i am allergic",
+        "i'm allergic",
+        "my allergy",
+        "i am vegetarian",
+        "i'm vegetarian",
+        "i am vegan",
+        "i'm vegan",
+        "i need halal",
+        "i eat halal",
+        "i need kosher",
+        "wheelchair",
+        "accessibility",
+        "accessible travel",
+        "i usually travel",
+        "my home airport",
+    )
+    return any(marker in normalized for marker in durable_markers)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 
 
@@ -48,4 +48,27 @@ class Trip(BaseModel):
 
     preferences: list[str] = Field(
         default_factory=list
+    )
+
+
+class TripExtraction(BaseModel):
+    """Strict LLM output schema; every key is required but may be null."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin: str | None = Field(description="Departure location stated by the user")
+    destination: str | None = Field(description="Travel destination stated by the user")
+    start_date: str | None = Field(description="Start date stated by the user")
+    end_date: str | None = Field(description="End date stated by the user")
+    duration: int | None = Field(description="Number of travel days stated by the user")
+    budget: float | None = Field(description="Numeric travel budget stated by the user")
+    currency: str | None = Field(
+        description="ISO 4217 code inferred only from the written budget symbol or name"
+    )
+    travelers: int | None = Field(
+        description="Number of travelers explicitly stated by the user",
+        ge=1,
+    )
+    preferences: list[str] = Field(
+        description="Travel preferences newly stated by the user"
     )

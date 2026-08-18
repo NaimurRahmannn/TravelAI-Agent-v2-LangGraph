@@ -59,3 +59,21 @@ def test_memory_recall_noops_without_human_message(monkeypatch):
 
     service.recall.assert_not_called()
     assert result == {"long_term_memories": []}
+
+
+def test_memory_recall_skips_acknowledgement(monkeypatch):
+    """A short acknowledgement should not search long-term memory."""
+
+    service = Mock()
+    monkeypatch.setattr(memory_recall, "get_memory_service", lambda: service)
+
+    result = memory_recall.memory_recall_node(
+        {
+            "user_id": "user-123",
+            "messages": [HumanMessage(content="Thanks")],
+        },
+        config={},
+    )
+
+    service.recall.assert_not_called()
+    assert result == {"long_term_memories": []}

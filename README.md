@@ -1,6 +1,6 @@
 # Travel AI Agent
 
-An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, **Google Gemini**, and **Next.js**. The application turns a conversational trip request into structured trip data, asks for missing details, gathers destination context in parallel, and produces a day-by-day itinerary with practical and budget notes.
+An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, **Groq**, **Google Gemini**, and **Next.js**. The application turns a conversational trip request into structured trip data, asks for missing details, gathers destination context in parallel, and produces a day-by-day itinerary with practical and budget notes.
 
 The repository contains both the Python API and a browser client for regular chat, server-sent event streaming, thread continuation, and human approval workflows.
 
@@ -40,9 +40,9 @@ The repository contains both the Python API and a browser client for regular cha
 - Structured extraction of destination, origin, dates, duration, budget, travelers, and preferences
 - Clarification prompts when destination, duration, or budget is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
-- Day-by-day itinerary generation with a normalized trip length
+- Day-by-day itinerary generation directly inside the travel agent
 - Budget normalization to USD using the Frankfurter exchange-rate API
-- Gemini-powered structured output and tool calling
+- Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
 - Standard JSON chat and server-sent event streaming APIs
 - Next.js interface with stream modes, live graph events, and approval controls
@@ -64,14 +64,13 @@ flowchart TD
     E3 --> F
     F --> N[Recall traveler memories]
     N --> G[Travel agent]
-    G -->|No tool calls| H[Itinerary formatter]
+    G -->|No tool calls; final itinerary ready| L[Responder]
     G -->|Tool calls| I[Approval gate]
     I -->|Approval required| J[Human decision]
     I -->|No approval required| K[Tool executor]
     J -->|Approved| K
     J -->|Rejected| L[Responder]
     K --> G
-    H --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -86,7 +85,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 | --- | --- |
 | API | FastAPI, Uvicorn, Pydantic |
 | Agent orchestration | LangGraph, LangChain |
-| LLM provider | Google Gemini via `langchain-google-genai` |
+| LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
@@ -104,8 +103,8 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 |   |   |-- routers/         # Conditional graph routing
 |   |   |-- subgraphs/       # Parallel destination research graph
 |   |   `-- builder.py       # Main LangGraph assembly
-|   |-- llm/                 # Gemini provider and tool binding
-|   |-- models/              # Trip and itinerary data models
+|   |-- llm/                 # Role-specific Groq/Gemini providers and tool binding
+|   |-- models/              # Structured trip data model
 |   |-- schemas/             # Public API request/response models
 |   |-- services/            # Graph invocation, SSE, and currency conversion
 |   |-- tools/               # Agent-callable travel tools
@@ -123,7 +122,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 - Python 3.11 or newer
 - Node.js 20 or newer
 - npm
-- A [Gemini API key](https://aistudio.google.com/app/apikey)
+- Groq and Gemini API keys
 
 ## Quick Start
 
@@ -145,11 +144,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create `app/.env` with your Gemini credentials:
+Create `app/.env` with both provider credentials:
 
 ```dotenv
 GEMINI_API_KEY=your_gemini_api_key_here
-MODEL_NAME=gemini-2.5-flash
+GEMINI_MODEL_NAME=gemini-2.5-flash-lite
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL_NAME=openai/gpt-oss-20b
 TEMPERATURE=0.0
 ```
 
@@ -191,7 +192,9 @@ Settings are loaded from environment variables and `app/.env`.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes | None | Authenticates requests to the Gemini Developer API (`GOOGLE_API_KEY` is also accepted) |
-| `MODEL_NAME` | No | `gemini-2.5-flash` | Gemini chat model used by graph nodes |
+| `GEMINI_MODEL_NAME` | No | `gemini-2.5-flash-lite` | Gemini model used for tool reasoning and final answers |
+| `GROQ_API_KEY` | Yes | None | Authenticates requests to the Groq API |
+| `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -346,15 +349,15 @@ Long-term traveler facts are separate from the checkpointer. Mem0 stores durable
 
 ## Development
 
-### Backend smoke test
+### Backend tests
 
-The repository includes a direct Gemini connectivity check. With `app/.env` configured and the virtual environment active, run:
+With `app/.env` configured and the virtual environment active, run:
 
 ```bash
-python -m app.tests.api.test_gemini_api
+python -m pytest -q app/tests
 ```
 
-This invokes the configured model and prints a one-sentence response. It consumes a small amount of Gemini quota and is not a mocked unit test.
+Provider tests construct both clients without consuming API quota.
 
 ### Frontend checks
 
@@ -373,9 +376,9 @@ npm run build
 
 ## Troubleshooting
 
-### `GEMINI_API_KEY` field required
+### Provider API key field required
 
-If `/chat` returns HTTP 500 and the backend logs a Pydantic validation error for `GEMINI_API_KEY`, create `app/.env`, add the key, and restart Uvicorn. `GOOGLE_API_KEY` is accepted as an alternative variable name. A root-level `.env` is not loaded by the current configuration.
+If `/chat` returns HTTP 500 with a validation error for `GEMINI_API_KEY` or `GROQ_API_KEY`, add both keys to `app/.env` and restart Uvicorn. `GOOGLE_API_KEY` is accepted as an alternative Gemini variable name. A root-level `.env` is not loaded.
 
 ### Frontend cannot reach the API
 

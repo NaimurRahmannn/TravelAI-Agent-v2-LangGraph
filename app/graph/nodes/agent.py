@@ -22,7 +22,7 @@ def agent_node(
     state: TravelState,
     config: RunnableConfig,
 ) -> dict[str, list[AIMessage] | bool | dict[str, Any] | None]:
-    """Reason over the conversation and decide whether tools are needed."""
+    """Use tools when needed, then produce the final user-facing itinerary."""
 
     started_at = perf_counter()
     has_research = bool(state.get("research_results", {}).get("summary"))
@@ -111,7 +111,13 @@ def _build_trip_context_message(state: TravelState) -> SystemMessage:
             "the response must directly incorporate them and avoid repeating the "
             "previous answer unchanged. For preferences like temples, food, and "
             "nature, give concrete recommendations or itinerary adjustments for "
-            "those interests.\n\n"
+            "those interests. When no tool call is needed, return the complete "
+            "final itinerary directly. Include exactly one numbered section per "
+            "trip day with 1-3 concrete named activities, followed by an "
+            "estimated USD budget breakdown and brief practical notes supported "
+            "by the available research. Respect the traveler's stated budget and "
+            "clearly explain when it is insufficient. Do not describe the answer "
+            "as a draft or mention internal graph steps.\n\n"
             f"{preference_instruction}"
             f"Current trip state:\n{trip_details}\n\n"
             f"Latest user message:\n{latest_user_message}"

@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.logging import get_logger
 from app.graph.prompts.clarification import clarification_prompt
 from app.graph.state import TravelState
-from app.llm import get_llm
+from app.llm import get_groq_llm
 
 logger = get_logger(__name__)
 
@@ -22,7 +22,7 @@ def clarification_node(
         0,
         [],
     )
-    llm = get_llm()
+    llm = get_groq_llm()
 
     chain = clarification_prompt | llm
 
