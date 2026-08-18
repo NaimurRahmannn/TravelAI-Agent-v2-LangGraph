@@ -98,6 +98,12 @@ def _get_missing_required_fields(trip: Trip) -> list[str]:
     if trip.duration is None:
         missing_fields.append("duration")
 
+    if not trip.origin:
+        missing_fields.append("origin")
+
+    if trip.travelers is None:
+        missing_fields.append("travelers")
+
     return missing_fields
 
 
@@ -151,6 +157,11 @@ def _apply_deterministic_fallback(
         )
         if origin_match:
             updates["origin"] = _normalize_place(origin_match.group(1))
+
+    if extracted_trip.travelers is None:
+        travelers = _extract_travelers(message)
+        if travelers is not None:
+            updates["travelers"] = travelers
 
     if extracted_trip.budget is None:
         budget, currency = _extract_budget(message)
@@ -212,6 +223,24 @@ def _extract_budget(message: str) -> tuple[float | None, str | None]:
     if bare_budget:
         return float(bare_budget.group("amount").replace(",", "")), None
     return None, None
+
+
+def _extract_travelers(message: str) -> int | None:
+    """Extract an explicitly stated party size from common phrases."""
+
+    if re.search(r"\b(?:solo|just me|travel(?:ing|ling)? alone)\b", message, re.IGNORECASE):
+        return 1
+
+    patterns = (
+        r"\b(\d+)\s+(?:travelers?|travellers?|people|persons?|adults?)\b",
+        r"\bparty\s+of\s+(\d+)\b",
+        r"\bfor\s+(\d+)\s+(?:travelers?|travellers?|people|persons?|adults?)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def _normalize_place(value: str) -> str:

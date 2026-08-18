@@ -35,11 +35,11 @@ def test_thailand_request_recovers_destination_and_duration():
 
     assert trip.destination == "Thailand"
     assert trip.duration == 5
-    assert _get_missing_required_fields(trip) == ["budget"]
+    assert _get_missing_required_fields(trip) == ["budget", "origin", "travelers"]
 
 
-def test_complete_japan_request_recovers_all_required_fields():
-    """The reported Japan request should not route to clarification."""
+def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
+    """The reported Japan request should ask only for its unstated party size."""
 
     extraction = _apply_deterministic_fallback(
         _empty_extraction(),
@@ -52,6 +52,28 @@ def test_complete_japan_request_recovers_all_required_fields():
     assert trip.duration == 7
     assert trip.budget == 2000
     assert trip.currency == "USD"
+    assert _get_missing_required_fields(trip) == ["travelers"]
+
+
+def test_follow_up_recovers_origin_budget_and_travelers():
+    """A clarification reply can complete the remaining required fields."""
+
+    existing = _merge_trip(
+        None,
+        _apply_deterministic_fallback(
+            _empty_extraction(),
+            "Plan a Thailand trip for 5 days",
+        ),
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "From Bangladesh with a budget of $2000 for 2 travelers",
+    )
+    trip = _merge_trip(existing, follow_up)
+
+    assert trip.origin == "Bangladesh"
+    assert trip.travelers == 2
+    assert trip.budget == 2000
     assert _get_missing_required_fields(trip) == []
 
 
@@ -91,5 +113,5 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
 
     assert result["trip"].destination == "Thailand"
     assert result["trip"].duration == 5
-    assert result["missing_fields"] == ["budget"]
+    assert result["missing_fields"] == ["budget", "origin", "travelers"]
     assert result["needs_clarification"] is True

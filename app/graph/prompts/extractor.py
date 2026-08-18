@@ -27,9 +27,10 @@ number itself tells you which. If the message gives a bare number with no
 currency word or symbol attached, leave `currency` unset rather than
 guessing — the caller will keep whatever currency was already recorded.
 
-If the latest message states a destination, budget, duration, origin, or date
-that is DIFFERENT from the existing trip details, treat this as the user
-correcting or replacing that field — return the NEW value, not the old one.
+If the latest message states a destination, budget, duration, origin, number
+of travelers, or date that is DIFFERENT from the existing trip details, treat
+this as the user correcting or replacing that field — return the NEW value,
+not the old one.
 Only leave a field unset in your output if the latest message does not
 mention it at all; the caller will keep the existing value for you in that
 case.

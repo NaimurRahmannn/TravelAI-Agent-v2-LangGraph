@@ -42,7 +42,7 @@ class Trip(BaseModel):
     )
 
     travelers: Optional[int] = Field(
-        default=1,
+        default=None,
         ge=1
     )
 

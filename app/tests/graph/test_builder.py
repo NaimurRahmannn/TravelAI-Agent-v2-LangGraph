@@ -45,7 +45,14 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
         builder,
         "extractor_node",
         lambda state, config: {
-            "trip": Trip(destination="Tokyo", duration=3, budget=1000, currency="USD"),
+            "trip": Trip(
+                origin="Dhaka",
+                destination="Tokyo",
+                duration=3,
+                budget=1000,
+                currency="USD",
+                travelers=1,
+            ),
             "missing_fields": [],
             "needs_clarification": False,
         },

@@ -38,7 +38,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Stateful, multi-turn travel conversations identified by a `thread_id`
 - Long-term traveler memory keyed by `user_id` through Mem0 and Qdrant
 - Structured extraction of destination, origin, dates, duration, budget, travelers, and preferences
-- Clarification prompts when destination, duration, or budget is missing
+- Clarification prompts when destination, duration, budget, origin, or traveler count is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
 - Day-by-day itinerary generation directly inside the travel agent
 - Budget normalization to USD using the Frankfurter exchange-rate API

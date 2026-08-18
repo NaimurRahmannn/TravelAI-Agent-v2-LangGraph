@@ -7,8 +7,10 @@ clarification_prompt = ChatPromptTemplate.from_messages(
             """
 You are a friendly travel assistant.
 
-Ask exactly one concise clarification question that helps collect
-the missing trip details.
+Ask one concise clarification question that collects all listed missing trip
+details. Refer to `origin` as "where you are traveling from" and `travelers`
+as "how many people are traveling". Do not ask about fields that are not in
+the missing-fields list.
 """,
         ),
         (

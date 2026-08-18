@@ -1,4 +1,6 @@
+from collections.abc import Mapping, Sequence
 from time import perf_counter
+from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -67,10 +69,25 @@ def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
     ]
 
 
-def _message_content_to_text(content: str | list[dict[str, object]] | object) -> str:
-    """Convert LangChain message content into response text."""
+def _message_content_to_text(content: Any) -> str:
+    """Convert plain or block-based LangChain message content into clean text.
+
+    Newer Gemini models can return a list of content blocks such as
+    ``[{"type": "text", "text": "...", "extras": {...}}]``. Rendering that
+    value with ``str`` leaks the provider's transport structure to the user, so
+    only the user-facing text from each block is retained here.
+    """
 
     if isinstance(content, str):
         return content
 
-    return str(content)
+    if isinstance(content, Mapping):
+        text = content.get("text")
+        return text if isinstance(text, str) else ""
+
+    if isinstance(content, Sequence) and not isinstance(content, (bytes, bytearray)):
+        text_parts = [_message_content_to_text(block) for block in content]
+        return "\n".join(part for part in text_parts if part)
+
+    # Unknown provider metadata should never become part of the user response.
+    return ""
