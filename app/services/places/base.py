@@ -9,6 +9,10 @@ from app.models import ResolvedPlace
 ResolutionStatus = Literal["resolved", "partially_resolved", "unresolved"]
 
 
+class PlacesProviderUnavailableError(RuntimeError):
+    """A provider-wide failure that should stop trip-local resolution calls."""
+
+
 @dataclass(frozen=True)
 class PlaceResolution:
     """Internal provider result, including normal unresolved outcomes."""

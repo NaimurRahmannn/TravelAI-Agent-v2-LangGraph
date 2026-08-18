@@ -41,6 +41,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Clarification prompts when destination, duration, budget, origin, or traveler count is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
+- Geoapify-backed resolution for attraction-like itinerary activities
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -71,7 +72,8 @@ flowchart TD
     J -->|Approved| K
     J -->|Rejected| L[Responder]
     K --> G
-    P --> L
+    P --> Q[Place enrichment]
+    Q --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -82,9 +84,10 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 
 Complete itineraries now have a structured `TripPlan` representation as the
 backend source of truth. Markdown remains the current frontend presentation and
-is rendered deterministically from that plan. The structured data provides a
-foundation for future place, image, map, routing, weather, and validation work;
-those enrichment features are not part of the current implementation.
+is rendered deterministically from that plan. Geoapify enriches attraction-like
+activities with provider-backed identity, addresses, and coordinates. Images,
+maps, routing, live weather upgrades, and itinerary validation remain future
+work.
 
 ## Technology
 
@@ -96,7 +99,7 @@ those enrichment features are not part of the current implementation.
 | Frontend | Next.js 16, React 19, TypeScript |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API |
+| External data | Frankfurter currency-rate API, Geoapify forward geocoding |
 
 ## Project Layout
 
@@ -113,7 +116,7 @@ those enrichment features are not part of the current implementation.
 |   |-- llm/                 # Role-specific Groq/Gemini providers and tool binding
 |   |-- models/              # Structured trip data model
 |   |-- schemas/             # Public API request/response models
-|   |-- services/            # Graph invocation, SSE, and currency conversion
+|   |-- services/            # Graph, SSE, currency, and place enrichment services
 |   |-- tools/               # Agent-callable travel tools
 |   `-- main.py              # FastAPI application
 |-- frontend/
@@ -347,7 +350,10 @@ Budget conversion is the exception: when the extractor identifies a non-USD budg
 
 Geoapify forward geocoding resolves generated itinerary activities to real
 provider-backed places, addresses, and coordinates. Resolution failures degrade
-gracefully and leave individual activities usable but marked unresolved. Place
+gracefully and leave individual activities usable but marked unresolved. Obvious
+transport, accommodation, meal, and logistics activities are skipped because
+they are not attraction-like places. A trip-local circuit stops remaining calls
+after authentication, persistent rate-limit, or provider-outage failures. Place
 images, maps, and routing are not implemented.
 
 > [!CAUTION]
@@ -421,6 +427,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Weather, currency guidance, and visa guidance are static or mock data.
 - Conversation persistence is disk-backed but not durable across redeploys on ephemeral hosting (see [Conversation State](#conversation-state)).
 - No authentication or per-user thread ownership is implemented.
-- The existing test is an integration smoke test; broad automated test coverage is still needed.
+- Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
+- Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

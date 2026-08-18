@@ -1,6 +1,7 @@
 from app.services.places.base import (
     PlaceResolution,
     PlacesProvider,
+    PlacesProviderUnavailableError,
     build_place_query,
     normalize_place_text,
 )
@@ -10,6 +11,7 @@ __all__ = [
     "GeoapifyPlacesProvider",
     "PlaceResolution",
     "PlacesProvider",
+    "PlacesProviderUnavailableError",
     "build_place_query",
     "normalize_place_text",
 ]

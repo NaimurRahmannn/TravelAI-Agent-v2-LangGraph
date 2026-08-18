@@ -11,6 +11,7 @@ from app.core.logging import get_logger
 from app.models import ResolvedPlace
 from app.services.places.base import (
     PlaceResolution,
+    PlacesProviderUnavailableError,
     build_place_query,
     normalize_place_text,
 )
@@ -27,7 +28,7 @@ STRONG_CONFIDENCE_THRESHOLD = 0.85
 MINIMUM_CONFIDENCE_THRESHOLD = 0.35
 
 
-class GeoapifyProviderError(RuntimeError):
+class GeoapifyProviderError(PlacesProviderUnavailableError):
     """A safe provider error that never includes credentials or raw payloads."""
 
 
