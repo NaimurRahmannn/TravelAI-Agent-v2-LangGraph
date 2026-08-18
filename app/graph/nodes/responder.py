@@ -26,12 +26,17 @@ def responder_node(
     )
 
     final_message = messages[-1] if messages else None
+    stored_response = state.get("response", "")
     if isinstance(final_message, AIMessage):
-        response = _message_content_to_text(final_message.content)
+        message_response = _message_content_to_text(final_message.content)
+        # Tool-calling AI messages commonly have empty content. On an approval
+        # rejection, the approval node has already written the user-facing
+        # explanation to state, so preserve it instead of replacing it with "".
+        response = message_response if message_response.strip() else stored_response
     else:
         # No fresh AI message to read from (e.g. edge case) — fall back
         # to whatever was last stored, instead of caching it as truth.
-        response = state.get("response", "")
+        response = stored_response
 
     result = {
         "response": response,
@@ -44,6 +49,7 @@ def responder_node(
         duration,
     )
     return result
+
 
 def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
     """Return tool names requested by the latest AI message."""
