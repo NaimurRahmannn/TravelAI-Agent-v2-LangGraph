@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
 import json
 from time import perf_counter
@@ -95,6 +95,16 @@ class StreamService:
             or event.get("name")
             or "graph"
         )
+        final_response = self._extract_final_response(event, node)
+        if final_response is not None:
+            return {
+                "event_type": "final_response",
+                "node": node,
+                "content": final_response,
+                "thread_id": thread_id,
+                "timestamp": self._timestamp(),
+            }
+
         content = self._extract_content(event)
 
         if content == "" and event_type.endswith("_stream"):
@@ -107,6 +117,30 @@ class StreamService:
             "thread_id": thread_id,
             "timestamp": self._timestamp(),
         }
+
+    @staticmethod
+    def _extract_final_response(
+        event: dict[str, Any],
+        node: str,
+    ) -> str | None:
+        """Return the authoritative response emitted by a terminal response node."""
+
+        if event.get("event") != "on_chain_end":
+            return None
+
+        if node not in {"clarification", "responder"}:
+            return None
+
+        data = event.get("data") or {}
+        output = data.get("output")
+        if not isinstance(output, Mapping):
+            return None
+
+        response = output.get("response")
+        if not isinstance(response, str) or not response:
+            return None
+
+        return response
 
     def _extract_content(self, event: dict[str, Any]) -> str:
         """Extract human-readable content from a LangGraph stream event."""

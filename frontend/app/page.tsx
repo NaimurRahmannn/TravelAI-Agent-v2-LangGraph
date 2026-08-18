@@ -23,6 +23,7 @@ import {
   type StreamEvent,
   type StreamMode,
 } from "@/lib/api";
+import { MarkdownContent } from "@/app/MarkdownContent";
 
 type ChatMessage = {
   id: string;
@@ -163,7 +164,22 @@ export default function Home() {
         streamedThreadId = event.thread_id;
         setEvents((current) => [...current, event]);
 
-        if (event.event_type === "on_chat_model_stream") {
+        if (event.event_type === "final_response") {
+          assistantContent = event.content;
+          setMessages((current) =>
+            current.map((item) =>
+              item.id === assistantId
+                ? {
+                    ...item,
+                    content: assistantContent,
+                  }
+                : item,
+            ),
+          );
+        } else if (
+          event.event_type === "on_chat_model_stream" &&
+          (event.node === "agent" || event.node === "clarification")
+        ) {
           assistantContent += event.content;
           setMessages((current) =>
             current.map((item) =>
@@ -366,7 +382,11 @@ export default function Home() {
               {messages.map((message) => (
                 <article className={`message ${message.role}`} key={message.id}>
                   <span>{message.role}</span>
-                  <p>{message.content || "Streaming..."}</p>
+                  {message.role === "assistant" ? (
+                    <MarkdownContent content={message.content || "Streaming..."} />
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
                 </article>
               ))}
               {error ? (
