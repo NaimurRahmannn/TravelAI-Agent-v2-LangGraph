@@ -7,6 +7,23 @@ export type ChatRequest = {
   stream_mode?: StreamMode;
 };
 
+export type ResolvedPlace = {
+  provider: "geoapify";
+  provider_place_id: string;
+  name: string;
+  formatted_address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  country_code?: string | null;
+  latitude: number;
+  longitude: number;
+  categories: string[];
+  confidence?: number | null;
+  resolution_status: "resolved" | "partially_resolved";
+  source_attribution?: string | null;
+};
+
 export type Activity = {
   name: string;
   category: string;
@@ -16,6 +33,8 @@ export type Activity = {
   end_time?: string | null;
   estimated_cost_usd?: number | null;
   reason_for_recommendation?: string | null;
+  place?: ResolvedPlace | null;
+  place_resolution_status: "resolved" | "partially_resolved" | "unresolved";
 };
 
 export type ItineraryDay = {

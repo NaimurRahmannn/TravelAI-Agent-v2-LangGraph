@@ -151,13 +151,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create `app/.env` with both provider credentials:
+Copy `app/.env.example` to `app/.env`, then add the provider credentials:
 
 ```dotenv
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL_NAME=gemini-2.5-flash-lite
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL_NAME=openai/gpt-oss-20b
+GEOAPIFY_API_KEY=your_geoapify_api_key_here
 TEMPERATURE=0.0
 ```
 
@@ -202,6 +203,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEMINI_MODEL_NAME` | No | `gemini-2.5-flash-lite` | Gemini model used for tool reasoning and final answers |
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to the Groq API |
 | `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
+| `GEOAPIFY_API_KEY` | No | None | Resolves itinerary activities to provider-backed place identities, addresses, and coordinates; enrichment is skipped when unset |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -342,6 +344,11 @@ The LLM can currently call three registered tools:
 The research subgraph independently builds static destination context for weather, currency, and visa topics. These results are useful for itinerary drafting, but they are not live travel advisories.
 
 Budget conversion is the exception: when the extractor identifies a non-USD budget, the backend requests a current conversion rate from the public Frankfurter API and caches it for six hours. If the request fails, the original budget is retained without a fabricated conversion.
+
+Geoapify forward geocoding resolves generated itinerary activities to real
+provider-backed places, addresses, and coordinates. Resolution failures degrade
+gracefully and leave individual activities usable but marked unresolved. Place
+images, maps, and routing are not implemented.
 
 > [!CAUTION]
 > Visa rules, weather, availability, and prices can change. Verify important travel decisions against official government, airline, hotel, and forecast sources before booking.

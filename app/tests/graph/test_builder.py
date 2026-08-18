@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage
@@ -25,6 +26,7 @@ def test_graph_contains_structured_itinerary_and_memory_nodes():
     assert "memory_recall" in graph.nodes
     assert "memory_write" in graph.nodes
     assert "itinerary_generator" in graph.nodes
+    assert "place_enrichment" in graph.nodes
 
 
 def test_build_input_includes_user_id():
@@ -104,15 +106,22 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
         lambda: StructuredModel(),
     )
 
+    async def skip_place_enrichment(state, config):
+        return {"itinerary": state.get("itinerary")}
+
+    monkeypatch.setattr(builder, "place_enrichment_node", skip_place_enrichment)
+
     graph = builder._build_graph()
-    result = graph.invoke(
-        {
-            "messages": [
-                {"role": "user", "content": "Plan Tokyo for 3 days under $1000."}
-            ],
-            "user_id": "user-123",
-        },
-        config={"configurable": {"thread_id": "test-thread-memory"}},
+    result = asyncio.run(
+        graph.ainvoke(
+            {
+                "messages": [
+                    {"role": "user", "content": "Plan Tokyo for 3 days under $1000."}
+                ],
+                "user_id": "user-123",
+            },
+            config={"configurable": {"thread_id": "test-thread-memory"}},
+        )
     )
 
     assert result["user_id"] == "user-123"

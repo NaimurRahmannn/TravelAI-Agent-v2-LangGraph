@@ -21,6 +21,8 @@ def render_itinerary(plan: TripPlan) -> str:
                 details.append(activity.description)
             if activity.location_hint:
                 details.append(f"Location: {activity.location_hint}")
+            if activity.place and activity.place.formatted_address:
+                details.append(f"Address: {activity.place.formatted_address}")
             if activity.start_time or activity.end_time:
                 details.append(
                     "Time: " + _format_time_range(activity.start_time, activity.end_time)

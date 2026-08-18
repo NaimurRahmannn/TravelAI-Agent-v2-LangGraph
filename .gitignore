@@ -32,6 +32,7 @@ out/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 frontend/.env.local
 frontend/.env.*.local
 npm-debug.log*

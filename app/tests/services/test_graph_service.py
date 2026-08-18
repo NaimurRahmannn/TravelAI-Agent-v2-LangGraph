@@ -5,6 +5,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    ResolvedPlace,
     TripPlan,
 )
 from app.schemas.api import ChatRequest, ChatResponse
@@ -65,3 +66,33 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
     assert response.response == "# Thailand Plan"
     assert response.thread_id == "t-1"
     assert response.itinerary == plan
+
+
+def test_chat_response_serializes_nested_place_without_backend_secret():
+    plan = _plan()
+    data = plan.model_dump()
+    data["days"][0]["activities"][0].update(
+        {
+            "place": ResolvedPlace(
+                provider="geoapify",
+                provider_place_id="geo-place-1",
+                name="Wat Arun",
+                latitude=13.7437,
+                longitude=100.4889,
+                resolution_status="resolved",
+            ).model_dump(),
+            "place_resolution_status": "resolved",
+        }
+    )
+    response = ChatResponse(
+        response="# Thailand Plan",
+        thread_id="thread-1",
+        itinerary=TripPlan.model_validate(data),
+    )
+
+    serialized = response.model_dump_json()
+
+    assert '\"provider_place_id\":\"geo-place-1\"' in serialized
+    assert '\"latitude\":13.7437' in serialized
+    assert "GEOAPIFY_API_KEY" not in serialized
+    assert "test-geo-key" not in serialized

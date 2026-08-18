@@ -3,6 +3,8 @@ from .itinerary import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    PlaceResolutionStatus,
+    ResolvedPlace,
     TripPlan,
 )
 from .trip import Trip, TripExtraction
@@ -12,6 +14,8 @@ __all__ = [
     "BudgetBreakdown",
     "BudgetItem",
     "ItineraryDay",
+    "PlaceResolutionStatus",
+    "ResolvedPlace",
     "Trip",
     "TripExtraction",
     "TripPlan",

@@ -54,6 +54,8 @@ Rules:
   live prices, availability, or facts that are not present in that context.
 - Do not invent coordinates, place IDs, ratings, review counts, opening hours,
   photos, photo attribution, or any other external-provider metadata.
+- Always leave place null and place_resolution_status unresolved. A separate
+  trusted provider enrichment step owns those fields after generation.
 - Do not mention prompts, models, LangGraph, graph nodes, internal state, or
   research workers.
 """,

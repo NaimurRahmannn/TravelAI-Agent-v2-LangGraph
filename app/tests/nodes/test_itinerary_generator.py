@@ -3,6 +3,7 @@ from langchain_core.runnables import RunnableLambda
 
 from app.graph.nodes import itinerary_generator
 from app.graph.nodes.itinerary_generator import (
+    _clear_untrusted_place_enrichment,
     _has_priced_round_trip_transfer,
     _normalize_plan_details,
 )
@@ -11,6 +12,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    ResolvedPlace,
     Trip,
     TripPlan,
 )
@@ -248,3 +250,26 @@ def test_round_trip_transfer_must_include_a_price():
     day["activities"][0]["estimated_cost_usd"] = 120
 
     assert _has_priced_round_trip_transfer(day) is True
+
+
+def test_generator_clears_llm_invented_place_enrichment():
+    plan_data = _plan().model_dump()
+    plan_data["days"][0]["activities"][0].update(
+        {
+            "place": ResolvedPlace(
+                provider="geoapify",
+                provider_place_id="invented-id",
+                name="Invented Place",
+                latitude=1,
+                longitude=2,
+                resolution_status="resolved",
+            ).model_dump(),
+            "place_resolution_status": "resolved",
+        }
+    )
+
+    sanitized = _clear_untrusted_place_enrichment(TripPlan.model_validate(plan_data))
+
+    activity = sanitized.days[0].activities[0]
+    assert activity.place is None
+    assert activity.place_resolution_status == "unresolved"

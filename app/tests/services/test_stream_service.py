@@ -4,6 +4,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    ResolvedPlace,
     TripPlan,
 )
 
@@ -96,3 +97,54 @@ def test_responder_final_event_serializes_structured_itinerary():
     formatted = StreamService()._format_sse(result)
     assert '"itinerary": {' in formatted
     assert '"destination": "Thailand"' in formatted
+
+
+def test_final_sse_serializes_nested_place_without_api_key():
+    place = ResolvedPlace(
+        provider="geoapify",
+        provider_place_id="geo-place-1",
+        name="Wat Arun",
+        latitude=13.7437,
+        longitude=100.4889,
+        resolution_status="resolved",
+    )
+    plan = TripPlan(
+        title="Thailand Plan",
+        destination="Thailand",
+        duration_days=1,
+        travelers=1,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Bangkok",
+                activities=[
+                    Activity(
+                        name="Wat Arun",
+                        category="culture",
+                        place=place,
+                        place_resolution_status="resolved",
+                    )
+                ],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Activities", amount_usd=50)],
+            estimated_total_usd=50,
+        ),
+        practical_notes=[],
+    )
+    event = {
+        "event": "on_chain_end",
+        "metadata": {"langgraph_node": "responder"},
+        "data": {"output": {"response": "# Thailand Plan", "itinerary": plan}},
+    }
+
+    normalized = StreamService()._normalize_event(event, "thread-123")
+    formatted = StreamService()._format_sse(normalized)
+
+    assert normalized["itinerary"]["days"][0]["activities"][0]["place"][
+        "provider_place_id"
+    ] == "geo-place-1"
+    assert "GEOAPIFY_API_KEY" not in formatted
+    assert "test-geo-key" not in formatted

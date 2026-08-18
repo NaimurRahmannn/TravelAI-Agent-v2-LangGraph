@@ -6,6 +6,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    ResolvedPlace,
     TripPlan,
 )
 
@@ -82,3 +83,58 @@ def test_unknown_fields_are_rejected():
 
     with pytest.raises(ValidationError):
         TripPlan.model_validate(data)
+
+
+def _resolved_place(**updates) -> ResolvedPlace:
+    data = {
+        "provider": "geoapify",
+        "provider_place_id": "place-123",
+        "name": "Wat Mahathat",
+        "formatted_address": "Ayutthaya, Thailand",
+        "city": "Ayutthaya",
+        "state": "Phra Nakhon Si Ayutthaya",
+        "country": "Thailand",
+        "country_code": "th",
+        "latitude": 14.3569,
+        "longitude": 100.5683,
+        "categories": ["tourism.sights"],
+        "confidence": 0.98,
+        "resolution_status": "resolved",
+        "source_attribution": "OpenStreetMap contributors",
+    }
+    data.update(updates)
+    return ResolvedPlace.model_validate(data)
+
+
+def test_resolved_place_validates_and_serializes():
+    place = _resolved_place()
+
+    serialized = place.model_dump(mode="json")
+
+    assert serialized["provider"] == "geoapify"
+    assert serialized["latitude"] == 14.3569
+    assert serialized["categories"] == ["tourism.sights"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("latitude", 90.01),
+        ("latitude", -90.01),
+        ("longitude", 180.01),
+        ("longitude", -180.01),
+        ("confidence", 1.01),
+        ("confidence", -0.01),
+    ],
+)
+def test_resolved_place_rejects_invalid_coordinates_and_confidence(field, value):
+    with pytest.raises(ValidationError):
+        _resolved_place(**{field: value})
+
+
+def test_resolved_place_rejects_unknown_fields():
+    data = _resolved_place().model_dump()
+    data["raw_provider_payload"] = {"secret": "value"}
+
+    with pytest.raises(ValidationError):
+        ResolvedPlace.model_validate(data)

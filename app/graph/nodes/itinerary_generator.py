@@ -39,6 +39,7 @@ def itinerary_generator_node(
             config=config,
         )
         plan = _coerce_trip_plan(raw_plan)
+        plan = _clear_untrusted_place_enrichment(plan)
         plan = _apply_authoritative_trip(plan, complete_trip)
         plan = _normalize_plan_details(plan)
         _validate_day_structure(plan)
@@ -104,6 +105,17 @@ def _coerce_trip_plan(raw_plan: object) -> TripPlan:
     if isinstance(raw_plan, TripPlan):
         return raw_plan
     return TripPlan.model_validate(raw_plan)
+
+
+def _clear_untrusted_place_enrichment(plan: TripPlan) -> TripPlan:
+    """Remove external metadata that may have been invented by the LLM."""
+
+    plan_data = plan.model_dump()
+    for day in plan_data["days"]:
+        for activity in day["activities"]:
+            activity["place"] = None
+            activity["place_resolution_status"] = "unresolved"
+    return TripPlan.model_validate(plan_data)
 
 
 def _apply_authoritative_trip(plan: TripPlan, trip: Trip) -> TripPlan:
