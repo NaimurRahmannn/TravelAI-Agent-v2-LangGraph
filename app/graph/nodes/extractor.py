@@ -30,7 +30,7 @@ def extractor_node(
 
     chain = (
         extractor_prompt
-        | llm.with_structured_output(Trip)
+        | llm.with_structured_output(Trip, method="json_schema")
     )
 
     latest_user_message = _get_latest_human_message(state["messages"])

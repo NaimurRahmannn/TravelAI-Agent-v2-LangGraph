@@ -29,7 +29,10 @@ def itinerary_node(
     research_notes = state.get("research_results", {}).get("summary") or "None"
 
     llm = get_llm()
-    chain = itinerary_prompt | llm.with_structured_output(Itinerary)
+    chain = itinerary_prompt | llm.with_structured_output(
+        Itinerary,
+        method="json_schema",
+    )
 
     itinerary = chain.invoke(
         {

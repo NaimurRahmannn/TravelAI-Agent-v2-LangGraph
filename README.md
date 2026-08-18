@@ -1,6 +1,6 @@
 # Travel AI Agent
 
-An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, **Groq**, and **Next.js**. The application turns a conversational trip request into structured trip data, asks for missing details, gathers destination context in parallel, and produces a day-by-day itinerary with practical and budget notes.
+An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, **Google Gemini**, and **Next.js**. The application turns a conversational trip request into structured trip data, asks for missing details, gathers destination context in parallel, and produces a day-by-day itinerary with practical and budget notes.
 
 The repository contains both the Python API and a browser client for regular chat, server-sent event streaming, thread continuation, and human approval workflows.
 
@@ -42,7 +42,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Parallel weather, currency, and visa research through a LangGraph subgraph
 - Day-by-day itinerary generation with a normalized trip length
 - Budget normalization to USD using the Frankfurter exchange-rate API
-- Groq-powered structured output and tool calling
+- Gemini-powered structured output and tool calling
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
 - Standard JSON chat and server-sent event streaming APIs
 - Next.js interface with stream modes, live graph events, and approval controls
@@ -86,7 +86,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 | --- | --- |
 | API | FastAPI, Uvicorn, Pydantic |
 | Agent orchestration | LangGraph, LangChain |
-| LLM provider | Groq via `langchain-groq` |
+| LLM provider | Google Gemini via `langchain-google-genai` |
 | Frontend | Next.js 16, React 19, TypeScript |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
@@ -104,7 +104,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 |   |   |-- routers/         # Conditional graph routing
 |   |   |-- subgraphs/       # Parallel destination research graph
 |   |   `-- builder.py       # Main LangGraph assembly
-|   |-- llm/                 # Groq provider and tool binding
+|   |-- llm/                 # Gemini provider and tool binding
 |   |-- models/              # Trip and itinerary data models
 |   |-- schemas/             # Public API request/response models
 |   |-- services/            # Graph invocation, SSE, and currency conversion
@@ -123,7 +123,7 @@ When the client also supplies a stable `user_id`, Mem0 recalls and writes durabl
 - Python 3.11 or newer
 - Node.js 20 or newer
 - npm
-- A [Groq API key](https://console.groq.com/keys)
+- A [Gemini API key](https://aistudio.google.com/app/apikey)
 
 ## Quick Start
 
@@ -145,11 +145,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create `app/.env` with your Groq credentials:
+Create `app/.env` with your Gemini credentials:
 
 ```dotenv
-GROQ_API_KEY=gsk_your_key_here
-MODEL_NAME=llama-3.3-70b-versatile
+GEMINI_API_KEY=your_gemini_api_key_here
+MODEL_NAME=gemini-2.5-flash
 TEMPERATURE=0.0
 ```
 
@@ -190,8 +190,8 @@ Settings are loaded from environment variables and `app/.env`.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `GROQ_API_KEY` | Yes | None | Authenticates requests to Groq |
-| `MODEL_NAME` | No | `llama-3.3-70b-versatile` | Groq chat model used by graph nodes |
+| `GEMINI_API_KEY` | Yes | None | Authenticates requests to the Gemini Developer API (`GOOGLE_API_KEY` is also accepted) |
+| `MODEL_NAME` | No | `gemini-2.5-flash` | Gemini chat model used by graph nodes |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -348,13 +348,13 @@ Long-term traveler facts are separate from the checkpointer. Mem0 stores durable
 
 ### Backend smoke test
 
-The repository includes a direct Groq connectivity check. With `app/.env` configured and the virtual environment active, run:
+The repository includes a direct Gemini connectivity check. With `app/.env` configured and the virtual environment active, run:
 
 ```bash
-python -m app.tests.api.test_groqapi
+python -m app.tests.api.test_gemini_api
 ```
 
-This invokes the configured model and prints a one-sentence response. It consumes a small amount of Groq quota and is not a mocked unit test.
+This invokes the configured model and prints a one-sentence response. It consumes a small amount of Gemini quota and is not a mocked unit test.
 
 ### Frontend checks
 
@@ -373,9 +373,9 @@ npm run build
 
 ## Troubleshooting
 
-### `GROQ_API_KEY` field required
+### `GEMINI_API_KEY` field required
 
-If `/chat` returns HTTP 500 and the backend logs a Pydantic validation error for `GROQ_API_KEY`, create `app/.env`, add the key, and restart Uvicorn. A root-level `.env` is not loaded by the current configuration.
+If `/chat` returns HTTP 500 and the backend logs a Pydantic validation error for `GEMINI_API_KEY`, create `app/.env`, add the key, and restart Uvicorn. `GOOGLE_API_KEY` is accepted as an alternative variable name. A root-level `.env` is not loaded by the current configuration.
 
 ### Frontend cannot reach the API
 

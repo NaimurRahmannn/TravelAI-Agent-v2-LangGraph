@@ -1,13 +1,16 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    GROQ_API_KEY: str
-    MODEL_NAME: str = "llama-3.3-70b-versatile"
+    GEMINI_API_KEY: str = Field(
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    )
+    MODEL_NAME: str = "gemini-2.5-flash"
     TEMPERATURE: float = 0.0
     MEM0_VECTOR_STORE_PROVIDER: str = "qdrant"
     MEM0_VECTOR_STORE_PATH: str = "app/.mem0/qdrant"

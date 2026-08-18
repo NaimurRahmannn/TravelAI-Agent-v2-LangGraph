@@ -51,10 +51,10 @@ class MemoryService:
                 },
             },
             "llm": {
-                "provider": "groq",
+                "provider": "gemini",
                 "config": {
                     "model": settings.MODEL_NAME,
-                    "api_key": settings.GROQ_API_KEY,
+                    "api_key": settings.GEMINI_API_KEY,
                     "temperature": settings.TEMPERATURE,
                 },
             },

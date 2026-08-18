@@ -54,8 +54,12 @@ async def get_graph() -> Any:
     return _graph
 
 
-def _build_graph(checkpointer: AsyncSqliteSaver) -> Any:
-    """Build and compile the travel planning graph."""
+def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
+    """Build and compile the graph, optionally with a production checkpointer.
+
+    Tests can omit the checkpointer to get an isolated, synchronously invokable
+    graph. ``get_graph`` always injects ``AsyncSqliteSaver`` in production.
+    """
 
     builder = StateGraph(TravelState)
 
