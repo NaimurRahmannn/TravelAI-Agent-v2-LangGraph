@@ -11,8 +11,8 @@ logger = get_logger(__name__)
 
 def tool_router(
     state: TravelState,
-) -> Literal["approval_gate", "responder"]:
-    """Route tool-call requests toward approval or finish with responder."""
+) -> Literal["approval_gate", "itinerary_generator"]:
+    """Route tool calls to approval or final text to structured generation."""
 
     started_at = perf_counter()
     messages: list[BaseMessage] = state["messages"]
@@ -24,16 +24,16 @@ def tool_router(
     )
 
     if not messages:
-        _log_exit("responder", tool_names, started_at)
-        return "responder"
+        _log_exit("itinerary_generator", tool_names, started_at)
+        return "itinerary_generator"
 
     last_message = messages[-1]
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         _log_exit("approval_gate", tool_names, started_at)
         return "approval_gate"
 
-    _log_exit("responder", tool_names, started_at)
-    return "responder"
+    _log_exit("itinerary_generator", tool_names, started_at)
+    return "itinerary_generator"
 
 
 def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
@@ -53,7 +53,7 @@ def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
 
 
 def _log_exit(
-    route: Literal["approval_gate", "responder"],
+    route: Literal["approval_gate", "itinerary_generator"],
     tool_names: list[str],
     started_at: float,
 ) -> None:

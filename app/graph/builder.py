@@ -15,6 +15,7 @@ from app.graph.nodes.approval import (
 )
 from app.graph.nodes.clarification import clarification_node
 from app.graph.nodes.extractor import extractor_node
+from app.graph.nodes.itinerary_generator import itinerary_generator_node
 from app.graph.nodes.memory_recall import memory_recall_node
 from app.graph.nodes.memory_write import memory_write_node
 from app.graph.nodes.planner import planner_node
@@ -70,6 +71,7 @@ def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
     builder.add_node("approval_gate", approval_gate_node)
     builder.add_node("approval", approval_node)
     builder.add_node("tools", build_tool_executor_node())
+    builder.add_node("itinerary_generator", itinerary_generator_node)
     builder.add_node("responder", responder_node)
     builder.add_node("memory_recall", memory_recall_node)
     builder.add_node("memory_write", memory_write_node)
@@ -89,7 +91,7 @@ def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
         tool_router,
         {
             "approval_gate": "approval_gate",
-            "responder": "responder",
+            "itinerary_generator": "itinerary_generator",
         },
     )
     builder.add_conditional_edges(
@@ -115,6 +117,7 @@ def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
     builder.add_edge("research", "memory_recall")
     builder.add_edge("memory_recall", "agent")
     builder.add_edge("tools", "agent")
+    builder.add_edge("itinerary_generator", "responder")
     # Only final responses are written; clarification prompts skip Mem0 because
     # they rarely contain durable traveler facts and must remain a short-circuit.
     builder.add_edge("responder", "memory_write")

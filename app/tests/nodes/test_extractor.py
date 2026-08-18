@@ -7,7 +7,14 @@ from app.graph.nodes.extractor import (
     _get_missing_required_fields,
     _merge_trip,
 )
-from app.models import TripExtraction
+from app.models import (
+    Activity,
+    BudgetBreakdown,
+    BudgetItem,
+    ItineraryDay,
+    TripExtraction,
+    TripPlan,
+)
 
 
 def _empty_extraction() -> TripExtraction:
@@ -114,4 +121,48 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
     assert result["trip"].destination == "Thailand"
     assert result["trip"].duration == 5
     assert result["missing_fields"] == ["budget", "origin", "travelers"]
+    assert result["needs_clarification"] is True
+    assert result["itinerary"] is None
+
+
+def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
+    """A prior plan cannot leak into a later clarification or rejection turn."""
+
+    class EmptyExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(lambda _: _empty_extraction())
+
+    stale_plan = TripPlan(
+        title="Old plan",
+        origin="Dhaka",
+        destination="Japan",
+        duration_days=1,
+        travelers=1,
+        summary=None,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Tokyo",
+                activities=[Activity(name="Old activity", category="visit")],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Trip", amount_usd=100)],
+            estimated_total_usd=100,
+            user_budget_usd=100,
+        ),
+        practical_notes=[],
+    )
+    monkeypatch.setattr(extractor, "get_groq_llm", lambda: EmptyExtractionModel())
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="Plan another trip")],
+            "itinerary": stale_plan,
+        },
+        config={},
+    )
+
+    assert result["itinerary"] is None
     assert result["needs_clarification"] is True

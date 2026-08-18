@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
 from app.llm import get_groq_llm
-from app.models import Trip, TripExtraction
+from app.models import Trip, TripExtraction, TripPlan
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 def extractor_node(
     state: TravelState,
     config: RunnableConfig,
-) -> dict[str, Trip | list[str] | bool]:
+) -> dict[str, Trip | TripPlan | list[str] | bool | None]:
     """Extract structured trip details from the latest user message."""
 
     started_at = perf_counter()
@@ -61,6 +61,10 @@ def extractor_node(
     missing_fields = _get_missing_required_fields(trip)
     result = {
         "trip": trip,
+        # Every new user turn must replace, clarify, or regenerate the plan.
+        # Explicitly clearing this checkpointed field prevents a prior turn's
+        # itinerary from leaking into a fallback or approval-rejection path.
+        "itinerary": None,
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }

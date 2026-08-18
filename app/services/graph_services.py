@@ -70,14 +70,16 @@ class GraphService:
                 return ChatResponse(
                     response="Approval required before continuing.",
                     thread_id=thread_id,
+                    itinerary=None,
                 )
 
             logger.info("checkpoint save thread_id=%s", thread_id)
             await graph.aget_state(config)
             logger.info("graph async invocation finished thread_id=%s", thread_id)
             return ChatResponse(
-                response=result["response"],
+                response=result.get("response", ""),
                 thread_id=thread_id,
+                itinerary=result.get("itinerary"),
             )
         except Exception as exc:
             logger.exception("Async graph invocation failed thread_id=%s", thread_id)

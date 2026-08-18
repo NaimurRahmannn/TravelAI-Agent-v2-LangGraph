@@ -84,7 +84,7 @@ class StreamService:
         self,
         event: dict[str, Any],
         thread_id: str,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, Any] | None:
         """Normalize a LangGraph event into the public SSE payload shape."""
 
         event_type = str(event.get("event", "unknown"))
@@ -95,12 +95,14 @@ class StreamService:
             or event.get("name")
             or "graph"
         )
-        final_response = self._extract_final_response(event, node)
-        if final_response is not None:
+        final_payload = self._extract_final_payload(event, node)
+        if final_payload is not None:
+            final_response, itinerary = final_payload
             return {
                 "event_type": "final_response",
                 "node": node,
                 "content": final_response,
+                "itinerary": itinerary,
                 "thread_id": thread_id,
                 "timestamp": self._timestamp(),
             }
@@ -119,11 +121,11 @@ class StreamService:
         }
 
     @staticmethod
-    def _extract_final_response(
+    def _extract_final_payload(
         event: dict[str, Any],
         node: str,
-    ) -> str | None:
-        """Return the authoritative response emitted by a terminal response node."""
+    ) -> tuple[str, dict[str, Any] | None] | None:
+        """Return a JSON-safe response and optional itinerary from a final node."""
 
         if event.get("event") != "on_chain_end":
             return None
@@ -140,7 +142,15 @@ class StreamService:
         if not isinstance(response, str) or not response:
             return None
 
-        return response
+        itinerary = output.get("itinerary")
+        if hasattr(itinerary, "model_dump"):
+            itinerary = itinerary.model_dump(mode="json")
+        elif not isinstance(itinerary, Mapping):
+            itinerary = None
+        else:
+            itinerary = dict(itinerary)
+
+        return response, itinerary
 
     def _extract_content(self, event: dict[str, Any]) -> str:
         """Extract human-readable content from a LangGraph stream event."""
@@ -170,7 +180,7 @@ class StreamService:
 
         return self._stringify(data)
 
-    def _format_sse(self, payload: dict[str, str]) -> str:
+    def _format_sse(self, payload: dict[str, Any]) -> str:
         """Format a normalized payload as a server-sent event."""
 
         event_type = payload["event_type"]

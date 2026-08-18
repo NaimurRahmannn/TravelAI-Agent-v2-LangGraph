@@ -1,6 +1,13 @@
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.graph.nodes.responder import responder_node
+from app.models import (
+    Activity,
+    BudgetBreakdown,
+    BudgetItem,
+    ItineraryDay,
+    TripPlan,
+)
 
 
 def test_responder_preserves_rejection_when_tool_message_content_is_empty():
@@ -105,3 +112,57 @@ def test_responder_uses_stored_response_without_final_ai_message():
     )
 
     assert result == {"response": "The action was cancelled."}
+
+
+def test_responder_renders_structured_itinerary_as_source_of_truth():
+    plan = TripPlan(
+        title="Thailand Plan",
+        origin="Dhaka",
+        destination="Thailand",
+        duration_days=1,
+        travelers=2,
+        summary=None,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Bangkok",
+                activities=[Activity(name="Wat Arun", category="culture")],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Activities", amount_usd=50)],
+            estimated_total_usd=50,
+            user_budget_usd=100,
+        ),
+        practical_notes=[],
+    )
+
+    result = responder_node(
+        {
+            "messages": [AIMessage(content="This text is no longer authoritative.")],
+            "response": "Older response",
+            "itinerary": plan,
+        },
+        config={},
+    )
+
+    assert result["itinerary"] == plan
+    assert result["response"].startswith("# Thailand Plan")
+    assert "Wat Arun" in result["response"]
+    assert "no longer authoritative" not in result["response"]
+
+
+def test_responder_ignores_invalid_checkpointed_itinerary():
+    """Invalid structured state must preserve the usable agent text fallback."""
+
+    result = responder_node(
+        {
+            "messages": [AIMessage(content="Usable agent response.")],
+            "response": "Older response",
+            "itinerary": {"title": "Incomplete stale plan"},
+        },
+        config={},
+    )
+
+    assert result == {"response": "Usable agent response."}

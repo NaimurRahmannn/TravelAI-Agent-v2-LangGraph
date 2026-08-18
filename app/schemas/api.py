@@ -2,6 +2,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
+from app.models import TripPlan
+
 StreamMode = Literal["updates", "messages", "debug"]
 
 
@@ -19,3 +21,4 @@ class ChatResponse(BaseModel):
 
     response: str
     thread_id: str
+    itinerary: TripPlan | None = None

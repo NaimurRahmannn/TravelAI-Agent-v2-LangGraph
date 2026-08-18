@@ -1,7 +1,7 @@
 from typing import Annotated, TypedDict
 
 from langgraph.graph import MessagesState
-from app.models import Trip
+from app.models import Trip, TripPlan
 
 
 def merge_research_results(
@@ -30,6 +30,7 @@ class TravelState(MessagesState):
     user_id: str | None
     planner: PlannerState
     trip: Trip | None
+    itinerary: TripPlan | None
     missing_fields: list[str]
     needs_clarification: bool
     research_results: Annotated[dict[str, str], merge_research_results]

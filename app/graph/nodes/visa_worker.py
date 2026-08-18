@@ -17,25 +17,26 @@ def visa_worker(
     started_at = perf_counter()
     trip = state["trip"]
     destination = trip.destination if trip and trip.destination else "the destination"
-    nationality = trip.origin if trip and trip.origin else "the traveler's nationality"
+    origin = trip.origin if trip and trip.origin else "an unspecified origin"
     logger.info(
-        "ResearchGraph.Worker.visa entered destination=%s nationality=%s",
+        "ResearchGraph.Worker.visa entered destination=%s origin=%s",
         destination,
-        nationality,
+        origin,
     )
 
     result = (
-        f"Visa guidance for {nationality} travelers visiting {destination}: "
-        "confirm current entry rules with the official embassy or immigration "
-        "website before booking. Requirements may vary by passport, stay "
-        "duration, and travel purpose."
+        f"Visa guidance for travel from {origin} to {destination}: departure "
+        "location does not establish passport nationality. Confirm current "
+        "entry rules for the traveler's actual passport with the official "
+        "embassy or immigration website before booking. Requirements may vary "
+        "by passport, stay duration, and travel purpose."
     )
 
     duration = perf_counter() - started_at
     logger.info(
-        "ResearchGraph.Worker.visa exited destination=%s nationality=%s duration=%.4fs",
+        "ResearchGraph.Worker.visa exited destination=%s origin=%s duration=%.4fs",
         destination,
-        nationality,
+        origin,
         duration,
     )
     return {

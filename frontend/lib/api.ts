@@ -7,9 +7,56 @@ export type ChatRequest = {
   stream_mode?: StreamMode;
 };
 
+export type Activity = {
+  name: string;
+  category: string;
+  location_hint?: string | null;
+  description?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  estimated_cost_usd?: number | null;
+  reason_for_recommendation?: string | null;
+};
+
+export type ItineraryDay = {
+  day_number: number;
+  date?: string | null;
+  city: string;
+  activities: Activity[];
+  estimated_daily_cost_usd?: number | null;
+};
+
+export type BudgetItem = {
+  category: string;
+  amount_usd: number;
+  note?: string | null;
+};
+
+export type BudgetBreakdown = {
+  items: BudgetItem[];
+  estimated_total_usd: number;
+  user_budget_usd?: number | null;
+  within_budget?: boolean | null;
+  international_travel_included?: boolean | null;
+};
+
+export type TripPlan = {
+  title: string;
+  origin?: string | null;
+  destination: string;
+  duration_days: number;
+  travelers: number;
+  summary?: string | null;
+  preferences: string[];
+  days: ItineraryDay[];
+  budget: BudgetBreakdown;
+  practical_notes: string[];
+};
+
 export type ChatResponse = {
   response: string;
   thread_id: string;
+  itinerary?: TripPlan | null;
 };
 
 export type ApprovalResponse = {
@@ -23,6 +70,7 @@ export type StreamEvent = {
   content: string;
   thread_id: string;
   timestamp: string;
+  itinerary?: TripPlan | null;
 };
 
 const API_BASE_URL =

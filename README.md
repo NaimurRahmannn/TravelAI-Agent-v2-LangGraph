@@ -40,7 +40,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Structured extraction of destination, origin, dates, duration, budget, travelers, and preferences
 - Clarification prompts when destination, duration, budget, origin, or traveler count is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
-- Day-by-day itinerary generation directly inside the travel agent
+- Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -64,13 +64,14 @@ flowchart TD
     E3 --> F
     F --> N[Recall traveler memories]
     N --> G[Travel agent]
-    G -->|No tool calls; final itinerary ready| L[Responder]
+    G -->|No tool calls; planning complete| P[Structured itinerary generator]
     G -->|Tool calls| I[Approval gate]
     I -->|Approval required| J[Human decision]
     I -->|No approval required| K[Tool executor]
     J -->|Approved| K
     J -->|Rejected| L[Responder]
     K --> G
+    P --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -78,6 +79,12 @@ flowchart TD
 
 Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's SQLite checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
 When the client also supplies a stable `user_id`, Mem0 recalls and writes durable traveler facts across threads. Anonymous requests skip long-term personalization.
+
+Complete itineraries now have a structured `TripPlan` representation as the
+backend source of truth. Markdown remains the current frontend presentation and
+is rendered deterministically from that plan. The structured data provides a
+foundation for future place, image, map, routing, weather, and validation work;
+those enrichment features are not part of the current implementation.
 
 ## Technology
 
@@ -245,7 +252,13 @@ The response includes the generated thread ID:
 ```json
 {
   "response": "...",
-  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162"
+  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162",
+  "itinerary": {
+    "title": "7-Day Japan Itinerary",
+    "destination": "Japan",
+    "duration_days": 7,
+    "days": []
+  }
 }
 ```
 

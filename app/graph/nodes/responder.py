@@ -1,13 +1,13 @@
-from collections.abc import Mapping, Sequence
 from time import perf_counter
-from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
-
 from app.graph.state import TravelState
+from app.models import TripPlan
+from app.services.itinerary_renderer import render_itinerary
+from app.services.message_content import message_content_to_text
 
 logger = get_logger(__name__)
 
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 def responder_node(
     state: TravelState,
     config: RunnableConfig,
-) -> dict[str, str]:
+) -> dict[str, str | TripPlan]:
     """Convert the final AI message into the graph response."""
 
     started_at = perf_counter()
@@ -27,10 +27,23 @@ def responder_node(
         tool_names,
     )
 
+    itinerary = state.get("itinerary")
+    if itinerary is not None and not isinstance(itinerary, TripPlan):
+        try:
+            itinerary = TripPlan.model_validate(itinerary)
+        except Exception:
+            logger.warning(
+                "invalid checkpointed itinerary ignored; using text fallback",
+                exc_info=True,
+            )
+            itinerary = None
+
     final_message = messages[-1] if messages else None
     stored_response = state.get("response", "")
-    if isinstance(final_message, AIMessage):
-        message_response = _message_content_to_text(final_message.content)
+    if itinerary is not None:
+        response = render_itinerary(itinerary)
+    elif isinstance(final_message, AIMessage):
+        message_response = message_content_to_text(final_message.content)
         # Tool-calling AI messages commonly have empty content. On an approval
         # rejection, the approval node has already written the user-facing
         # explanation to state, so preserve it instead of replacing it with "".
@@ -40,9 +53,9 @@ def responder_node(
         # to whatever was last stored, instead of caching it as truth.
         response = stored_response
 
-    result = {
-        "response": response,
-    }
+    result: dict[str, str | TripPlan] = {"response": response}
+    if itinerary is not None:
+        result["itinerary"] = itinerary
     duration = perf_counter() - started_at
     logger.info(
         "responder_node exited tool_count=%s tool_names=%s duration=%.4fs",
@@ -67,27 +80,3 @@ def _get_latest_tool_names(messages: list[BaseMessage]) -> list[str]:
         tool_call["name"]
         for tool_call in last_message.tool_calls
     ]
-
-
-def _message_content_to_text(content: Any) -> str:
-    """Convert plain or block-based LangChain message content into clean text.
-
-    Newer Gemini models can return a list of content blocks such as
-    ``[{"type": "text", "text": "...", "extras": {...}}]``. Rendering that
-    value with ``str`` leaks the provider's transport structure to the user, so
-    only the user-facing text from each block is retained here.
-    """
-
-    if isinstance(content, str):
-        return content
-
-    if isinstance(content, Mapping):
-        text = content.get("text")
-        return text if isinstance(text, str) else ""
-
-    if isinstance(content, Sequence) and not isinstance(content, (bytes, bytearray)):
-        text_parts = [_message_content_to_text(block) for block in content]
-        return "\n".join(part for part in text_parts if part)
-
-    # Unknown provider metadata should never become part of the user response.
-    return ""
