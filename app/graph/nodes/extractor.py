@@ -47,13 +47,16 @@ def extractor_node(
         },
         config=config,
     )
+    existing_trip = state.get("trip")
     extracted_trip = _apply_deterministic_fallback(
         extracted_trip,
         str(latest_user_message.content) if latest_user_message else "",
+        missing_fields=_get_missing_required_fields(existing_trip or Trip()),
+        is_clarification_reply=existing_trip is not None,
     )
 
     trip = _merge_trip(
-        existing_trip=state.get("trip"),
+        existing_trip=existing_trip,
         extracted_trip=extracted_trip,
     )
     trip = _normalize_budget_to_usd(trip)
@@ -138,6 +141,9 @@ def _merge_trip(
 def _apply_deterministic_fallback(
     extracted_trip: TripExtraction,
     message: str,
+    *,
+    missing_fields: list[str] | None = None,
+    is_clarification_reply: bool = False,
 ) -> TripExtraction:
     """Fill obvious facts when a model returns valid but incomplete structured data."""
 
@@ -173,6 +179,21 @@ def _apply_deterministic_fallback(
             updates["budget"] = budget
         if currency and extracted_trip.currency is None:
             updates["currency"] = currency
+
+    # A clarification reply is often just "Bangladesh 2", without labels such
+    # as "from" or "travelers". Only interpret that shorthand after we already
+    # have a partial trip, so an initial request cannot mistake its destination
+    # for an origin.
+    if is_clarification_reply and missing_fields:
+        if extracted_trip.origin is None and "origin" in missing_fields:
+            origin = _extract_unlabelled_origin(message)
+            if origin:
+                updates["origin"] = origin
+
+        if extracted_trip.travelers is None and "travelers" in missing_fields:
+            travelers = _extract_unlabelled_travelers(message)
+            if travelers is not None:
+                updates["travelers"] = travelers
 
     if not updates:
         return extracted_trip
@@ -245,6 +266,50 @@ def _extract_travelers(message: str) -> int | None:
         if match:
             return int(match.group(1))
     return None
+
+
+def _extract_unlabelled_origin(message: str) -> str | None:
+    """Extract a short place-only reply to an origin clarification."""
+
+    if len(message.split()) > 4:
+        return None
+
+    candidate = _strip_explicit_budget(message)
+    candidate = re.sub(r"\b\d+\b", " ", candidate)
+    candidate = re.sub(r"\b(?:from|origin|travel(?:ing|ling)?\s+from)\b", " ", candidate, flags=re.IGNORECASE)
+    candidate = " ".join(candidate.strip(" ,.!?;:").split())
+
+    if not re.fullmatch(r"[a-z][a-z .'-]*", candidate, re.IGNORECASE):
+        return None
+
+    return _normalize_place(candidate)
+
+
+def _extract_unlabelled_travelers(message: str) -> int | None:
+    """Extract a bare party-size answer after a traveler clarification."""
+
+    if len(message.split()) > 4:
+        return None
+
+    numbers = re.findall(r"\b([1-9]\d*)\b", _strip_explicit_budget(message))
+    if len(numbers) != 1:
+        return None
+
+    return int(numbers[0])
+
+
+def _strip_explicit_budget(message: str) -> str:
+    """Remove amounts that are explicitly marked as a currency value."""
+
+    return re.sub(
+        r"(?:US\$|\$|â‚¬|Â£|â‚¹|à§³)\s*\d[\d,]*(?:\.\d+)?\s*"
+        r"(?:USD|dollars?|BDT|taka|tk|EUR|euros?|GBP|pounds?|INR|rupees?)?"
+        r"|\b\d[\d,]*(?:\.\d+)?\s*"
+        r"(?:USD|dollars?|BDT|taka|tk|EUR|euros?|GBP|pounds?|INR|rupees?)\b",
+        " ",
+        message,
+        flags=re.IGNORECASE,
+    )
 
 
 def _normalize_place(value: str) -> str:

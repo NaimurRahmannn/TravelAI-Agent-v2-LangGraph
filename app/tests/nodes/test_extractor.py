@@ -84,6 +84,37 @@ def test_follow_up_recovers_origin_budget_and_travelers():
     assert _get_missing_required_fields(trip) == []
 
 
+def test_short_unlabelled_clarification_reply_completes_trip_details():
+    """Bare answers such as 'Bangladesh 2' should not repeat the same prompt."""
+
+    initial_trip = _merge_trip(
+        None,
+        _apply_deterministic_fallback(
+            _empty_extraction(),
+            "Plan a Thailand trip for 5 days",
+        ),
+    )
+    budget_and_origin = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "$2000 dollar Bangladesh",
+        missing_fields=_get_missing_required_fields(initial_trip),
+        is_clarification_reply=True,
+    )
+    partial_trip = _merge_trip(initial_trip, budget_and_origin)
+    final_reply = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "Bangladesh 2",
+        missing_fields=_get_missing_required_fields(partial_trip),
+        is_clarification_reply=True,
+    )
+    completed_trip = _merge_trip(partial_trip, final_reply)
+
+    assert partial_trip.origin == "Bangladesh"
+    assert partial_trip.budget == 2000
+    assert completed_trip.travelers == 2
+    assert _get_missing_required_fields(completed_trip) == []
+
+
 def test_extraction_schema_requires_every_key_and_forbids_extra_fields():
     """Groq must not be allowed to satisfy the schema with an empty object."""
 
