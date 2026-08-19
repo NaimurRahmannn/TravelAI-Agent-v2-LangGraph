@@ -85,14 +85,26 @@ Each new request gets a UUID unless the client supplies an existing `thread_id`.
 When the client also supplies a stable `user_id`, Mem0 recalls and writes durable traveler facts across threads. Anonymous requests skip long-term personalization.
 
 Complete itineraries now have a structured `TripPlan` representation as the
-backend source of truth. Markdown remains the current frontend presentation and
-is rendered deterministically from that plan. Geoapify enriches attraction-like
+backend source of truth. The frontend renders completed plans as structured trip
+overviews, day sections, attraction cards, budgets, and practical notes, while
+clarification and general chat messages retain Markdown presentation. Geoapify enriches attraction-like
 activities with provider-backed identity, addresses, and coordinates. Eligible,
 fully resolved places are then matched conservatively to Wikidata entities;
 their P18 claims are resolved through Wikimedia Commons into image URLs and
-attribution-ready licensing metadata. Images are exposed in structured API and
-SSE itinerary data but are not rendered by the frontend yet. Maps, routing,
-live weather upgrades, and itinerary validation remain future work.
+attribution-ready licensing metadata. Trusted attraction images render with
+visible author, license, and Commons source attribution. Maps, routing, real
+weather upgrades, and itinerary validation remain future work.
+
+```text
+final_response
+      |
+      +-- itinerary present --> TripItinerary
+      |                         +-- trip overview
+      |                         +-- day/activity cards
+      |                         +-- budget and practical notes
+      |
+      +-- no itinerary -------> MarkdownContent
+```
 
 ## Technology
 
@@ -218,8 +230,8 @@ Settings are loaded from environment variables and `app/.env`.
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
 | `MEM0_VECTOR_STORE_PATH` | No | `app/.mem0/qdrant` | Local embedded Qdrant storage path |
-| `MEM0_EMBEDDER_PROVIDER` | No | `huggingface` | Mem0 embedder provider for traveler memory search |
-| `MEM0_EMBEDDER_MODEL` | No | `multi-qa-MiniLM-L6-cos-v1` | Hugging Face embedding model used by Mem0 |
+| `MEM0_EMBEDDER_PROVIDER` | No | `fastembed` | Mem0 embedder provider for traveler memory search |
+| `MEM0_EMBEDDER_MODEL` | No | `BAAI/bge-small-en-v1.5` | FastEmbed model used by Mem0 |
 | `MEM0_EMBEDDING_DIMS` | No | `384` | Vector dimension for the configured embedding model |
 | `CORS_ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated frontend origins allowed to call the API |
 
@@ -374,9 +386,11 @@ request-local deduplication, bounded retries/concurrency, and a trip-local outag
 `WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
 descriptive application identity with an appropriate contact method.
 
-Phase 3 enriches structured itinerary data only. The deterministic Markdown and
-current frontend remain unchanged; attraction cards and image rendering belong
-to a later phase. Maps and routing are not implemented.
+Completed plans use the structured itinerary UI, including rich image cards,
+resolved place cards without images, compact logistics activities, budget
+visibility, practical notes, and readable Wikimedia attribution. Markdown
+remains the fallback for clarification and other non-itinerary messages. Google
+Maps, routing, and real weather integration are not implemented.
 
 > [!CAUTION]
 > Visa rules, weather, availability, and prices can change. Verify important travel decisions against official government, airline, hotel, and forecast sources before booking.
@@ -453,6 +467,6 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
-- Wikimedia image metadata is exposed through the structured API but is not rendered by the frontend yet.
+- Google Maps, routing, and real weather integration are not implemented yet.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

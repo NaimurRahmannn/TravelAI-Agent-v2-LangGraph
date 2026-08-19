@@ -22,13 +22,15 @@ import {
   streamChat,
   type StreamEvent,
   type StreamMode,
+  type TripPlan,
 } from "@/lib/api";
-import { MarkdownContent } from "@/app/MarkdownContent";
+import { AssistantMessage } from "@/components/AssistantMessage";
 
 type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  itinerary?: TripPlan | null;
 };
 
 const SUGGESTIONS = [
@@ -135,6 +137,7 @@ export default function Home() {
         id: crypto.randomUUID(),
         role: "assistant",
         content: response.response,
+        itinerary: response.itinerary,
       },
     ]);
   }
@@ -172,6 +175,7 @@ export default function Home() {
                 ? {
                     ...item,
                     content: assistantContent,
+                    itinerary: event.itinerary,
                   }
                 : item,
             ),
@@ -380,10 +384,18 @@ export default function Home() {
           <section className="chatSurface">
             <div className="messages">
               {messages.map((message) => (
-                <article className={`message ${message.role}`} key={message.id}>
+                <article
+                  className={`message ${message.role} ${
+                    message.itinerary ? "itineraryMessage" : ""
+                  }`}
+                  key={message.id}
+                >
                   <span>{message.role}</span>
                   {message.role === "assistant" ? (
-                    <MarkdownContent content={message.content || "Streaming..."} />
+                    <AssistantMessage
+                      content={message.content}
+                      itinerary={message.itinerary}
+                    />
                   ) : (
                     <p>{message.content}</p>
                   )}
