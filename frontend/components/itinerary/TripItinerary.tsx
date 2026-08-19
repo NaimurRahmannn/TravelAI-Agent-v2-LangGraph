@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { TripPlan } from "@/lib/api";
 import { buildItineraryMapPoints } from "@/lib/itineraryMap";
 import { BudgetSummary } from "./BudgetSummary";
@@ -12,13 +13,17 @@ import { TripOverview } from "./TripOverview";
 type TripItineraryProps = {
   isUpdatingDates?: boolean;
   itinerary: TripPlan;
+  mapPortalTarget?: HTMLElement | null;
   onDateUpdate?: (startDate: string, endDate: string) => Promise<void> | void;
+  showMap?: boolean;
 };
 
 export function TripItinerary({
   isUpdatingDates = false,
   itinerary,
+  mapPortalTarget,
   onDateUpdate,
+  showMap = true,
 }: TripItineraryProps) {
   const idPrefix = useId();
   const [mapStatus, setMapStatus] = useState<TripMapStatus>("loading");
@@ -57,15 +62,18 @@ export function TripItinerary({
         itinerary={itinerary}
         onDateUpdate={onDateUpdate}
       />
-      {mapPoints.length > 0 ? (
-        <TripMap
-          mapSectionId={mapSectionId}
-          onMarkerSelect={handleMarkerSelect}
-          onStatusChange={setMapStatus}
-          points={mapPoints}
-          selectedMapPointId={selectedMapPointId}
-        />
-      ) : null}
+      {showMap && mapPoints.length > 0 && mapPortalTarget
+        ? createPortal(
+            <TripMap
+              mapSectionId={mapSectionId}
+              onMarkerSelect={handleMarkerSelect}
+              onStatusChange={setMapStatus}
+              points={mapPoints}
+              selectedMapPointId={selectedMapPointId}
+            />,
+            mapPortalTarget,
+          )
+        : null}
       <div className="itineraryDays">
         {itinerary.days.map((day) => {
           const dayMapPoints = mapPoints.filter(
@@ -77,7 +85,7 @@ export function TripItinerary({
               idPrefix={idPrefix}
               key={day.day_number}
               mapPoints={dayMapPoints}
-              mapReady={mapStatus === "ready"}
+              mapReady={showMap && mapStatus === "ready"}
               onShowOnMap={handleShowOnMap}
               selectedMapPointId={selectedMapPointId}
             />

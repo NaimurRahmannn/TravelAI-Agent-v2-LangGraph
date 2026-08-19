@@ -7,7 +7,6 @@ from app.api.routes.approval import router as approval_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.config import router as config_router
 from app.api.routes.health import router as health_router
-from app.api.routes.stream import router as stream_router
 
 app = FastAPI(
     title="Travel AI Agent",
@@ -42,7 +41,6 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(chat_router)
-app.include_router(stream_router)
 app.include_router(approval_router)
 app.include_router(config_router)
 

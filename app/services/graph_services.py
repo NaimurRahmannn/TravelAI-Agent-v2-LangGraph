@@ -1,4 +1,3 @@
-from collections.abc import AsyncIterator, Iterator
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -11,13 +10,13 @@ from langgraph.types import Command
 from app.core.logging import get_logger
 from app.graph.builder import get_graph
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
-from app.schemas.api import ChatRequest, ChatResponse, StreamMode
+from app.schemas.api import ChatRequest, ChatResponse
 
 logger = get_logger(__name__)
 
 
 class GraphService:
-    """Application service responsible for invoking and streaming the graph."""
+    """Application service responsible for invoking the graph."""
 
     def __init__(self) -> None:
         """Construct the service. The compiled graph is fetched lazily.
@@ -137,81 +136,6 @@ class GraphService:
                 status_code=500,
                 detail="Failed to resume chat request.",
             ) from exc
-
-    def stream(
-        self,
-        request: ChatRequest,
-        stream_mode: StreamMode | None = None,
-    ) -> Iterator[Any]:
-        """Synchronous streaming is not supported; see invoke() docstring."""
-
-        raise HTTPException(
-            status_code=501,
-            detail="Synchronous graph execution isn't supported with the "
-            "async SQLite checkpointer. Use astream instead.",
-        )
-
-    async def astream(
-        self,
-        request: ChatRequest,
-        stream_mode: StreamMode | None = None,
-    ) -> AsyncIterator[Any]:
-        """Stream graph output asynchronously using LangGraph native streaming."""
-
-        thread_id = self.resolve_thread_id(request.thread_id)
-        mode = stream_mode or request.stream_mode
-        config = self.build_config(thread_id)
-        started_at = perf_counter()
-        logger.info("astream start thread_id=%s stream_mode=%s", thread_id, mode)
-
-        try:
-            graph = await self._get_graph()
-            async for chunk in graph.astream(
-                self.build_input(request),
-                config=config,
-                stream_mode=mode,
-            ):
-                yield chunk
-        finally:
-            duration = perf_counter() - started_at
-            logger.info(
-                "astream end thread_id=%s stream_mode=%s duration=%.4fs",
-                thread_id,
-                mode,
-                duration,
-            )
-
-    async def astream_events(
-        self,
-        request: ChatRequest,
-        stream_mode: StreamMode | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Stream graph lifecycle and token events using LangGraph event streaming."""
-
-        thread_id = self.resolve_thread_id(request.thread_id)
-        mode = stream_mode or request.stream_mode
-        config = self.build_config(thread_id)
-        started_at = perf_counter()
-        logger.info("astream_events start thread_id=%s stream_mode=%s", thread_id, mode)
-
-        try:
-            graph = await self._get_graph()
-            async for event in graph.astream_events(
-                self.build_input(request),
-                config=config,
-                version="v2",
-            ):
-                event["thread_id"] = thread_id
-                event["stream_mode"] = mode
-                yield event
-        finally:
-            duration = perf_counter() - started_at
-            logger.info(
-                "astream_events end thread_id=%s stream_mode=%s duration=%.4fs",
-                thread_id,
-                mode,
-                duration,
-            )
 
     @staticmethod
     def resolve_thread_id(thread_id: str | None) -> str:

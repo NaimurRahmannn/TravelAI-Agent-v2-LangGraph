@@ -85,8 +85,7 @@ textarea:disabled {
 .brand h1,
 .brand p,
 .chatHeader h2,
-.chatHeader p,
-.railHeader h3 {
+.chatHeader p {
   margin: 0;
 }
 
@@ -112,7 +111,6 @@ textarea:disabled {
 }
 
 .panelHeader,
-.railHeader,
 .statusPill {
   display: flex;
   align-items: center;
@@ -187,48 +185,6 @@ textarea:disabled {
   color: var(--text);
 }
 
-.toggleRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.toggleRow input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-}
-
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-}
-
-.segmented button {
-  min-width: 0;
-  border: 0;
-  border-right: 1px solid var(--border);
-  background: white;
-  padding: 9px 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.segmented button:last-child {
-  border-right: 0;
-}
-
-.segmented .active {
-  background: #dff0f3;
-  color: var(--primary-dark);
-}
-
 .approvalRow {
   display: grid;
   grid-template-columns: repeat(2, 44px);
@@ -289,14 +245,13 @@ textarea:disabled {
 
 .contentGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
   gap: 16px;
   flex: 1;
   min-height: 0;
 }
 
-.chatSurface,
-.eventRail {
+.chatSurface {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -309,6 +264,79 @@ textarea:disabled {
   grid-template-rows: minmax(0, 1fr) auto auto;
   min-height: 0;
   overflow: hidden;
+}
+
+.mapRail {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mapRailContent {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mapRail .tripMapSection {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mapRail .tripMapFrame {
+  flex: 1;
+  min-height: 420px;
+}
+
+.mapRail .tripMapCanvas {
+  height: 100%;
+  min-height: 420px;
+}
+
+.mapRailPlaceholder {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 28px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.mapRailPlaceholder > span {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 15px;
+  background: #e2f1f3;
+  color: var(--primary-dark);
+}
+
+.mapRailPlaceholder h3,
+.mapRailPlaceholder p {
+  margin: 0;
+}
+
+.mapRailPlaceholder h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.mapRailPlaceholder p {
+  max-width: 250px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .messages {
@@ -697,78 +725,6 @@ textarea:disabled {
 .composer textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(18, 110, 130, 0.12);
-}
-
-.eventRail {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.railHeader {
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  padding: 14px;
-}
-
-.railHeader h3 {
-  font-size: 15px;
-}
-
-.railHeader span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.eventList {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 10px;
-  overflow: auto;
-  padding: 14px;
-}
-
-.eventItem {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-subtle);
-  padding: 10px;
-}
-
-.eventItem div {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.eventItem strong,
-.eventItem span {
-  min-width: 0;
-  font-size: 12px;
-}
-
-.eventItem strong {
-  overflow-wrap: anywhere;
-}
-
-.eventItem span {
-  flex: 0 0 auto;
-  color: var(--accent);
-  font-weight: 800;
-}
-
-.eventItem p,
-.emptyEvents {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
 }
 
 .spin {
@@ -1787,6 +1743,10 @@ textarea:disabled {
     min-height: auto;
   }
 
+  .mapRail {
+    min-height: 460px;
+  }
+
   .workspace {
     min-height: 100vh;
     overflow: visible;
@@ -1798,10 +1758,6 @@ textarea:disabled {
 
   .messages {
     max-height: 72vh;
-  }
-
-  .eventRail {
-    min-height: 360px;
   }
 
   .tripFooterGrid {

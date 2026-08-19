@@ -2,7 +2,7 @@
 
 An AI-assisted travel planning workspace built with **FastAPI**, **LangGraph**, **Groq**, **Google Gemini**, and **Next.js**. The application turns a conversational trip request into structured trip data, asks for missing details, gathers destination context in parallel, and produces a day-by-day itinerary with practical and budget notes.
 
-The repository contains both the Python API and a browser client for regular chat, server-sent event streaming, thread continuation, and human approval workflows.
+The repository contains both the Python API and a browser client for chat, thread continuation, and human approval workflows.
 
 ## Table of Contents
 
@@ -50,8 +50,8 @@ The repository contains both the Python API and a browser client for regular cha
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
-- Standard JSON chat and server-sent event streaming APIs
-- Next.js interface with stream modes, live graph events, and approval controls
+- Standard JSON chat API
+- Next.js interface with itinerary visualization and approval controls
 - Built-in FastAPI OpenAPI documentation and structured runtime logging
 
 ## How It Works
@@ -127,7 +127,6 @@ final_response
 | Agent orchestration | LangGraph, LangChain |
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
-| Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
 | External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Wikidata, Wikimedia Commons, OpenStreetMap |
 
@@ -136,7 +135,7 @@ final_response
 ```text
 .
 |-- app/
-|   |-- api/routes/          # Chat, stream, approval, config, and health endpoints
+|   |-- api/routes/          # Chat, approval, config, and health endpoints
 |   |-- graph/
 |   |   |-- nodes/           # Main graph and research worker nodes
 |   |   |-- prompts/         # LLM prompt templates
@@ -146,12 +145,12 @@ final_response
 |   |-- llm/                 # Role-specific Groq/Gemini providers and tool binding
 |   |-- models/              # Structured trip data model
 |   |-- schemas/             # Public API request/response models
-|   |-- services/            # Graph, SSE, currency, and place enrichment services
+|   |-- services/            # Graph, currency, and place enrichment services
 |   |-- tools/               # Agent-callable travel tools
 |   `-- main.py              # FastAPI application
 |-- frontend/
 |   |-- app/                 # Next.js UI and styles
-|   `-- lib/api.ts           # Typed API client and SSE parser
+|   `-- lib/api.ts           # Typed API client
 |-- docs/                    # Architecture assets
 |-- requirements.txt
 `-- README.md
@@ -338,36 +337,6 @@ Send the same `thread_id` with follow-up messages to preserve context:
 
 `thread_id` restores the current conversation. `user_id` enables long-term traveler memory across conversations. If `user_id` is omitted, memory recall and writes are skipped and the chat still works normally.
 
-### Stream a message
-
-```http
-POST /chat/stream
-Accept: text/event-stream
-Content-Type: application/json
-```
-
-```json
-{
-  "message": "Plan a 5-day Thailand trip from Dhaka under $1200",
-  "user_id": "traveler-123",
-  "stream_mode": "messages"
-}
-```
-
-Supported stream modes are `messages`, `updates`, and `debug`. The public SSE payload has this shape:
-
-```json
-{
-  "event_type": "on_chat_model_stream",
-  "node": "agent",
-  "content": "...",
-  "thread_id": "...",
-  "timestamp": "2026-07-15T17:00:00+00:00"
-}
-```
-
-The stream begins with `stream_start`, emits normalized LangGraph lifecycle and model events, and ends with `stream_end` or `stream_error`.
-
 ### Resume an approval
 
 When a workflow is interrupted for approval, `/chat` returns `Approval required before continuing.` and the same thread ID. Resume it with:
@@ -547,7 +516,7 @@ Reuse the exact `thread_id` returned by the first request. Threads disappear whe
 
 ### `NotImplementedError: The SqliteSaver does not support async methods`
 
-This means the graph was compiled with the sync `SqliteSaver` while being invoked through async methods (`ainvoke`/`astream`/`aget_state`). Use `AsyncSqliteSaver` from `langgraph.checkpoint.sqlite.aio` instead, built lazily after the event loop starts — see `app/graph/builder.py`.
+This means the graph was compiled with the sync `SqliteSaver` while being invoked through async methods (`ainvoke`/`aget_state`). Use `AsyncSqliteSaver` from `langgraph.checkpoint.sqlite.aio` instead, built lazily after the event loop starts — see `app/graph/builder.py`.
 
 ### Currency conversion is unavailable
 

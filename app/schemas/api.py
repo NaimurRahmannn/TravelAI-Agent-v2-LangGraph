@@ -1,13 +1,11 @@
 import re
 from datetime import date
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models import TripPlan
 from app.services.trip_dates import validate_and_derive_duration
-
-StreamMode = Literal["updates", "messages", "debug"]
 
 
 class ChatRequest(BaseModel):
@@ -16,7 +14,6 @@ class ChatRequest(BaseModel):
     message: str
     thread_id: Optional[str] = None
     user_id: Optional[str] = None
-    stream_mode: StreamMode = "messages"
     start_date: date | None = None
     end_date: date | None = None
 
