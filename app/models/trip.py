@@ -1,5 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import date
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Trip(BaseModel):
@@ -14,9 +16,9 @@ class Trip(BaseModel):
         description="Travel destination"
     )
 
-    start_date: Optional[str] = None
+    start_date: date | None = None
 
-    end_date: Optional[str] = None
+    end_date: date | None = None
 
     duration: Optional[int] = Field(
         default=None,

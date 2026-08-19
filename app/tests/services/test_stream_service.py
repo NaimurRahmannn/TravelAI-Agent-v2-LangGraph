@@ -35,7 +35,12 @@ def test_clarification_end_is_normalized_as_final_response():
     event = {
         "event": "on_chain_end",
         "metadata": {"langgraph_node": "clarification"},
-        "data": {"output": {"response": "What is your budget?"}},
+        "data": {
+            "output": {
+                "response": "What is your budget?",
+                "missing_fields": ["budget", "dates"],
+            }
+        },
     }
 
     result = StreamService()._normalize_event(event, "thread-123")
@@ -44,6 +49,7 @@ def test_clarification_end_is_normalized_as_final_response():
     assert result["event_type"] == "final_response"
     assert result["content"] == "What is your budget?"
     assert result["itinerary"] is None
+    assert result["missing_fields"] == ["budget", "dates"]
 
 
 def test_internal_node_end_remains_a_diagnostic_event():

@@ -31,6 +31,7 @@ type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   itinerary?: TripPlan | null;
+  missingFields?: string[];
 };
 
 const SUGGESTIONS = [
@@ -138,6 +139,7 @@ export default function Home() {
         role: "assistant",
         content: response.response,
         itinerary: response.itinerary,
+        missingFields: response.missing_fields,
       },
     ]);
   }
@@ -176,6 +178,7 @@ export default function Home() {
                     ...item,
                     content: assistantContent,
                     itinerary: event.itinerary,
+                    missingFields: event.missing_fields,
                   }
                 : item,
             ),
@@ -200,6 +203,75 @@ export default function Home() {
     );
 
     setThreadId(streamedThreadId);
+  }
+
+  async function handleDateSelection(
+    sourceMessageId: string,
+    startDate: string,
+    endDate: string,
+  ) {
+    if (isLoading) {
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: `Travel dates: ${startDate} to ${endDate}`,
+      },
+    ]);
+
+    try {
+      const response = await sendChat({
+        message: "I selected my exact travel dates.",
+        thread_id: threadId,
+        user_id: userId || null,
+        start_date: startDate,
+        end_date: endDate,
+      });
+
+      setThreadId(response.thread_id);
+      setMessages((current) => [
+        ...current.map((item) =>
+          item.id === sourceMessageId
+            ? {
+                ...item,
+                missingFields: item.missingFields?.filter(
+                  (field) => field !== "dates",
+                ),
+              }
+            : item,
+        ),
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: response.response,
+          itinerary: response.itinerary,
+          missingFields: response.missing_fields,
+        },
+      ]);
+    } catch (caughtError) {
+      const content =
+        caughtError instanceof Error
+          ? caughtError.message
+          : "The date selection failed unexpectedly.";
+      setError(content);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "system",
+          content,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      inputRef.current?.focus();
+    }
   }
 
   async function handleApproval(approved: boolean) {
@@ -395,6 +467,11 @@ export default function Home() {
                     <AssistantMessage
                       content={message.content}
                       itinerary={message.itinerary}
+                      isLoading={isLoading}
+                      missingFields={message.missingFields}
+                      onDateContinue={(startDate, endDate) =>
+                        handleDateSelection(message.id, startDate, endDate)
+                      }
                     />
                   ) : (
                     <p>{message.content}</p>

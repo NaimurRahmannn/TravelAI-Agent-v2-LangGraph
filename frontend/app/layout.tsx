@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@daypicker/react/style.css";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 

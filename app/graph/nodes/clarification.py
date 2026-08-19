@@ -9,11 +9,15 @@ from app.llm import get_groq_llm
 
 logger = get_logger(__name__)
 
+DATE_SELECTION_RESPONSE = (
+    "When are you traveling? Select your exact travel dates below."
+)
+
 
 def clarification_node(
     state: TravelState,
     config: RunnableConfig,
-) -> dict[str, str]:
+) -> dict[str, str | list[str]]:
     """Generate a friendly clarification question for missing trip fields."""
 
     started_at = perf_counter()
@@ -22,18 +26,32 @@ def clarification_node(
         0,
         [],
     )
+    missing_fields = state["missing_fields"]
+    if "dates" in missing_fields:
+        result = {
+            "response": DATE_SELECTION_RESPONSE,
+            "missing_fields": missing_fields,
+        }
+        duration = perf_counter() - started_at
+        logger.info(
+            "clarification_node exited date_selection=true duration=%.4fs",
+            duration,
+        )
+        return result
+
     llm = get_groq_llm()
 
     chain = clarification_prompt | llm
 
     response = chain.invoke(
         {
-            "missing_fields": state["missing_fields"],
+            "missing_fields": missing_fields,
         }
     )
 
     result = {
         "response": response.content,
+        "missing_fields": missing_fields,
     }
     duration = perf_counter() - started_at
     logger.info(

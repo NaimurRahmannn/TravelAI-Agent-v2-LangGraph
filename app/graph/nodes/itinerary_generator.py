@@ -1,3 +1,4 @@
+from datetime import timedelta
 from time import perf_counter
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -9,6 +10,7 @@ from app.graph.state import TravelState
 from app.llm import get_gemini_llm
 from app.models import Trip, TripPlan
 from app.services.message_content import message_content_to_text
+from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
 
@@ -90,13 +92,14 @@ def _require_complete_trip(trip: Trip | None) -> Trip:
     if (
         trip is None
         or not trip.destination
-        or trip.duration is None
-        or trip.duration < 1
+        or trip.start_date is None
+        or trip.end_date is None
         or trip.travelers is None
         or trip.travelers < 1
     ):
         raise ValueError("Structured itinerary requires complete trip context")
-    return trip
+    duration = validate_and_derive_duration(trip.start_date, trip.end_date)
+    return trip.model_copy(update={"duration": duration})
 
 
 def _coerce_trip_plan(raw_plan: object) -> TripPlan:
@@ -127,11 +130,15 @@ def _apply_authoritative_trip(plan: TripPlan, trip: Trip) -> TripPlan:
         {
             "origin": trip.origin,
             "destination": trip.destination,
+            "start_date": trip.start_date,
+            "end_date": trip.end_date,
             "duration_days": trip.duration,
             "travelers": trip.travelers,
             "preferences": trip.preferences,
         }
     )
+    for day in plan_data["days"]:
+        day["date"] = trip.start_date + timedelta(days=day["day_number"] - 1)
     plan_data["budget"]["user_budget_usd"] = trip.budget
     return TripPlan.model_validate(plan_data)
 

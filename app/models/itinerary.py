@@ -1,3 +1,4 @@
+from datetime import date as CalendarDate
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -128,7 +129,7 @@ class ItineraryDay(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     day_number: int = Field(ge=1)
-    date: str | None = None
+    date: CalendarDate | None = None
     city: str = Field(min_length=1)
     activities: list[Activity] = Field(min_length=1, max_length=3)
     estimated_daily_cost_usd: float | None = Field(default=None, ge=0)
@@ -180,6 +181,8 @@ class TripPlan(BaseModel):
     title: str = Field(min_length=1)
     origin: str | None = None
     destination: str = Field(min_length=1)
+    start_date: CalendarDate | None = None
+    end_date: CalendarDate | None = None
     duration_days: int = Field(ge=1)
     travelers: int = Field(ge=1)
     summary: str | None = None

@@ -1,9 +1,12 @@
+from datetime import date, timedelta
+
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableLambda
 
 from app.graph.nodes import extractor
 from app.graph.nodes.extractor import (
     _apply_deterministic_fallback,
+    _apply_selected_dates,
     _get_missing_required_fields,
     _merge_trip,
 )
@@ -12,6 +15,7 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     ItineraryDay,
+    Trip,
     TripExtraction,
     TripPlan,
 )
@@ -42,7 +46,12 @@ def test_thailand_request_recovers_destination_and_duration():
 
     assert trip.destination == "Thailand"
     assert trip.duration == 5
-    assert _get_missing_required_fields(trip) == ["budget", "origin", "travelers"]
+    assert _get_missing_required_fields(trip) == [
+        "budget",
+        "dates",
+        "origin",
+        "travelers",
+    ]
 
 
 def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
@@ -59,7 +68,7 @@ def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
     assert trip.duration == 7
     assert trip.budget == 2000
     assert trip.currency == "USD"
-    assert _get_missing_required_fields(trip) == ["travelers"]
+    assert _get_missing_required_fields(trip) == ["dates", "travelers"]
 
 
 def test_follow_up_recovers_origin_budget_and_travelers():
@@ -81,7 +90,7 @@ def test_follow_up_recovers_origin_budget_and_travelers():
     assert trip.origin == "Bangladesh"
     assert trip.travelers == 2
     assert trip.budget == 2000
-    assert _get_missing_required_fields(trip) == []
+    assert _get_missing_required_fields(trip) == ["dates"]
 
 
 def test_short_unlabelled_clarification_reply_completes_trip_details():
@@ -112,7 +121,7 @@ def test_short_unlabelled_clarification_reply_completes_trip_details():
     assert partial_trip.origin == "Bangladesh"
     assert partial_trip.budget == 2000
     assert completed_trip.travelers == 2
-    assert _get_missing_required_fields(completed_trip) == []
+    assert _get_missing_required_fields(completed_trip) == ["dates"]
 
 
 def test_mixed_clarification_reply_recovers_unlabelled_origin():
@@ -137,7 +146,68 @@ def test_mixed_clarification_reply_recovers_unlabelled_origin():
     assert trip.travelers == 2
     assert trip.budget == 2000
     assert trip.currency == "USD"
-    assert _get_missing_required_fields(trip) == []
+    assert _get_missing_required_fields(trip) == ["dates"]
+
+
+def test_picker_dates_are_stored_and_override_existing_duration():
+    start_date = date.today() + timedelta(days=10)
+    end_date = start_date + timedelta(days=4)
+    trip = _apply_selected_dates(
+        Trip(destination="Japan", duration=30),
+        start_date,
+        end_date,
+    )
+
+    assert trip.start_date == start_date
+    assert trip.end_date == end_date
+    assert trip.duration == 5
+
+
+def test_same_day_picker_range_has_one_day_duration():
+    travel_date = date.today() + timedelta(days=1)
+
+    trip = _apply_selected_dates(Trip(destination="Japan"), travel_date, travel_date)
+
+    assert trip.duration == 1
+
+
+def test_llm_dates_are_not_authoritative_and_picker_dates_persist():
+    selected_start = date.today() + timedelta(days=20)
+    selected_end = selected_start + timedelta(days=2)
+    trip = _apply_selected_dates(Trip(destination="Japan"), selected_start, selected_end)
+    llm_follow_up = _empty_extraction().model_copy(
+        update={
+            "start_date": "2099-01-01",
+            "end_date": "2099-01-20",
+            "budget": 1000,
+        }
+    )
+
+    merged = _merge_trip(trip, llm_follow_up)
+
+    assert merged.start_date == selected_start
+    assert merged.end_date == selected_end
+    assert merged.duration == 3
+
+
+def test_new_trip_without_checkpointed_state_starts_without_dates():
+    trip = _merge_trip(
+        None,
+        _apply_deterministic_fallback(_empty_extraction(), "Plan a Japan trip"),
+    )
+
+    assert trip.start_date is None
+    assert trip.end_date is None
+    assert "dates" in _get_missing_required_fields(trip)
+
+
+def test_non_trip_state_does_not_request_date_selection():
+    assert _get_missing_required_fields(Trip()) == [
+        "destination",
+        "budget",
+        "origin",
+        "travelers",
+    ]
 
 
 def test_extraction_schema_requires_every_key_and_forbids_extra_fields():
@@ -176,7 +246,7 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
 
     assert result["trip"].destination == "Thailand"
     assert result["trip"].duration == 5
-    assert result["missing_fields"] == ["budget", "origin", "travelers"]
+    assert result["missing_fields"] == ["budget", "dates", "origin", "travelers"]
     assert result["needs_clarification"] is True
     assert result["itinerary"] is None
 

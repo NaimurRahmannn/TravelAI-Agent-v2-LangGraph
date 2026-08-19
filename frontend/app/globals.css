@@ -378,6 +378,141 @@ textarea:disabled {
   overflow-wrap: anywhere;
 }
 
+.assistantResponse {
+  min-width: 0;
+}
+
+.travelDatePicker {
+  width: min(100%, 440px);
+  margin-top: 16px;
+  border: 1px solid #cbdde1;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(18, 110, 130, 0.1), transparent 34%),
+    #fbfdfd;
+  padding: 16px;
+  box-shadow: 0 14px 30px rgba(16, 68, 77, 0.08);
+}
+
+.datePickerHeading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.datePickerHeading h3,
+.datePickerHeading p {
+  margin: 0;
+}
+
+.datePickerHeading h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.datePickerHeading p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.datePickerIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #dff0f3;
+  color: var(--primary-dark);
+}
+
+.travelCalendar {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: #dff0f3;
+  --rdp-day-height: 42px;
+  --rdp-day-width: 42px;
+  --rdp-day_button-height: 38px;
+  --rdp-day_button-width: 38px;
+  --rdp-today-color: var(--primary-dark);
+  margin: 14px auto 10px;
+  color: var(--text);
+}
+
+.travelCalendar .rdp-month_caption {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+}
+
+.travelCalendar .rdp-weekday {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.travelCalendar .rdp-day_button:focus-visible,
+.datePickerContinue:focus-visible {
+  outline: 3px solid rgba(18, 110, 130, 0.35);
+  outline-offset: 2px;
+}
+
+.selectedDateRange {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid #dce8ea;
+  padding-top: 12px;
+}
+
+.selectedDateRange > span {
+  min-width: 0;
+  border: 1px solid #d5e2e5;
+  border-radius: 8px;
+  background: white;
+  padding: 8px 10px;
+}
+
+.selectedDateRange small,
+.selectedDateRange strong {
+  display: block;
+}
+
+.selectedDateRange small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.selectedDateRange strong {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.selectedDateRange > svg {
+  color: var(--primary);
+}
+
+.datePickerContinue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 12px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font-weight: 800;
+}
+
 .messageBody > :first-child {
   margin-top: 0;
 }
@@ -1526,6 +1661,25 @@ textarea:disabled {
 
   .messages {
     padding: 12px;
+  }
+
+  .travelDatePicker {
+    padding: 14px 10px;
+  }
+
+  .travelCalendar {
+    --rdp-day-height: 38px;
+    --rdp-day-width: 38px;
+    --rdp-day_button-height: 36px;
+    --rdp-day_button-width: 36px;
+  }
+
+  .selectedDateRange {
+    gap: 6px;
+  }
+
+  .selectedDateRange > span {
+    padding-inline: 8px;
   }
 
   .tripItinerary {

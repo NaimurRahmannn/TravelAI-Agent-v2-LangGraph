@@ -5,6 +5,8 @@ export type ChatRequest = {
   thread_id?: string | null;
   user_id?: string | null;
   stream_mode?: StreamMode;
+  start_date?: string;
+  end_date?: string;
 };
 
 export type ResolvedPlace = {
@@ -84,6 +86,8 @@ export type TripPlan = {
   title: string;
   origin?: string | null;
   destination: string;
+  start_date?: string | null;
+  end_date?: string | null;
   duration_days: number;
   travelers: number;
   summary?: string | null;
@@ -97,6 +101,7 @@ export type ChatResponse = {
   response: string;
   thread_id: string;
   itinerary?: TripPlan | null;
+  missing_fields: string[];
 };
 
 export type ApprovalResponse = {
@@ -116,6 +121,7 @@ export type StreamEvent = {
   thread_id: string;
   timestamp: string;
   itinerary?: TripPlan | null;
+  missing_fields?: string[];
 };
 
 const API_BASE_URL =
@@ -241,8 +247,21 @@ function parseServerSentEvent(rawEvent: string): StreamEvent | null {
 
 async function getErrorMessage(response: Response): Promise<string> {
   try {
-    const payload = await response.json();
-    return payload.detail ?? response.statusText;
+    const payload = (await response.json()) as {
+      detail?: string | Array<{ msg?: string }>;
+    };
+    if (typeof payload.detail === "string") {
+      return payload.detail;
+    }
+    if (Array.isArray(payload.detail)) {
+      const messages = payload.detail
+        .map((detail) => detail.msg)
+        .filter((message): message is string => Boolean(message));
+      if (messages.length > 0) {
+        return messages.join(" ");
+      }
+    }
+    return response.statusText;
   } catch {
     return response.statusText;
   }

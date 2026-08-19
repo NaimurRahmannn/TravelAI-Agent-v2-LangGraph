@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, TypedDict
 
 from langgraph.graph import MessagesState
@@ -30,6 +31,8 @@ class TravelState(MessagesState):
     user_id: str | None
     planner: PlannerState
     trip: Trip | None
+    selected_start_date: date | None
+    selected_end_date: date | None
     itinerary: TripPlan | None
     missing_fields: list[str]
     needs_clarification: bool

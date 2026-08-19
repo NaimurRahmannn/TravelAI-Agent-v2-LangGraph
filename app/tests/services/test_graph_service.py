@@ -1,4 +1,8 @@
 import asyncio
+from datetime import date, timedelta
+
+import pytest
+from pydantic import ValidationError
 
 from app.models import (
     Activity,
@@ -43,6 +47,53 @@ def test_chat_response_schema_supports_optional_itinerary():
 
     assert response.itinerary is None
     assert response.model_dump(mode="json")["itinerary"] is None
+    assert response.missing_fields == []
+
+
+def test_chat_request_rejects_end_date_before_start_date():
+    start_date = date.today() + timedelta(days=5)
+
+    with pytest.raises(ValidationError, match="End date cannot be before start date"):
+        ChatRequest(
+            message="Selected dates",
+            start_date=start_date,
+            end_date=start_date - timedelta(days=1),
+        )
+
+
+def test_chat_request_rejects_past_start_date():
+    with pytest.raises(ValidationError, match="Start date cannot be in the past"):
+        ChatRequest(
+            message="Selected dates",
+            start_date=date.today() - timedelta(days=1),
+            end_date=date.today(),
+        )
+
+
+def test_chat_request_rejects_partial_or_non_iso_date_selection():
+    with pytest.raises(ValidationError, match="Both start_date and end_date"):
+        ChatRequest(
+            message="Selected dates",
+            start_date=date.today() + timedelta(days=1),
+        )
+
+    with pytest.raises(ValidationError, match="YYYY-MM-DD"):
+        ChatRequest(
+            message="Selected dates",
+            start_date="09/10/2026",
+            end_date="09/14/2026",
+        )
+
+
+def test_chat_request_rejects_unreasonably_long_trip():
+    start_date = date.today() + timedelta(days=1)
+
+    with pytest.raises(ValidationError, match="cannot exceed 365 days"):
+        ChatRequest(
+            message="Selected dates",
+            start_date=start_date,
+            end_date=start_date + timedelta(days=365),
+        )
 
 
 def test_graph_service_returns_structured_itinerary(monkeypatch):
@@ -53,7 +104,11 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
             return None
 
         async def ainvoke(self, graph_input, *, config):
-            return {"response": "# Thailand Plan", "itinerary": plan}
+            return {
+                "response": "# Thailand Plan",
+                "itinerary": plan,
+                "missing_fields": [],
+            }
 
     async def get_fake_graph():
         return FakeGraph()

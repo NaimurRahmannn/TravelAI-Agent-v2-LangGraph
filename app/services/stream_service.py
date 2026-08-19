@@ -97,12 +97,13 @@ class StreamService:
         )
         final_payload = self._extract_final_payload(event, node)
         if final_payload is not None:
-            final_response, itinerary = final_payload
+            final_response, itinerary, missing_fields = final_payload
             return {
                 "event_type": "final_response",
                 "node": node,
                 "content": final_response,
                 "itinerary": itinerary,
+                "missing_fields": missing_fields,
                 "thread_id": thread_id,
                 "timestamp": self._timestamp(),
             }
@@ -124,7 +125,7 @@ class StreamService:
     def _extract_final_payload(
         event: dict[str, Any],
         node: str,
-    ) -> tuple[str, dict[str, Any] | None] | None:
+    ) -> tuple[str, dict[str, Any] | None, list[str]] | None:
         """Return a JSON-safe response and optional itinerary from a final node."""
 
         if event.get("event") != "on_chain_end":
@@ -150,7 +151,13 @@ class StreamService:
         else:
             itinerary = dict(itinerary)
 
-        return response, itinerary
+        missing_fields = output.get("missing_fields")
+        if not isinstance(missing_fields, list) or not all(
+            isinstance(field, str) for field in missing_fields
+        ):
+            missing_fields = []
+
+        return response, itinerary, missing_fields
 
     def _extract_content(self, event: dict[str, Any]) -> str:
         """Extract human-readable content from a LangGraph stream event."""

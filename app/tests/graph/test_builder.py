@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, timedelta
 from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage
@@ -51,6 +52,23 @@ def test_build_input_includes_user_id():
 
     assert result["user_id"] == "user-123"
     assert result["messages"][0].content == "I am vegetarian."
+    assert result["selected_start_date"] is None
+    assert result["selected_end_date"] is None
+
+
+def test_build_input_includes_structured_date_selection():
+    start_date = date.today() + timedelta(days=7)
+    end_date = start_date + timedelta(days=4)
+    request = ChatRequest(
+        message="I selected my dates.",
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    result = GraphService.build_input(request)
+
+    assert result["selected_start_date"] == start_date
+    assert result["selected_end_date"] == end_date
 
 
 def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
@@ -67,6 +85,8 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
             "trip": Trip(
                 origin="Dhaka",
                 destination="Tokyo",
+                start_date=date.today() + timedelta(days=7),
+                end_date=date.today() + timedelta(days=9),
                 duration=3,
                 budget=1000,
                 currency="USD",

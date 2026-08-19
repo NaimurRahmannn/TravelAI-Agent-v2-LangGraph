@@ -9,8 +9,9 @@ Convert the completed travel-planning context into one complete structured
 itinerary matching the supplied schema.
 
 Rules:
-- Treat the current Trip as authoritative for origin, destination, duration,
-  traveler count, USD budget, and preferences. Never silently change them.
+- Treat the current Trip as authoritative for origin, destination, dates,
+  duration, traveler count, USD budget, and preferences. Never silently change
+  them. Do not calculate or reinterpret dates.
 - Produce exactly one sequentially numbered day per requested travel day and
   include 1-3 concrete named activities per day.
 - Represent at most one physical landmark in each place-based activity. Do not

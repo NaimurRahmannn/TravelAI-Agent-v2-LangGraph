@@ -71,6 +71,7 @@ class GraphService:
                     response="Approval required before continuing.",
                     thread_id=thread_id,
                     itinerary=None,
+                    missing_fields=[],
                 )
 
             logger.info("checkpoint save thread_id=%s", thread_id)
@@ -80,6 +81,7 @@ class GraphService:
                 response=result.get("response", ""),
                 thread_id=thread_id,
                 itinerary=result.get("itinerary"),
+                missing_fields=result.get("missing_fields", []),
             )
         except Exception as exc:
             logger.exception("Async graph invocation failed thread_id=%s", thread_id)
@@ -228,7 +230,7 @@ class GraphService:
         }
 
     @staticmethod
-    def build_input(request: ChatRequest) -> dict[str, list[HumanMessage] | str | None]:
+    def build_input(request: ChatRequest) -> dict[str, Any]:
         """Build the graph input from an API chat request."""
 
         return {
@@ -236,4 +238,6 @@ class GraphService:
                 HumanMessage(content=request.message),
             ],
             "user_id": request.user_id,
+            "selected_start_date": request.start_date,
+            "selected_end_date": request.end_date,
         }

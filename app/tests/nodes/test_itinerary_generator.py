@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
 
@@ -71,10 +73,13 @@ def _plan() -> TripPlan:
 
 
 def _state() -> dict:
+    start_date = date.today() + timedelta(days=10)
     return {
         "trip": Trip(
             origin="Dhaka",
             destination="Thailand",
+            start_date=start_date,
+            end_date=start_date + timedelta(days=1),
             duration=2,
             budget=1000,
             currency="USD",
@@ -115,6 +120,12 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert captured["method"] == "json_schema"
     assert plan.origin == "Dhaka"
     assert plan.destination == "Thailand"
+    assert plan.start_date == _state()["trip"].start_date
+    assert plan.end_date == _state()["trip"].end_date
+    assert [day.date for day in plan.days] == [
+        _state()["trip"].start_date,
+        _state()["trip"].end_date,
+    ]
     assert plan.travelers == 2
     assert plan.preferences == ["culture"]
     assert plan.budget.user_budget_usd == 1000
@@ -142,6 +153,35 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert "Research context" in captured["prompt"]
     assert "Traveler prefers vegetarian food" in captured["prompt"]
     assert "Use Bangkok as the base" in captured["prompt"]
+
+
+def test_generator_overwrites_conflicting_llm_day_dates(monkeypatch):
+    generated = _plan().model_copy(deep=True)
+    generated.days[0].date = date(2099, 1, 1)
+    generated.days[1].date = date(2099, 1, 2)
+    state = _state()
+    state["trip"] = state["trip"].model_copy(update={"duration": 30})
+
+    class StructuredModel:
+        def with_structured_output(self, schema, *, method):
+            return RunnableLambda(lambda _: generated)
+
+    monkeypatch.setattr(
+        itinerary_generator,
+        "get_gemini_llm",
+        lambda: StructuredModel(),
+    )
+
+    plan = itinerary_generator.itinerary_generator_node(state, config={})[
+        "itinerary"
+    ]
+
+    assert plan is not None
+    assert plan.duration_days == 2
+    assert [day.date for day in plan.days] == [
+        _state()["trip"].start_date,
+        _state()["trip"].end_date,
+    ]
 
 
 def test_generator_failure_returns_none_for_agent_text_fallback(monkeypatch):
@@ -285,3 +325,4 @@ def test_generator_clears_llm_invented_place_enrichment():
     assert activity.place is None
     assert activity.place_resolution_status == "unresolved"
     assert activity.image is None
+from datetime import date, timedelta

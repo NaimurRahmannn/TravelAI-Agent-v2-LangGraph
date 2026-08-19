@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from time import perf_counter
 
 from langchain_core.messages import BaseMessage, HumanMessage
@@ -11,6 +12,7 @@ from app.models import Trip, TripExtraction, TripPlan
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
 from app.services.currency_converter import convert_to_usd
+from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
 
@@ -59,6 +61,11 @@ def extractor_node(
         existing_trip=existing_trip,
         extracted_trip=extracted_trip,
     )
+    trip = _apply_selected_dates(
+        trip,
+        state.get("selected_start_date"),
+        state.get("selected_end_date"),
+    )
     trip = _normalize_budget_to_usd(trip)
 
     missing_fields = _get_missing_required_fields(trip)
@@ -102,8 +109,8 @@ def _get_missing_required_fields(trip: Trip) -> list[str]:
     if trip.budget is None:
         missing_fields.append("budget")
 
-    if trip.duration is None:
-        missing_fields.append("duration")
+    if trip.destination and (trip.start_date is None or trip.end_date is None):
+        missing_fields.append("dates")
 
     if not trip.origin:
         missing_fields.append("origin")
@@ -125,6 +132,9 @@ def _merge_trip(
     merged_data = existing_data.copy()
 
     for field_name, value in extracted_data.items():
+        if field_name in {"start_date", "end_date"}:
+            continue
+
         if field_name == "preferences":
             merged_data[field_name] = _merge_preferences(
                 existing_data.get(field_name, []),
@@ -136,6 +146,28 @@ def _merge_trip(
             merged_data[field_name] = value
 
     return Trip(**merged_data)
+
+
+def _apply_selected_dates(
+    trip: Trip,
+    start_date: object,
+    end_date: object,
+) -> Trip:
+    """Apply a validated picker range and deterministically replace duration."""
+
+    if start_date is None and end_date is None:
+        return trip
+    if not isinstance(start_date, date) or not isinstance(end_date, date):
+        raise ValueError("A complete validated date selection is required")
+
+    duration = validate_and_derive_duration(start_date, end_date)
+    return trip.model_copy(
+        update={
+            "start_date": start_date,
+            "end_date": end_date,
+            "duration": duration,
+        }
+    )
 
 
 def _apply_deterministic_fallback(
