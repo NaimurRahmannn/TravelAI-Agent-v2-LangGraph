@@ -12,6 +12,7 @@ from app.services.images import (
 from app.services.images.license_policy import (
     build_attribution_text,
     is_supported_license,
+    license_requires_url,
 )
 from app.services.images.wikimedia import (
     WikidataCandidate,
@@ -19,6 +20,7 @@ from app.services.images.wikimedia import (
     _parse_commons_image,
     distance_km,
     html_to_plain_text,
+    select_country_entity_id,
     select_p18_file,
     select_wikidata_candidate,
 )
@@ -52,8 +54,13 @@ def _claim(value, *, rank="normal", property_id="P18"):
     }
 
 
-def _commons_payload(*, license_name="CC BY-SA 4.0", author="Jane Doe"):
-    return {
+def _commons_payload(
+    *,
+    license_name="CC BY-SA 4.0",
+    author="Jane Doe",
+    license_url="https://creativecommons.org/licenses/by-sa/4.0/",
+):
+    payload = {
         "query": {
             "pages": [
                 {
@@ -73,9 +80,6 @@ def _commons_payload(*, license_name="CC BY-SA 4.0", author="Jane Doe"):
                                 "Artist": {"value": f"<a>{author}</a>"},
                                 "Credit": {"value": "Own &amp; archival work"},
                                 "LicenseShortName": {"value": license_name},
-                                "LicenseUrl": {
-                                    "value": "https://creativecommons.org/licenses/by-sa/4.0/"
-                                },
                                 "UsageTerms": {
                                     "value": "Creative Commons Attribution-ShareAlike"
                                 },
@@ -89,6 +93,10 @@ def _commons_payload(*, license_name="CC BY-SA 4.0", author="Jane Doe"):
             ]
         }
     }
+    metadata = payload["query"]["pages"][0]["imageinfo"][0]["extmetadata"]
+    if license_url is not None:
+        metadata["LicenseUrl"] = {"value": license_url}
+    return payload
 
 
 @pytest.mark.parametrize(
@@ -130,6 +138,16 @@ def test_attribution_requires_author_for_attribution_license():
         author=None,
         license_short_name="CC0 1.0",
     ) == "CC0 1.0 / Wikimedia Commons"
+
+
+@pytest.mark.parametrize("license_name", ["CC BY 4.0", "CC BY-SA 3.0"])
+def test_attribution_licenses_require_license_url(license_name):
+    assert license_requires_url(license_name) is True
+
+
+@pytest.mark.parametrize("license_name", ["CC0 1.0", "Public Domain"])
+def test_cc0_and_public_domain_do_not_require_license_url(license_name):
+    assert license_requires_url(license_name) is False
 
 
 def test_haversine_distance_has_expected_scale():
@@ -230,6 +248,77 @@ def test_p18_rejects_missing_or_malformed_claims(claims):
     assert select_p18_file(claims) is None
 
 
+def test_p17_selects_single_country_entity_id():
+    assert (
+        select_country_entity_id(
+            [_claim({"id": "Q869"}, property_id="P17")]
+        )
+        == "Q869"
+    )
+
+
+def test_p17_prefers_preferred_and_ignores_deprecated_claims():
+    claims = [
+        _claim({"id": "Q869"}, property_id="P17"),
+        _claim({"id": "Q17"}, rank="preferred", property_id="P17"),
+        _claim({"id": "Q1"}, rank="deprecated", property_id="P17"),
+    ]
+
+    assert select_country_entity_id(claims) == "Q17"
+
+
+@pytest.mark.parametrize(
+    "claims",
+    [
+        None,
+        [],
+        [{}],
+        [_claim(None, property_id="P17")],
+        [_claim({"id": "Q869"}, rank="deprecated", property_id="P17")],
+    ],
+)
+def test_p17_missing_or_malformed_claim_is_unresolved(claims):
+    assert select_country_entity_id(claims) is None
+
+
+def test_candidate_without_country_can_still_match_by_close_coordinates():
+    candidate = WikidataCandidate(
+        entity_id="Q1",
+        label="Wat Mahathat",
+        country=None,
+        latitude=14.3568,
+        longitude=100.5682,
+    )
+
+    assert select_wikidata_candidate([candidate], place=_place()) == candidate
+
+
+def test_known_wrong_country_is_rejected_while_matching_country_is_selected():
+    matching = WikidataCandidate(
+        entity_id="Q1",
+        label="Wat Mahathat",
+        country="Thailand",
+        latitude=14.3568,
+        longitude=100.5682,
+    )
+    wrong_country = WikidataCandidate(
+        entity_id="Q2",
+        label="Wat Mahathat",
+        country="Laos",
+        latitude=14.3567,
+        longitude=100.5681,
+        p18_file_title="File:Wrong.jpg",
+    )
+
+    assert (
+        select_wikidata_candidate(
+            [wrong_country, matching],
+            place=_place(),
+        )
+        == matching
+    )
+
+
 def test_commons_metadata_builds_attribution_ready_image():
     image = _parse_commons_image(
         _commons_payload(),
@@ -249,6 +338,35 @@ def test_commons_metadata_builds_attribution_ready_image():
     )
 
 
+def test_cc_by_with_author_and_valid_license_url_is_accepted():
+    image = _parse_commons_image(
+        _commons_payload(
+            license_name="CC BY 4.0",
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+        ),
+        entity_id="Q1",
+        requested_file_title="File:X.jpg",
+    )
+
+    assert image is not None
+    assert image.license_short_name == "CC BY 4.0"
+    assert image.license_url == "https://creativecommons.org/licenses/by/4.0/"
+
+
+def test_cc_by_with_license_url_but_missing_author_is_rejected():
+    image = _parse_commons_image(
+        _commons_payload(
+            license_name="CC BY 4.0",
+            author="",
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+        ),
+        entity_id="Q1",
+        requested_file_title="File:X.jpg",
+    )
+
+    assert image is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -260,6 +378,75 @@ def test_commons_metadata_builds_attribution_ready_image():
     ],
 )
 def test_incomplete_or_unsupported_commons_metadata_is_rejected(payload):
+    assert (
+        _parse_commons_image(
+            payload,
+            entity_id="Q1",
+            requested_file_title="File:X.jpg",
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("license_name", ["CC BY 4.0", "CC BY-SA 4.0"])
+def test_attribution_license_without_license_url_is_rejected(license_name):
+    payload = _commons_payload(
+        license_name=license_name,
+        license_url=None,
+    )
+
+    assert (
+        _parse_commons_image(
+            payload,
+            entity_id="Q1",
+            requested_file_title="File:X.jpg",
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("license_name", ["CC0 1.0", "Public Domain"])
+def test_cc0_and_public_domain_accept_missing_license_url_and_author(license_name):
+    image = _parse_commons_image(
+        _commons_payload(
+            license_name=license_name,
+            author="",
+            license_url=None,
+        ),
+        entity_id="Q1",
+        requested_file_title="File:X.jpg",
+    )
+
+    assert image is not None
+    assert image.author is None
+    assert image.license_url is None
+
+
+@pytest.mark.parametrize(
+    "license_url",
+    ["", "not a URL", "javascript:alert(1)", "data:text/plain,license", "file:///x"],
+)
+def test_attribution_license_with_invalid_license_url_is_rejected(license_url):
+    payload = _commons_payload(license_url=license_url)
+
+    assert (
+        _parse_commons_image(
+            payload,
+            entity_id="Q1",
+            requested_file_title="File:X.jpg",
+        )
+        is None
+    )
+
+
+def test_license_url_html_is_rejected_instead_of_exposed():
+    payload = _commons_payload(
+        license_url=(
+            '<a href="javascript:alert(1)">'
+            "https://creativecommons.org/licenses/by-sa/4.0/</a>"
+        )
+    )
+
     assert (
         _parse_commons_image(
             payload,
@@ -306,6 +493,17 @@ def test_provider_resolves_wikidata_p18_and_commons_with_user_agent():
                 },
             )
         if action == "wbgetentities":
+            if request.url.params.get("ids") == "Q869":
+                return httpx.Response(
+                    200,
+                    json={
+                        "entities": {
+                            "Q869": {
+                                "labels": {"en": {"value": "Thailand"}}
+                            }
+                        }
+                    },
+                )
             return httpx.Response(
                 200,
                 json={
@@ -329,6 +527,9 @@ def test_provider_resolves_wikidata_p18_and_commons_with_user_agent():
                                     )
                                 ],
                                 "P18": [_claim("Wat Mahathat.jpg")],
+                                "P17": [
+                                    _claim({"id": "Q869"}, property_id="P17")
+                                ],
                             },
                         }
                     }
@@ -352,13 +553,166 @@ def test_provider_resolves_wikidata_p18_and_commons_with_user_agent():
 
     assert image is not None
     assert image.commons_file_title == "File:Wat Mahathat.jpg"
-    assert len(requests) == 3
+    assert len(requests) == 4
     assert all(
         request.headers["User-Agent"]
         == "TravelAI/1.0 (https://example.test/support)"
         for request in requests
     )
     assert requests[0].url.params.get("search") == "Wat Mahathat"
+
+
+def test_duplicate_p17_ids_are_batch_resolved_once_for_all_candidates():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        action = request.url.params.get("action")
+        if action == "wbsearchentities":
+            return httpx.Response(
+                200,
+                json={
+                    "search": [
+                        {"id": entity_id, "label": f"Temple {entity_id}"}
+                        for entity_id in ("Q1", "Q2", "Q3")
+                    ]
+                },
+            )
+        ids = request.url.params.get("ids")
+        if ids == "Q869":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {
+                        "Q869": {"labels": {"en": {"value": "Thailand"}}}
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "entities": {
+                    entity_id: {
+                        "labels": {"en": {"value": f"Temple {entity_id}"}},
+                        "claims": {
+                            "P17": [
+                                _claim({"id": "Q869"}, property_id="P17")
+                            ]
+                        },
+                    }
+                    for entity_id in ("Q1", "Q2", "Q3")
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider._find_candidates("Temple")
+
+    candidates = asyncio.run(run())
+    country_requests = [
+        request
+        for request in requests
+        if request.url.params.get("action") == "wbgetentities"
+        and request.url.params.get("ids") == "Q869"
+    ]
+
+    assert [candidate.country for candidate in candidates] == [
+        "Thailand",
+        "Thailand",
+        "Thailand",
+    ]
+    assert len(country_requests) == 1
+
+
+def test_missing_p17_skips_country_lookup_and_leaves_country_none():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.params.get("action") == "wbsearchentities":
+            return httpx.Response(
+                200,
+                json={"search": [{"id": "Q1", "label": "Wat Mahathat"}]},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "entities": {
+                    "Q1": {
+                        "labels": {"en": {"value": "Wat Mahathat"}},
+                        "claims": {},
+                    }
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider._find_candidates("Wat Mahathat")
+
+    candidates = asyncio.run(run())
+
+    assert len(requests) == 2
+    assert candidates[0].country is None
+
+
+def test_country_without_english_label_remains_unresolved():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        action = request.url.params.get("action")
+        if action == "wbsearchentities":
+            return httpx.Response(
+                200,
+                json={"search": [{"id": "Q1", "label": "Wat Mahathat"}]},
+            )
+        if request.url.params.get("ids") == "Q869":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {
+                        "Q869": {"labels": {"th": {"value": "ประเทศไทย"}}}
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "entities": {
+                    "Q1": {
+                        "labels": {"en": {"value": "Wat Mahathat"}},
+                        "claims": {
+                            "P17": [
+                                _claim({"id": "Q869"}, property_id="P17")
+                            ]
+                        },
+                    }
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider._find_candidates("Wat Mahathat")
+
+    candidates = asyncio.run(run())
+
+    assert len(requests) == 3
+    assert candidates[0].country is None
 
 
 @pytest.mark.parametrize(

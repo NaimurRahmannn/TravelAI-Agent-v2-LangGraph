@@ -23,6 +23,7 @@ from app.services.images.base import (
 from app.services.images.license_policy import (
     build_attribution_text,
     is_supported_license,
+    license_requires_url,
 )
 from app.services.places import normalize_place_text
 
@@ -183,6 +184,30 @@ def select_p18_file(claims: object) -> str | None:
     return f"File:{filename}"
 
 
+def select_country_entity_id(claims: object) -> str | None:
+    """Select a non-deprecated P17 item ID by rank and stable QID order."""
+
+    if not isinstance(claims, list):
+        return None
+    ranked: list[tuple[int, str]] = []
+    for claim in claims:
+        if not isinstance(claim, Mapping) or claim.get("rank") == "deprecated":
+            continue
+        mainsnak = claim.get("mainsnak")
+        if not isinstance(mainsnak, Mapping) or mainsnak.get("snaktype") != "value":
+            continue
+        datavalue = mainsnak.get("datavalue")
+        value = datavalue.get("value") if isinstance(datavalue, Mapping) else None
+        entity_id = value.get("id") if isinstance(value, Mapping) else None
+        if not isinstance(entity_id, str) or not _ENTITY_ID_PATTERN.fullmatch(entity_id):
+            continue
+        rank = 0 if claim.get("rank") == "preferred" else 1
+        ranked.append((rank, entity_id))
+    if not ranked:
+        return None
+    return min(ranked, key=lambda item: (item[0], int(item[1][1:])))[1]
+
+
 class WikimediaImageProvider:
     """Resolve Geoapify-backed places through Wikidata and Commons."""
 
@@ -286,15 +311,68 @@ class WikimediaImageProvider:
             raise ImageProviderUnavailableError(
                 "Wikidata entities returned an unexpected payload"
             )
+        country_id_by_entity_id: dict[str, str] = {}
+        for entity_id in search_by_id:
+            entity = entities.get(entity_id)
+            if not isinstance(entity, Mapping):
+                continue
+            claims = entity.get("claims")
+            claims = claims if isinstance(claims, Mapping) else {}
+            country_id = select_country_entity_id(claims.get("P17"))
+            if country_id is not None:
+                country_id_by_entity_id[entity_id] = country_id
+
+        country_labels = await self._resolve_country_labels(
+            set(country_id_by_entity_id.values())
+        )
         candidates: list[WikidataCandidate] = []
         for entity_id, search_result in search_by_id.items():
             entity = entities.get(entity_id)
             if not isinstance(entity, Mapping) or entity.get("missing") is not None:
                 continue
-            candidate = _to_candidate(entity_id, entity, search_result)
+            country_id = country_id_by_entity_id.get(entity_id)
+            candidate = _to_candidate(
+                entity_id,
+                entity,
+                search_result,
+                country=country_labels.get(country_id) if country_id else None,
+            )
             if candidate is not None:
                 candidates.append(candidate)
         return candidates
+
+    async def _resolve_country_labels(
+        self,
+        country_ids: set[str],
+    ) -> dict[str, str]:
+        """Resolve unique P17 item IDs to English labels in one request."""
+
+        if not country_ids:
+            return {}
+        payload = await self._request_json(
+            WIKIDATA_API_URL,
+            params={
+                "action": "wbgetentities",
+                "ids": "|".join(sorted(country_ids, key=lambda item: int(item[1:]))),
+                "props": "labels",
+                "languages": "en",
+                "format": "json",
+            },
+        )
+        entities = payload.get("entities")
+        if not isinstance(entities, Mapping):
+            raise ImageProviderUnavailableError(
+                "Wikidata country labels returned an unexpected payload"
+            )
+        labels: dict[str, str] = {}
+        for country_id in country_ids:
+            entity = entities.get(country_id)
+            if not isinstance(entity, Mapping) or entity.get("missing") is not None:
+                continue
+            label = _english_label(entity.get("labels"))
+            if label:
+                labels[country_id] = label
+        return labels
 
     async def _fetch_commons_image(
         self,
@@ -512,6 +590,8 @@ def _to_candidate(
     entity_id: str,
     entity: Mapping[str, Any],
     search_result: Mapping[str, Any],
+    *,
+    country: str | None = None,
 ) -> WikidataCandidate | None:
     label = _localized_value(entity.get("labels"), "en") or _string(
         search_result.get("label")
@@ -533,6 +613,7 @@ def _to_candidate(
         label=label,
         aliases=tuple(alias for alias in aliases if alias),
         description=description or None,
+        country=country,
         latitude=latitude,
         longitude=longitude,
         p18_file_title=select_p18_file(claims.get("P18")),
@@ -573,6 +654,15 @@ def _localized_value(value: object, language: str) -> str:
             (item for item in value.values() if isinstance(item, Mapping)),
             None,
         )
+    return _string(selected.get("value")) if isinstance(selected, Mapping) else ""
+
+
+def _english_label(value: object) -> str:
+    """Return only an explicit, non-empty English entity label."""
+
+    if not isinstance(value, Mapping):
+        return ""
+    selected = value.get("en")
     return _string(selected.get("value")) if isinstance(selected, Mapping) else ""
 
 
@@ -625,6 +715,9 @@ def _parse_commons_image(
     license_short_name = _metadata_text(metadata, "LicenseShortName")
     if not is_supported_license(license_short_name):
         return None
+    license_url = _metadata_url(metadata, "LicenseUrl")
+    if license_requires_url(license_short_name) and license_url is None:
+        return None
     try:
         attribution = build_attribution_text(
             author=author,
@@ -642,7 +735,7 @@ def _parse_commons_image(
             author=author,
             credit=credit,
             license_short_name=license_short_name or "",
-            license_url=_metadata_url(metadata, "LicenseUrl"),
+            license_url=license_url,
             usage_terms=_metadata_text(metadata, "UsageTerms"),
             attribution_text=attribution,
             description=_metadata_text(metadata, "ImageDescription"),
@@ -658,11 +751,19 @@ def _metadata_text(metadata: Mapping[str, Any], key: str) -> str | None:
 
 
 def _metadata_url(metadata: Mapping[str, Any], key: str) -> str | None:
-    value = _metadata_text(metadata, key)
-    if value is None:
+    item = metadata.get(key)
+    value = item.get("value") if isinstance(item, Mapping) else None
+    if not isinstance(value, str):
         return None
-    parsed = urlsplit(value)
-    return value if parsed.scheme in {"http", "https"} and parsed.netloc else None
+    normalized = value.strip()
+    if not normalized or "<" in normalized or ">" in normalized:
+        return None
+    parsed = urlsplit(normalized)
+    return (
+        normalized
+        if parsed.scheme in {"http", "https"} and parsed.netloc
+        else None
+    )
 
 
 def _trusted_url(value: object, hosts: frozenset[str]) -> str | None:

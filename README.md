@@ -363,12 +363,14 @@ they are not attraction-like places. A trip-local circuit stops remaining calls
 after authentication, persistent rate-limit, or provider-outage failures.
 
 For fully resolved attraction-like places, Wikidata supplies a conservatively
-matched knowledge entity and its P18 image reference. Wikimedia Commons then
-supplies the file URL, an approximately 800px thumbnail URL, source page,
+matched knowledge entity using name, coordinates, P17 country when available,
+and location/description context, plus its P18 image reference. Wikimedia
+Commons then supplies the file URL, an approximately 800px thumbnail URL, source page,
 dimensions, author/credit, license, and deterministic attribution text. Unknown,
 missing, non-commercial, or otherwise unsupported license metadata causes the
-image to be skipped rather than guessed. Image lookups use request-local
-deduplication, bounded retries/concurrency, and a trip-local outage circuit.
+image to be skipped rather than guessed. CC BY and CC BY-SA images also require
+an author and a valid provider-supplied license URL. Image lookups use
+request-local deduplication, bounded retries/concurrency, and a trip-local outage circuit.
 `WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
 descriptive application identity with an appropriate contact method.
 

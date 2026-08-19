@@ -44,6 +44,12 @@ def license_requires_author(value: str | None) -> bool:
     return normalize_license_name(value).startswith("cc by")
 
 
+def license_requires_url(value: str | None) -> bool:
+    """Return whether the accepted license must link to its legal terms."""
+
+    return normalize_license_name(value).startswith("cc by")
+
+
 def build_attribution_text(*, author: str | None, license_short_name: str) -> str:
     """Build plain-text attribution solely from provider metadata."""
 
