@@ -43,6 +43,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Geoapify-backed resolution for attraction-like itinerary activities
 - Wikidata and Wikimedia Commons attraction images with reuse metadata
+- Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -92,14 +93,17 @@ activities with provider-backed identity, addresses, and coordinates. Eligible,
 fully resolved places are then matched conservatively to Wikidata entities;
 their P18 claims are resolved through Wikimedia Commons into image URLs and
 attribution-ready licensing metadata. Trusted attraction images render with
-visible author, license, and Commons source attribution. Maps, routing, real
-weather upgrades, and itinerary validation remain future work.
+visible author, license, and Commons source attribution. The frontend plots only
+fully resolved Geoapify coordinates on a Leaflet map backed by Geoapify tiles
+and synchronizes markers with their itinerary cards. Routing, real weather
+upgrades, and itinerary validation remain future work.
 
 ```text
 final_response
       |
       +-- itinerary present --> TripItinerary
       |                         +-- trip overview
+      |                         +-- trip map <--> activity cards
       |                         +-- day/activity cards
       |                         +-- budget and practical notes
       |
@@ -113,17 +117,17 @@ final_response
 | API | FastAPI, Uvicorn, Pydantic |
 | Agent orchestration | LangGraph, LangChain |
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
-| Frontend | Next.js 16, React 19, TypeScript |
+| Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, Wikidata, Wikimedia Commons |
+| External data | Frankfurter currency-rate API, Geoapify, Wikidata, Wikimedia Commons, OpenStreetMap |
 
 ## Project Layout
 
 ```text
 .
 |-- app/
-|   |-- api/routes/          # Chat, stream, approval, and health endpoints
+|   |-- api/routes/          # Chat, stream, approval, config, and health endpoints
 |   |-- graph/
 |   |   |-- nodes/           # Main graph and research worker nodes
 |   |   |-- prompts/         # LLM prompt templates
@@ -225,6 +229,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to the Groq API |
 | `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
 | `GEOAPIFY_API_KEY` | No | None | Resolves itinerary activities to provider-backed place identities, addresses, and coordinates; enrichment is skipped when unset |
+| `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
@@ -245,6 +250,18 @@ Restart the backend after changing these values because settings and LLM clients
 
 The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API currently allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
 
+### Itinerary map setup
+
+1. In Geoapify MyProjects, create a separate key for browser map tiles.
+2. Restrict it to the approved HTTP referrers, origins, and CORS settings for
+   your frontend, such as `http://localhost:3000` during development.
+3. Set `GEOAPIFY_MAPS_API_KEY` in `app/.env`, then restart the backend.
+
+The browser map-tile key is intentionally visible in tile requests, so its
+origin restrictions are required. The backend-only `GEOAPIFY_API_KEY` remains
+private and is never returned to the frontend. No Map ID or Google API key is
+needed, and Phase 5 makes no routing calls.
+
 ## API
 
 ### Health check
@@ -256,6 +273,17 @@ GET /health
 ```json
 {"status": "ok"}
 ```
+
+### Public map configuration
+
+```http
+GET /config/maps
+```
+
+This endpoint returns only the browser-restricted Geoapify map-tile key when it
+is configured, otherwise it returns `enabled: false` with a null value.
+Responses use `Cache-Control: no-store`; no other application secrets are
+exposed.
 
 ### Send a message
 
@@ -392,9 +420,22 @@ descriptive application identity with an appropriate contact method.
 
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
-visibility, practical notes, and readable Wikimedia attribution. Markdown
-remains the fallback for clarification and other non-itinerary messages. Google
-Maps, routing, and real weather integration are not implemented.
+visibility, practical notes, readable Wikimedia attribution, and a lazily loaded
+Leaflet map. The map consumes existing Geoapify coordinates without additional
+geocoding or place-search calls. Its numbered markers and activity-card actions
+share stable per-itinerary identities for two-way selection. Markdown remains
+the fallback for clarification and other non-itinerary messages. Routing and
+real weather integration are not implemented.
+
+```text
+TripPlan
+  |-- TripMap --> Leaflet + Geoapify/OpenStreetMap tiles
+  |                  ^
+  |             Geoapify coordinates
+  +-- itinerary cards
+          ^   |
+          +---+ selection synchronization
+```
 
 > [!CAUTION]
 > Visa rules, weather, availability, and prices can change. Verify important travel decisions against official government, airline, hotel, and forecast sources before booking.
@@ -471,6 +512,6 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
-- Google Maps, routing, and real weather integration are not implemented yet.
+- The itinerary map is visualization-only; routing, directions, travel times, and real weather integration are not implemented yet.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

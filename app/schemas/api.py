@@ -22,3 +22,10 @@ class ChatResponse(BaseModel):
     response: str
     thread_id: str
     itinerary: TripPlan | None = None
+
+
+class MapsConfigResponse(BaseModel):
+    """Public browser configuration for map visualization."""
+
+    enabled: bool
+    api_key: str | None = None

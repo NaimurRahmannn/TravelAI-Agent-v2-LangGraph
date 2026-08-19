@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     )
     GROQ_API_KEY: str
     GEOAPIFY_API_KEY: str | None = None
+    GEOAPIFY_MAPS_API_KEY: str | None = None
     WIKIMEDIA_USER_AGENT: str | None = None
     GROQ_MODEL_NAME: str = Field(
         default="openai/gpt-oss-20b",
