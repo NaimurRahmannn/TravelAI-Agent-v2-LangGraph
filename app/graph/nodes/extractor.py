@@ -29,31 +29,46 @@ def extractor_node(
         0,
         [],
     )
-    llm = get_groq_llm()
-
-    chain = (
-        extractor_prompt
-        | llm.with_structured_output(
-            TripExtraction,
-            method="json_schema",
-            strict=True,
-        )
-    )
-
     latest_user_message = _get_latest_human_message(state["messages"])
-
-    extracted_trip = chain.invoke(
-        {
-            "existing_trip": _format_existing_trip(state.get("trip")),
-            "messages": [latest_user_message] if latest_user_message else [],
-        },
-        config=config,
-    )
     existing_trip = state.get("trip")
+    message_text = str(latest_user_message.content) if latest_user_message else ""
+    missing_fields = _get_missing_required_fields(existing_trip or Trip())
+
+    try:
+        llm = get_groq_llm()
+        chain = (
+            extractor_prompt
+            | llm.with_structured_output(
+                TripExtraction,
+                method="json_schema",
+                strict=True,
+            )
+        )
+        extracted_trip = chain.invoke(
+            {
+                "existing_trip": _format_existing_trip(existing_trip),
+                "messages": [latest_user_message] if latest_user_message else [],
+            },
+            config=config,
+        )
+    except Exception as exc:
+        logger.warning(
+            "structured extraction unavailable; using deterministic fallback "
+            "error_type=%s",
+            type(exc).__name__,
+        )
+        extracted_trip = _empty_trip_extraction()
+
+    extracted_trip = _protect_confirmed_trip_scope(
+        extracted_trip,
+        message_text,
+        existing_trip=existing_trip,
+        missing_fields=missing_fields,
+    )
     extracted_trip = _apply_deterministic_fallback(
         extracted_trip,
-        str(latest_user_message.content) if latest_user_message else "",
-        missing_fields=_get_missing_required_fields(existing_trip or Trip()),
+        message_text,
+        missing_fields=missing_fields,
         is_clarification_reply=existing_trip is not None,
     )
 
@@ -131,6 +146,12 @@ def _merge_trip(
     extracted_data = extracted_trip.model_dump()
     merged_data = existing_data.copy()
 
+    if _changes_trip_scope(existing_trip, extracted_trip):
+        # Exact dates belong to the previous destination/duration and must be
+        # selected again unless this same turn supplies a new picker range.
+        merged_data["start_date"] = None
+        merged_data["end_date"] = None
+
     for field_name, value in extracted_data.items():
         if field_name in {"start_date", "end_date"}:
             continue
@@ -146,6 +167,72 @@ def _merge_trip(
             merged_data[field_name] = value
 
     return Trip(**merged_data)
+
+
+def _protect_confirmed_trip_scope(
+    extracted_trip: TripExtraction,
+    message: str,
+    *,
+    existing_trip: Trip | None,
+    missing_fields: list[str],
+) -> TripExtraction:
+    """Reject inferred destination/duration changes in unrelated clarifications."""
+
+    if existing_trip is None:
+        return extracted_trip
+
+    updates: dict[str, str | int | None] = {}
+    explicit_destination = _extract_destination(message)
+    explicit_duration = _extract_duration(message)
+
+    if explicit_destination is not None:
+        updates["destination"] = explicit_destination
+    elif "destination" not in missing_fields:
+        updates["destination"] = None
+
+    if explicit_duration is not None:
+        updates["duration"] = explicit_duration
+    elif existing_trip.duration is not None:
+        updates["duration"] = None
+
+    return extracted_trip.model_copy(update=updates) if updates else extracted_trip
+
+
+def _changes_trip_scope(
+    existing_trip: Trip | None,
+    extracted_trip: TripExtraction,
+) -> bool:
+    """Return whether an explicit extraction replaces destination or duration."""
+
+    if existing_trip is None:
+        return False
+    destination_changed = (
+        extracted_trip.destination is not None
+        and existing_trip.destination is not None
+        and extracted_trip.destination.casefold() != existing_trip.destination.casefold()
+    )
+    duration_changed = (
+        extracted_trip.duration is not None
+        and existing_trip.duration is not None
+        and extracted_trip.duration != existing_trip.duration
+    )
+    return destination_changed or duration_changed
+
+
+def _empty_trip_extraction() -> TripExtraction:
+    """Return a valid all-empty extraction for deterministic provider fallback."""
+
+    return TripExtraction(
+        origin=None,
+        destination=None,
+        start_date=None,
+        end_date=None,
+        duration=None,
+        budget=None,
+        currency=None,
+        travelers=None,
+        preferences=[],
+    )
 
 
 def _apply_selected_dates(
@@ -182,9 +269,9 @@ def _apply_deterministic_fallback(
     updates: dict[str, str | int | float] = {}
 
     if extracted_trip.duration is None:
-        duration_match = re.search(r"\b(\d+)\s*-?\s*days?\b", message, re.IGNORECASE)
-        if duration_match:
-            updates["duration"] = int(duration_match.group(1))
+        duration = _extract_duration(message)
+        if duration is not None:
+            updates["duration"] = duration
 
     if extracted_trip.destination is None:
         destination = _extract_destination(message)
@@ -245,12 +332,21 @@ def _extract_destination(message: str) -> str | None:
         r"([a-z][a-z .'-]*?)(?=\s+(?:from|for|with|on)\b|[,!?]|$)",
         r"\b(?:a|an)\s+([a-z][a-z .'-]*?)\s+trip\b",
         r"\btrip\s+to\s+([a-z][a-z .'-]*?)(?=\s+(?:from|for|with|on)\b|[,!?]|$)",
+        r"\b(?:destination(?:\s+is|\s+to|:)|change(?:\s+the)?\s+destination\s+to)\s+"
+        r"([a-z][a-z .'-]*?)(?=\s+(?:from|for|with|on)\b|[,!?]|$)",
     )
     for pattern in patterns:
         match = re.search(pattern, message, re.IGNORECASE)
         if match:
             return _normalize_place(match.group(1))
     return None
+
+
+def _extract_duration(message: str) -> int | None:
+    """Extract an explicitly stated trip duration."""
+
+    match = re.search(r"\b(\d+)\s*-?\s*days?\b", message, re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def _extract_budget(message: str) -> tuple[float | None, str | None]:

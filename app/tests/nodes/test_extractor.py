@@ -304,6 +304,157 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
     assert result["itinerary"] is None
 
 
+def test_missing_detail_reply_cannot_replace_confirmed_destination(monkeypatch):
+    """A country supplied as origin must not overwrite the planned destination."""
+
+    model_output = _empty_extraction().model_copy(
+        update={
+            "destination": "Bangladesh",
+            "duration": 2,
+            "budget": 2000,
+            "currency": "USD",
+            "travelers": 2,
+        }
+    )
+
+    class MisclassifiedExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(lambda _: model_output)
+
+    monkeypatch.setattr(
+        extractor,
+        "get_groq_llm",
+        lambda: MisclassifiedExtractionModel(),
+    )
+    existing_trip = Trip(
+        destination="Nepal",
+        start_date=date(2026, 8, 20),
+        end_date=date(2026, 8, 23),
+        duration=4,
+    )
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="$2000 Bangladesh 2")],
+            "trip": existing_trip,
+        },
+        config={},
+    )
+
+    assert result["trip"].destination == "Nepal"
+    assert result["trip"].origin == "Bangladesh"
+    assert result["trip"].duration == 4
+    assert result["trip"].start_date == date(2026, 8, 20)
+    assert result["trip"].end_date == date(2026, 8, 23)
+    assert result["trip"].budget == 2000
+    assert result["trip"].travelers == 2
+    assert result["missing_fields"] == []
+    assert result["needs_clarification"] is False
+
+
+def test_structured_provider_failure_uses_deterministic_extraction(monkeypatch):
+    """Groq JSON validation errors must clarify rather than terminate the turn."""
+
+    def fail(_):
+        raise RuntimeError("json_validate_failed")
+
+    class FailingExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(fail)
+
+    monkeypatch.setattr(
+        extractor,
+        "get_groq_llm",
+        lambda: FailingExtractionModel(),
+    )
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="Plan a Nepal trip for 5 days")],
+        },
+        config={},
+    )
+
+    assert result["trip"].destination == "Nepal"
+    assert result["trip"].duration == 5
+    assert result["missing_fields"] == [
+        "budget",
+        "dates",
+        "origin",
+        "travelers",
+    ]
+    assert result["needs_clarification"] is True
+
+
+def test_provider_failure_during_destination_change_clears_stale_dates(monkeypatch):
+    def fail(_):
+        raise RuntimeError("json_validate_failed")
+
+    class FailingExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(fail)
+
+    monkeypatch.setattr(
+        extractor,
+        "get_groq_llm",
+        lambda: FailingExtractionModel(),
+    )
+    existing_trip = Trip(
+        origin="Bangladesh",
+        destination="Japan",
+        start_date=date(2026, 8, 20),
+        end_date=date(2026, 8, 22),
+        duration=3,
+        budget=2000,
+        currency="USD",
+        travelers=2,
+    )
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="Plan a Nepal trip for 5 days")],
+            "trip": existing_trip,
+        },
+        config={},
+    )
+
+    assert result["trip"].destination == "Nepal"
+    assert result["trip"].duration == 5
+    assert result["trip"].start_date is None
+    assert result["trip"].end_date is None
+    assert result["trip"].origin == "Bangladesh"
+    assert result["trip"].budget == 2000
+    assert result["trip"].travelers == 2
+    assert result["missing_fields"] == ["dates"]
+    assert result["needs_clarification"] is True
+
+
+def test_explicit_new_destination_clears_previous_trip_dates():
+    existing_trip = Trip(
+        origin="Bangladesh",
+        destination="Japan",
+        start_date=date(2026, 8, 20),
+        end_date=date(2026, 8, 22),
+        duration=3,
+        budget=2000,
+        currency="USD",
+        travelers=2,
+    )
+    extracted_trip = _empty_extraction().model_copy(
+        update={"destination": "Nepal", "duration": 5}
+    )
+
+    merged = _merge_trip(existing_trip, extracted_trip)
+
+    assert merged.destination == "Nepal"
+    assert merged.duration == 5
+    assert merged.start_date is None
+    assert merged.end_date is None
+    assert merged.origin == "Bangladesh"
+    assert merged.budget == 2000
+    assert merged.travelers == 2
+
+
 def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
     """A prior plan cannot leak into a later clarification or rejection turn."""
 

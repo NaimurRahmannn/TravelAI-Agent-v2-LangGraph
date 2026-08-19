@@ -35,6 +35,12 @@ Only leave a field unset in your output if the latest message does not
 mention it at all; the caller will keep the existing value for you in that
 case.
 
+When a destination is already present and the latest short reply supplies
+missing details such as a budget, origin, or traveler count, do not reinterpret
+the origin country as a new destination. For example, with Nepal already set,
+"$2000 Bangladesh 2" means a USD 2000 budget, Bangladesh as origin, and two
+travelers; destination must be null because the message does not change it.
+
 When the user adds preferences, return only the newly mentioned preferences;
 the caller will merge them with existing ones for you.
 
