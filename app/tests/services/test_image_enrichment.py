@@ -86,9 +86,11 @@ class FakeProvider:
         self.calls = []
         self.active = 0
         self.max_active = 0
+        self.place_names = []
 
     async def resolve_image(self, *, place):
         self.calls.append(place.provider_place_id)
+        self.place_names.append(place.name)
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         try:
@@ -107,7 +109,9 @@ def test_eligibility_requires_attraction_like_fully_resolved_geoapify_place():
     assert not should_enrich_activity_image(_activity("Airport Transfer", "transport"))
     assert not should_enrich_activity_image(_activity("Lunch", "dining"))
     assert not should_enrich_activity_image(_activity("Hotel Check-in", "hotel"))
-    assert not should_enrich_activity_image(_activity("Partial Temple", "history", partial))
+    assert not should_enrich_activity_image(
+        _activity("Partial Temple", "history", partial)
+    )
 
 
 def test_enrichment_supports_partial_success_and_preserves_original_data():
@@ -129,6 +133,20 @@ def test_enrichment_supports_partial_success_and_preserves_original_data():
         "Wat Mahathat",
         "Erawan National Park",
     ]
+
+
+def test_image_lookup_uses_clean_landmark_name_without_changing_display_name():
+    place = _place("Sensō-ji", "sensoji")
+    original = _plan(
+        _activity("Senso-ji Temple Visit", "sightseeing", place),
+    )
+    provider = FakeProvider({"sensoji": _image("Q111")})
+
+    enriched = asyncio.run(enrich_trip_images(original, provider))
+
+    assert provider.place_names == ["Senso-ji Temple"]
+    assert enriched.days[0].activities[0].name == "Senso-ji Temple Visit"
+    assert enriched.days[0].activities[0].image.wikidata_entity_id == "Q111"
 
 
 def test_duplicate_geoapify_identity_calls_provider_once_and_reuses_image():
@@ -222,7 +240,10 @@ def test_concurrency_is_bounded_after_probe_and_order_is_stable():
     places = [_place(f"Place {index}", f"id-{index}") for index in range(3)]
     plan = _plan(*[_activity(place.name, "visit", place) for place in places])
     provider = FakeProvider(
-        {place.provider_place_id: _image(f"Q{index + 1}") for index, place in enumerate(places)},
+        {
+            place.provider_place_id: _image(f"Q{index + 1}")
+            for index, place in enumerate(places)
+        },
         delay=0.01,
     )
 

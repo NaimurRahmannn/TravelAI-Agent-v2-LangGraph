@@ -1,11 +1,11 @@
 import asyncio
+import math
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
-import math
-import re
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -25,7 +25,7 @@ from app.services.images.license_policy import (
     is_supported_license,
     license_requires_url,
 )
-from app.services.places import normalize_place_text
+from app.services.places import normalize_place_text, place_name_similarity
 
 logger = get_logger(__name__)
 
@@ -33,6 +33,7 @@ WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA_RESULT_LIMIT = 5
 COMMONS_THUMBNAIL_WIDTH = 800
+COMMONS_CATEGORY_FILE_LIMIT = 12
 MAX_REQUEST_ATTEMPTS = 3
 RETRY_BASE_DELAY_SECONDS = 0.25
 MAX_RETRY_AFTER_SECONDS = 5.0
@@ -60,6 +61,7 @@ class WikidataCandidate:
     latitude: float | None = None
     longitude: float | None = None
     p18_file_title: str | None = None
+    commons_category: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +186,34 @@ def select_p18_file(claims: object) -> str | None:
     return f"File:{filename}"
 
 
+def select_commons_category(claims: object) -> str | None:
+    """Select a non-deprecated P373 Commons category deterministically."""
+
+    if not isinstance(claims, list):
+        return None
+    ranked: list[tuple[int, str]] = []
+    for claim in claims:
+        if not isinstance(claim, Mapping) or claim.get("rank") == "deprecated":
+            continue
+        mainsnak = claim.get("mainsnak")
+        if not isinstance(mainsnak, Mapping) or mainsnak.get("snaktype") != "value":
+            continue
+        datavalue = mainsnak.get("datavalue")
+        value = datavalue.get("value") if isinstance(datavalue, Mapping) else None
+        if not isinstance(value, str):
+            continue
+        category = " ".join(value.split())
+        if category.casefold().startswith("category:"):
+            category = category[9:].strip()
+        if not category or any(ord(character) < 32 for character in category):
+            continue
+        rank = 0 if claim.get("rank") == "preferred" else 1
+        ranked.append((rank, category))
+    if not ranked:
+        return None
+    return min(ranked, key=lambda item: (item[0], item[1].casefold()))[1]
+
+
 def select_country_entity_id(claims: object) -> str | None:
     """Select a non-deprecated P17 item ID by rank and stable QID order."""
 
@@ -199,7 +229,9 @@ def select_country_entity_id(claims: object) -> str | None:
         datavalue = mainsnak.get("datavalue")
         value = datavalue.get("value") if isinstance(datavalue, Mapping) else None
         entity_id = value.get("id") if isinstance(value, Mapping) else None
-        if not isinstance(entity_id, str) or not _ENTITY_ID_PATTERN.fullmatch(entity_id):
+        if not isinstance(entity_id, str) or not _ENTITY_ID_PATTERN.fullmatch(
+            entity_id
+        ):
             continue
         rank = 0 if claim.get("rank") == "preferred" else 1
         ranked.append((rank, entity_id))
@@ -233,27 +265,53 @@ class WikimediaImageProvider:
             place.provider_place_id,
             place.name,
         )
-        candidates = await self._find_candidates(place.name)
+        candidates: list[WikidataCandidate] = []
+        if place.wikidata_entity_id:
+            direct_candidate = await self._find_candidate_by_id(
+                place.wikidata_entity_id
+            )
+            if direct_candidate is not None:
+                candidates.append(direct_candidate)
+
+        if not candidates:
+            candidates = await self._find_candidates(place.name)
         selected = select_wikidata_candidate(candidates, place=place)
+        if selected is None and place.wikidata_entity_id:
+            logger.info(
+                "image_resolution_identity_mismatch provider_place_id=%s "
+                "wikidata_id=%s; falling_back=text_search",
+                place.provider_place_id,
+                place.wikidata_entity_id,
+            )
+            candidates = await self._find_candidates(place.name)
+            selected = select_wikidata_candidate(candidates, place=place)
         if selected is None:
             logger.info(
                 "image_resolution_unresolved provider_place_id=%s reason=no_entity",
                 place.provider_place_id,
             )
             return None
-        if selected.p18_file_title is None:
+        if selected.p18_file_title is None and selected.commons_category is None:
             logger.info(
                 "image_resolution_unresolved provider_place_id=%s wikidata_id=%s "
-                "reason=no_p18",
+                "reason=no_p18_or_commons_category",
                 place.provider_place_id,
                 selected.entity_id,
             )
             return None
 
-        image = await self._fetch_commons_image(
-            entity_id=selected.entity_id,
-            file_title=selected.p18_file_title,
-        )
+        image = None
+        if selected.p18_file_title is not None:
+            image = await self._fetch_commons_image(
+                entity_id=selected.entity_id,
+                file_title=selected.p18_file_title,
+            )
+        if image is None and selected.commons_category is not None:
+            image = await self._fetch_commons_category_image(
+                entity_id=selected.entity_id,
+                category=selected.commons_category,
+                place_name=place.name,
+            )
         logger.info(
             "image_resolution_%s provider_place_id=%s wikidata_id=%s",
             "resolved" if image is not None else "unresolved",
@@ -261,6 +319,41 @@ class WikimediaImageProvider:
             selected.entity_id,
         )
         return image
+
+    async def _find_candidate_by_id(
+        self,
+        entity_id: str,
+    ) -> WikidataCandidate | None:
+        """Load one provider-linked entity without a fragile text search."""
+
+        payload = await self._request_json(
+            WIKIDATA_API_URL,
+            params={
+                "action": "wbgetentities",
+                "ids": entity_id,
+                "props": "labels|descriptions|aliases|claims",
+                "languages": "en",
+                "languagefallback": 1,
+                "format": "json",
+            },
+        )
+        entities = payload.get("entities")
+        entity = entities.get(entity_id) if isinstance(entities, Mapping) else None
+        if not isinstance(entity, Mapping) or entity.get("missing") is not None:
+            return None
+
+        claims = entity.get("claims")
+        claims = claims if isinstance(claims, Mapping) else {}
+        country_id = select_country_entity_id(claims.get("P17"))
+        countries = await self._resolve_country_labels(
+            {country_id} if country_id else set()
+        )
+        return _to_candidate(
+            entity_id,
+            entity,
+            {"id": entity_id},
+            country=countries.get(country_id) if country_id else None,
+        )
 
     async def aclose(self) -> None:
         if self._owns_client:
@@ -411,6 +504,70 @@ class WikimediaImageProvider:
             )
         return image
 
+    async def _fetch_commons_category_image(
+        self,
+        *,
+        entity_id: str,
+        category: str,
+        place_name: str,
+    ) -> PlaceImage | None:
+        """Choose a reusable file only from the selected entity's category."""
+
+        category_title = category.strip()
+        if not category_title.casefold().startswith("category:"):
+            category_title = f"Category:{category_title}"
+        payload = await self._request_json(
+            COMMONS_API_URL,
+            params={
+                "action": "query",
+                "generator": "categorymembers",
+                "gcmtitle": category_title,
+                "gcmnamespace": 6,
+                "gcmtype": "file",
+                "gcmlimit": COMMONS_CATEGORY_FILE_LIMIT,
+                "prop": "imageinfo",
+                "iiprop": "url|size|extmetadata",
+                "iiurlwidth": COMMONS_THUMBNAIL_WIDTH,
+                "iiextmetadatalanguage": "en",
+                "iiextmetadatafilter": (
+                    "Artist|Credit|LicenseShortName|LicenseUrl|UsageTerms|"
+                    "ImageDescription"
+                ),
+                "format": "json",
+                "formatversion": 2,
+            },
+        )
+        query = payload.get("query")
+        pages = query.get("pages") if isinstance(query, Mapping) else None
+        if isinstance(pages, Mapping):
+            pages = list(pages.values())
+        if not isinstance(pages, list):
+            return None
+
+        accepted: list[tuple[float, str, PlaceImage]] = []
+        for page in pages:
+            if not isinstance(page, Mapping):
+                continue
+            title = _string(page.get("title"))
+            image = _parse_commons_image(
+                {"query": {"pages": [page]}},
+                entity_id=entity_id,
+                requested_file_title=title,
+            )
+            if image is not None:
+                accepted.append(
+                    (place_name_similarity(place_name, title), title.casefold(), image)
+                )
+        if not accepted:
+            logger.info(
+                "image_resolution_category_unresolved wikidata_id=%s category=%s",
+                entity_id,
+                category,
+            )
+            return None
+        accepted.sort(key=lambda item: (-item[0], item[1]))
+        return accepted[0][2]
+
     async def _request_json(
         self,
         url: str,
@@ -489,7 +646,10 @@ def _score_candidate(
     place: ResolvedPlace,
 ) -> _ScoredCandidate | None:
     names = (candidate.label, *candidate.aliases)
-    name_similarity = max((_text_similarity(place.name, name) for name in names), default=0)
+    name_similarity = max(
+        (_text_similarity(place.name, name) for name in names),
+        default=0,
+    )
     if name_similarity < MINIMUM_NAME_SIMILARITY:
         return None
 
@@ -507,7 +667,8 @@ def _score_candidate(
     if (
         candidate.country
         and place.country
-        and normalize_place_text(candidate.country) != normalize_place_text(place.country)
+        and normalize_place_text(candidate.country)
+        != normalize_place_text(place.country)
     ):
         return None
 
@@ -567,17 +728,7 @@ def _distance_score(value: float | None) -> float:
 
 
 def _text_similarity(left: str, right: str) -> float:
-    normalized_left = normalize_place_text(left)
-    normalized_right = normalize_place_text(right)
-    if not normalized_left or not normalized_right:
-        return 0.0
-    if normalized_left == normalized_right:
-        return 1.0
-    if normalized_left in normalized_right or normalized_right in normalized_left:
-        return 0.9
-    left_tokens = set(normalized_left.split())
-    right_tokens = set(normalized_right.split())
-    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+    return place_name_similarity(left, right)
 
 
 def _contains_location(text: str, expected: str | None) -> bool:
@@ -617,6 +768,7 @@ def _to_candidate(
         latitude=latitude,
         longitude=longitude,
         p18_file_title=select_p18_file(claims.get("P18")),
+        commons_category=select_commons_category(claims.get("P373")),
     )
 
 

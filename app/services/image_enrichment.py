@@ -7,7 +7,7 @@ from app.services.images import (
     PlaceImageProvider,
 )
 from app.services.place_enrichment import should_resolve_activity_place
-from app.services.places import normalize_place_text
+from app.services.places import normalize_place_text, place_name_variants
 
 logger = get_logger(__name__)
 
@@ -85,9 +85,15 @@ async def enrich_trip_images(
             place = activity.place
             if place is None:
                 continue
+            requested_name = activity.place_search_name or activity.name
+            name_variants = place_name_variants(requested_name)
+            lookup_name = (
+                name_variants[1] if len(name_variants) > 1 else name_variants[0]
+            )
+            lookup_place = place.model_copy(update={"name": lookup_name})
             cache_key = image_deduplication_key(place)
             if cache_key not in tasks:
-                tasks[cache_key] = asyncio.create_task(resolve(place))
+                tasks[cache_key] = asyncio.create_task(resolve(lookup_place))
             activity_keys.append((day_index, activity_index, cache_key))
 
     if tasks:

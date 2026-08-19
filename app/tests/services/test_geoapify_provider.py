@@ -79,6 +79,43 @@ def test_successful_result_parses_provider_fields_and_passes_api_key():
     assert "type" not in requests[0].url.params
 
 
+def test_provider_wikidata_identity_is_retained_from_osm_metadata():
+    candidate = _candidate()
+    candidate["datasource"]["raw"] = {"wikidata": "Q660585"}
+
+    resolution = select_geoapify_candidate(
+        [candidate],
+        name="Wat Mahathat",
+        city="Ayutthaya",
+        destination="Thailand",
+    )
+
+    assert resolution.place.wikidata_entity_id == "Q660585"
+
+
+@pytest.mark.parametrize(
+    ("requested", "provider_name"),
+    [
+        ("Senso-ji Temple", "Sensō-ji"),
+        ("Meiji Jingu Shrine", "Meiji Shrine"),
+        ("Tenryu-ji Temple", "Tenryū Temple"),
+        (
+            "Tokyo Metropolitan Government Building",
+            "Tokyo Metropolitan Government Main Building 2",
+        ),
+    ],
+)
+def test_landmark_aliases_can_be_fully_resolved(requested, provider_name):
+    resolution = select_geoapify_candidate(
+        [_candidate(name=provider_name, city="Tokyo", country="Japan")],
+        name=requested,
+        city="Tokyo",
+        destination="Japan",
+    )
+
+    assert resolution.status == "resolved"
+
+
 def test_empty_results_are_unresolved():
     resolution = _resolve_with_handler(
         lambda request: httpx.Response(200, json={"results": []})
@@ -181,7 +218,10 @@ def test_http_errors_follow_retry_policy(status_code, error_type, expected_calls
     assert calls == expected_calls
 
 
-@pytest.mark.parametrize("error", [httpx.ReadTimeout("timeout"), httpx.ConnectError("down")])
+@pytest.mark.parametrize(
+    "error",
+    [httpx.ReadTimeout("timeout"), httpx.ConnectError("down")],
+)
 def test_transport_errors_retry_and_raise_safe_error(error):
     calls = 0
 

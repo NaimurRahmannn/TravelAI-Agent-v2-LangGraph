@@ -10,7 +10,6 @@ from pydantic import (
     model_validator,
 )
 
-
 PlaceResolutionStatus = Literal[
     "resolved",
     "partially_resolved",
@@ -69,6 +68,10 @@ class ResolvedPlace(BaseModel):
 
     provider: Literal["geoapify"]
     provider_place_id: str = Field(min_length=1)
+    wikidata_entity_id: str | None = Field(
+        default=None,
+        pattern=r"^Q[1-9][0-9]*$",
+    )
     name: str = Field(min_length=1)
     formatted_address: str | None = None
     city: str | None = None
@@ -89,6 +92,7 @@ class Activity(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
+    place_search_name: str | None = Field(default=None, min_length=1)
     category: str = Field(min_length=1)
     location_hint: str | None = None
     description: str | None = None

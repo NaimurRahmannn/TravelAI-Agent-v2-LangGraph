@@ -20,6 +20,7 @@ from app.services.images.wikimedia import (
     _parse_commons_image,
     distance_km,
     html_to_plain_text,
+    select_commons_category,
     select_country_entity_id,
     select_p18_file,
     select_wikidata_candidate,
@@ -246,6 +247,16 @@ def test_p18_prefers_preferred_rank_and_uses_stable_order():
 )
 def test_p18_rejects_missing_or_malformed_claims(claims):
     assert select_p18_file(claims) is None
+
+
+def test_p373_selects_a_stable_non_deprecated_commons_category():
+    claims = [
+        _claim("Z category", property_id="P373"),
+        _claim("Category:A category", rank="preferred", property_id="P373"),
+        _claim("Old category", rank="deprecated", property_id="P373"),
+    ]
+
+    assert select_commons_category(claims) == "A category"
 
 
 def test_p17_selects_single_country_entity_id():
@@ -560,6 +571,110 @@ def test_provider_resolves_wikidata_p18_and_commons_with_user_agent():
         for request in requests
     )
     assert requests[0].url.params.get("search") == "Wat Mahathat"
+
+
+def test_provider_prefers_geoapify_wikidata_identity_over_text_search():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        action = request.url.params.get("action")
+        if action == "wbgetentities":
+            assert request.url.params.get("ids") == "Q660585"
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {
+                        "Q660585": {
+                            "labels": {"en": {"value": "Wat Mahathat"}},
+                            "claims": {
+                                "P625": [
+                                    _claim(
+                                        {"latitude": 14.3568, "longitude": 100.5682},
+                                        property_id="P625",
+                                    )
+                                ],
+                                "P18": [_claim("Wat Mahathat.jpg")],
+                            },
+                        }
+                    }
+                },
+            )
+        assert action == "query"
+        return httpx.Response(200, json=_commons_payload())
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider.resolve_image(
+                place=_place(wikidata_entity_id="Q660585")
+            )
+
+    image = asyncio.run(run())
+
+    assert image is not None
+    assert all(
+        request.url.params.get("action") != "wbsearchentities"
+        for request in requests
+    )
+
+
+def test_rejected_p18_falls_back_to_entity_commons_category():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        action = request.url.params.get("action")
+        if action == "wbgetentities":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {
+                        "Q660585": {
+                            "labels": {"en": {"value": "Wat Mahathat"}},
+                            "claims": {
+                                "P625": [
+                                    _claim(
+                                        {"latitude": 14.3568, "longitude": 100.5682},
+                                        property_id="P625",
+                                    )
+                                ],
+                                "P18": [_claim("Rejected.jpg")],
+                                "P373": [
+                                    _claim("Wat Mahathat", property_id="P373")
+                                ],
+                            },
+                        }
+                    }
+                },
+            )
+        if request.url.params.get("titles") == "File:Rejected.jpg":
+            return httpx.Response(
+                200,
+                json=_commons_payload(license_name="CC BY-NC 4.0"),
+            )
+        assert request.url.params.get("generator") == "categorymembers"
+        assert request.url.params.get("gcmtitle") == "Category:Wat Mahathat"
+        return httpx.Response(200, json=_commons_payload())
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider.resolve_image(
+                place=_place(wikidata_entity_id="Q660585")
+            )
+
+    image = asyncio.run(run())
+
+    assert image is not None
+    assert image.license_short_name == "CC BY-SA 4.0"
+    assert len(requests) == 3
 
 
 def test_duplicate_p17_ids_are_batch_resolved_once_for_all_candidates():

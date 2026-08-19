@@ -374,15 +374,18 @@ transport, accommodation, meal, and logistics activities are skipped because
 they are not attraction-like places. A trip-local circuit stops remaining calls
 after authentication, persistent rate-limit, or provider-outage failures.
 
-For fully resolved attraction-like places, Wikidata supplies a conservatively
-matched knowledge entity using name, coordinates, P17 country when available,
-and location/description context, plus its P18 image reference. Wikimedia
-Commons then supplies the file URL, an approximately 800px thumbnail URL, source page,
-dimensions, author/credit, license, and deterministic attribution text. Unknown,
-missing, non-commercial, or otherwise unsupported license metadata causes the
-image to be skipped rather than guessed. CC BY and CC BY-SA images also require
-an author and a valid provider-supplied license URL. Image lookups use
-request-local deduplication, bounded retries/concurrency, and a trip-local outage circuit.
+For fully resolved attraction-like places, enrichment retains a valid Wikidata
+QID exposed by Geoapify/OpenStreetMap and uses that stable identity directly.
+When no QID is available, Wikidata falls back to conservative matching using
+normalized landmark aliases, coordinates, P17 country when available, and
+location/description context. Wikimedia Commons first tries the entity's P18
+image and then reusable files from its P373 Commons category. Commons supplies
+the file URL, an approximately 800px thumbnail URL, source page, dimensions,
+author/credit, license, and deterministic attribution text. Unknown, missing,
+non-commercial, or otherwise unsupported license metadata causes the image to
+be skipped rather than guessed. CC BY and CC BY-SA images also require an author
+and a valid provider-supplied license URL. Image lookups use request-local
+deduplication, bounded retries/concurrency, and a trip-local outage circuit.
 `WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
 descriptive application identity with an appropriate contact method.
 

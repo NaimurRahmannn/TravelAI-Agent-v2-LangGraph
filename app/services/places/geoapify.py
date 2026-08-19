@@ -1,7 +1,8 @@
 import asyncio
+import logging
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-import logging
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -14,6 +15,7 @@ from app.services.places.base import (
     PlacesProviderUnavailableError,
     build_place_query,
     normalize_place_text,
+    place_name_similarity,
 )
 
 logger = get_logger(__name__)
@@ -335,6 +337,7 @@ def _to_resolved_place(
     return ResolvedPlace(
         provider="geoapify",
         provider_place_id=str(candidate["place_id"]),
+        wikidata_entity_id=_wikidata_entity_id(candidate),
         name=_candidate_name(candidate),
         formatted_address=_string(candidate.get("formatted")) or None,
         city=_string(candidate.get("city")) or None,
@@ -397,7 +400,9 @@ def _location_match(
         _string(candidate.get(key))
         for key in ("city", "district", "county", "state", "country", "formatted")
     ]
-    normalized_values = [normalize_place_text(value) for value in location_values if value]
+    normalized_values = [
+        normalize_place_text(value) for value in location_values if value
+    ]
     matched = any(
         normalized_expected == value
         or normalized_expected in value
@@ -410,17 +415,28 @@ def _location_match(
 
 
 def _text_similarity(left: str, right: str) -> float:
-    normalized_left = normalize_place_text(left)
-    normalized_right = normalize_place_text(right)
-    if not normalized_left or not normalized_right:
-        return 0.0
-    if normalized_left == normalized_right:
-        return 1.0
-    if normalized_left in normalized_right or normalized_right in normalized_left:
-        return 0.9
-    left_tokens = set(normalized_left.split())
-    right_tokens = set(normalized_right.split())
-    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+    return place_name_similarity(left, right)
+
+
+def _wikidata_entity_id(candidate: Mapping[str, Any]) -> str | None:
+    """Read a QID from Geoapify or its underlying OpenStreetMap metadata."""
+
+    values: list[object] = [
+        candidate.get("wikidata"),
+        candidate.get("wikidata_id"),
+    ]
+    datasource = candidate.get("datasource")
+    if isinstance(datasource, Mapping):
+        values.extend((datasource.get("wikidata"), datasource.get("wikidata_id")))
+        raw = datasource.get("raw")
+        if isinstance(raw, Mapping):
+            values.extend((raw.get("wikidata"), raw.get("wikidata_id")))
+
+    for value in values:
+        entity_id = _string(value).upper()
+        if re.fullmatch(r"Q[1-9][0-9]*", entity_id):
+            return entity_id
+    return None
 
 
 def _string(value: object) -> str:

@@ -1,6 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate
 
-
 itinerary_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -14,6 +13,13 @@ Rules:
   traveler count, USD budget, and preferences. Never silently change them.
 - Produce exactly one sequentially numbered day per requested travel day and
   include 1-3 concrete named activities per day.
+- Represent at most one physical landmark in each place-based activity. Do not
+  combine landmarks such as "Shibuya Crossing and Hachiko Statue" into one
+  activity. Keep `name` readable for the traveler and set `place_search_name`
+  to the landmark's concise official or commonly mapped name, without words
+  such as "visit", "exploration", "tour", or "experience". Leave
+  `place_search_name` null for transport, meals, lodging, and other activities
+  that are not one searchable physical place.
 - Respect all stated traveler preferences and constraints.
 - Treat the stated budget as the maximum total budget for all travelers, not
   as a spending target and not as a per-person amount unless explicitly stated.

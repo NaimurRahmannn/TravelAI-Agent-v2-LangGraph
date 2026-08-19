@@ -9,6 +9,7 @@ from app.services.places import (
     PlacesProviderUnavailableError,
     build_place_query,
     normalize_place_text,
+    place_name_variants,
 )
 
 logger = get_logger(__name__)
@@ -69,25 +70,32 @@ async def enrich_trip_places(
 
     async def call_provider(
         *,
-        name: str,
+        names: tuple[str, ...],
         location_hint: str | None,
         city: str,
     ) -> PlaceResolution:
         nonlocal circuit_open
 
         try:
-            return await provider.resolve_place(
-                name=name,
-                location_hint=location_hint,
-                city=city,
-                destination=trip_plan.destination,
-            )
+            best_resolution = PlaceResolution.unresolved()
+            for name in names:
+                resolution = await provider.resolve_place(
+                    name=name,
+                    location_hint=location_hint,
+                    city=city,
+                    destination=trip_plan.destination,
+                )
+                if resolution.status == "resolved":
+                    return resolution
+                if resolution.status == "partially_resolved":
+                    best_resolution = resolution
+            return best_resolution
         except PlacesProviderUnavailableError as exc:
             if not circuit_open:
                 logger.warning(
                     "place_resolution_circuit_open activity=%s city=%s "
                     "destination=%s error_type=%s",
-                    name,
+                    names[0],
                     city,
                     trip_plan.destination,
                     type(exc).__name__,
@@ -98,7 +106,7 @@ async def enrich_trip_places(
             logger.warning(
                 "place_resolution_activity_error activity=%s city=%s "
                 "destination=%s error_type=%s",
-                name,
+                names[0],
                 city,
                 trip_plan.destination,
                 type(exc).__name__,
@@ -107,7 +115,7 @@ async def enrich_trip_places(
 
     async def resolve(
         *,
-        name: str,
+        names: tuple[str, ...],
         location_hint: str | None,
         city: str,
     ) -> PlaceResolution:
@@ -124,7 +132,7 @@ async def enrich_trip_places(
                     return PlaceResolution.unresolved()
                 if not provider_checked:
                     resolution = await call_provider(
-                        name=name,
+                        names=names,
                         location_hint=location_hint,
                         city=city,
                     )
@@ -135,7 +143,7 @@ async def enrich_trip_places(
             if circuit_open:
                 return PlaceResolution.unresolved()
             return await call_provider(
-                name=name,
+                names=names,
                 location_hint=location_hint,
                 city=city,
             )
@@ -151,17 +159,26 @@ async def enrich_trip_places(
                 skipped_activities.append((day_index, activity_index))
                 continue
 
+            requested_name = activity.place_search_name or activity.name
+            lookup_names = tuple(
+                dict.fromkeys(
+                    (
+                        *place_name_variants(requested_name),
+                        *place_name_variants(activity.name),
+                    )
+                )
+            )
             query = build_place_query(
-                name=activity.name,
+                name=lookup_names[0],
                 location_hint=activity.location_hint,
                 city=day.city,
                 destination=trip_plan.destination,
             )
-            cache_key = normalize_place_text(query)
+            cache_key = normalize_place_text(" | ".join((*lookup_names, query)))
             if cache_key not in tasks:
                 tasks[cache_key] = asyncio.create_task(
                     resolve(
-                        name=activity.name,
+                        names=lookup_names,
                         location_hint=activity.location_hint,
                         city=day.city,
                     )

@@ -127,6 +127,54 @@ def test_partial_success_preserves_resolved_and_unresolved_activities():
     assert enriched.days[0].activities[1].place_resolution_status == "unresolved"
 
 
+def test_descriptive_activity_name_retries_with_clean_landmark_name():
+    plan = _plan(
+        Activity(name="Senso-ji Temple Visit", category="sightseeing"),
+    )
+    provider = FakeProvider(
+        {"Senso-ji Temple": _resolution("Senso-ji Temple")}
+    )
+
+    enriched = asyncio.run(enrich_trip_places(plan, provider))
+
+    assert provider.calls == ["Senso-ji Temple Visit", "Senso-ji Temple"]
+    assert enriched.days[0].activities[0].place_resolution_status == "resolved"
+
+
+def test_explicit_search_name_is_preferred_over_display_name():
+    plan = _plan(
+        Activity(
+            name="A morning at the Golden Pavilion",
+            place_search_name="Kinkaku-ji",
+            category="sightseeing",
+        ),
+    )
+    provider = FakeProvider({"Kinkaku-ji": _resolution("Kinkaku-ji")})
+
+    enriched = asyncio.run(enrich_trip_places(plan, provider))
+
+    assert provider.calls == ["Kinkaku-ji"]
+    assert enriched.days[0].activities[0].place.name == "Kinkaku-ji"
+
+
+def test_compound_landmarks_retry_one_verified_landmark_at_a_time():
+    plan = _plan(
+        Activity(
+            name="Shibuya Crossing and Hachiko Statue",
+            category="sightseeing",
+        ),
+    )
+    provider = FakeProvider({"Shibuya Crossing": _resolution("Shibuya Crossing")})
+
+    enriched = asyncio.run(enrich_trip_places(plan, provider))
+
+    assert provider.calls == [
+        "Shibuya Crossing and Hachiko Statue",
+        "Shibuya Crossing",
+    ]
+    assert enriched.days[0].activities[0].place.name == "Shibuya Crossing"
+
+
 def test_provider_failure_preserves_usable_plan():
     plan = _plan(
         Activity(name="Wat Mahathat", category="history"),
@@ -274,7 +322,9 @@ def test_geoapify_provider_wide_http_failure_is_not_multiplied(
     ],
 )
 def test_non_place_activities_are_not_eligible(name, category):
-    assert should_resolve_activity_place(Activity(name=name, category=category)) is False
+    assert (
+        should_resolve_activity_place(Activity(name=name, category=category)) is False
+    )
 
 
 @pytest.mark.parametrize(

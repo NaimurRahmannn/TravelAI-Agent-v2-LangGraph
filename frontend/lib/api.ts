@@ -10,6 +10,7 @@ export type ChatRequest = {
 export type ResolvedPlace = {
   provider: "geoapify";
   provider_place_id: string;
+  wikidata_entity_id?: string | null;
   name: string;
   formatted_address?: string | null;
   city?: string | null;
@@ -44,6 +45,7 @@ export type PlaceImage = {
 
 export type Activity = {
   name: string;
+  place_search_name?: string | null;
   category: string;
   location_hint?: string | null;
   description?: string | null;
