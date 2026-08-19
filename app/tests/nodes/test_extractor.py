@@ -115,6 +115,31 @@ def test_short_unlabelled_clarification_reply_completes_trip_details():
     assert _get_missing_required_fields(completed_trip) == []
 
 
+def test_mixed_clarification_reply_recovers_unlabelled_origin():
+    """Natural combined answers should not ask for the origin a second time."""
+
+    initial_trip = _merge_trip(
+        None,
+        _apply_deterministic_fallback(
+            _empty_extraction(),
+            "Plan a Thailand trip for 5 days",
+        ),
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "$2000 Bangladesh and 2 people",
+        missing_fields=_get_missing_required_fields(initial_trip),
+        is_clarification_reply=True,
+    )
+    trip = _merge_trip(initial_trip, follow_up)
+
+    assert trip.origin == "Bangladesh"
+    assert trip.travelers == 2
+    assert trip.budget == 2000
+    assert trip.currency == "USD"
+    assert _get_missing_required_fields(trip) == []
+
+
 def test_extraction_schema_requires_every_key_and_forbids_extra_fields():
     """Groq must not be allowed to satisfy the schema with an empty object."""
 

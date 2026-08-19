@@ -271,13 +271,26 @@ def _extract_travelers(message: str) -> int | None:
 def _extract_unlabelled_origin(message: str) -> str | None:
     """Extract a short place-only reply to an origin clarification."""
 
-    if len(message.split()) > 4:
-        return None
-
     candidate = _strip_explicit_budget(message)
+    candidate = re.sub(
+        r"\b(?:for\s+)?\d+\s+(?:travelers?|travellers?|people|persons?|adults?)\b",
+        " ",
+        candidate,
+        flags=re.IGNORECASE,
+    )
+    candidate = re.sub(r"\bparty\s+of\s+\d+\b", " ", candidate, flags=re.IGNORECASE)
     candidate = re.sub(r"\b\d+\b", " ", candidate)
     candidate = re.sub(r"\b(?:from|origin|travel(?:ing|ling)?\s+from)\b", " ", candidate, flags=re.IGNORECASE)
     candidate = " ".join(candidate.strip(" ,.!?;:").split())
+    candidate = re.sub(
+        r"^(?:and|with|for)\b|\b(?:and|with|for)$",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    ).strip(" ,.!?;:")
+
+    if len(candidate.split()) > 4:
+        return None
 
     if not re.fullmatch(r"[a-z][a-z .'-]*", candidate, re.IGNORECASE):
         return None
