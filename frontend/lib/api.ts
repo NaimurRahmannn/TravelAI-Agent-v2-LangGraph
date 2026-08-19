@@ -125,17 +125,23 @@ let mapsConfigPromise: Promise<MapsConfig> | null = null;
 
 export function getMapsConfig(): Promise<MapsConfig> {
   if (mapsConfigPromise === null) {
-    mapsConfigPromise = fetch(`${API_BASE_URL}/config/maps`, {
-      cache: "no-store",
-    }).then(async (response) => {
-      if (!response.ok) {
-        throw new Error("Map configuration is unavailable.");
-      }
-      return response.json() as Promise<MapsConfig>;
+    mapsConfigPromise = fetchMapsConfig().catch((error: unknown) => {
+      mapsConfigPromise = null;
+      throw error;
     });
   }
 
   return mapsConfigPromise;
+}
+
+async function fetchMapsConfig(): Promise<MapsConfig> {
+  const response = await fetch(`${API_BASE_URL}/config/maps`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Map configuration is unavailable.");
+  }
+  return response.json() as Promise<MapsConfig>;
 }
 
 export async function sendChat(request: ChatRequest): Promise<ChatResponse> {

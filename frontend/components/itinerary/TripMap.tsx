@@ -85,17 +85,17 @@ export function TripMap({
     let tileLayer: TileLayer | null = null;
     let mapLoadTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const handleTilesLoaded = () => {
+    const handleTileLoaded = () => {
       if (!cancelled) {
         clearMapLoadTimeout();
-        tileLayer?.off("tileerror", handleTileError);
+        tileLayer?.off("tileload", handleTileLoaded);
         updateStatus("ready");
       }
     };
-    const handleTileError = () => {
+    const handleMapLoadTimeout = () => {
       if (!cancelled) {
         clearMapLoadTimeout();
-        tileLayer?.off("load", handleTilesLoaded);
+        tileLayer?.off("tileload", handleTileLoaded);
         updateStatus("unavailable");
       }
     };
@@ -131,14 +131,13 @@ export function TripMap({
           )}`,
           {
             attribution:
-              'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+              'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | <a href="https://openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> | <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
             maxZoom: 20,
           },
         );
-        tileLayer.once("load", handleTilesLoaded);
-        tileLayer.once("tileerror", handleTileError);
+        tileLayer.once("tileload", handleTileLoaded);
         tileLayer.addTo(map);
-        mapLoadTimeout = setTimeout(handleTileError, 12_000);
+        mapLoadTimeout = setTimeout(handleMapLoadTimeout, 12_000);
 
         const createMarkerIcon: MarkerIconFactory = (sequence, selected) =>
           L.divIcon({
@@ -200,8 +199,7 @@ export function TripMap({
     return () => {
       cancelled = true;
       clearMapLoadTimeout();
-      tileLayer?.off("load", handleTilesLoaded);
-      tileLayer?.off("tileerror", handleTileError);
+      tileLayer?.off("tileload", handleTileLoaded);
       markersRef.current.forEach(({ marker, select }) => {
         marker.off("click", select);
         marker.remove();
