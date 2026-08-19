@@ -104,6 +104,11 @@ export type ApprovalResponse = {
   thread_id: string;
 };
 
+export type MapsConfig = {
+  enabled: boolean;
+  api_key?: string | null;
+};
+
 export type StreamEvent = {
   event_type: string;
   node: string;
@@ -115,6 +120,23 @@ export type StreamEvent = {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+let mapsConfigPromise: Promise<MapsConfig> | null = null;
+
+export function getMapsConfig(): Promise<MapsConfig> {
+  if (mapsConfigPromise === null) {
+    mapsConfigPromise = fetch(`${API_BASE_URL}/config/maps`, {
+      cache: "no-store",
+    }).then(async (response) => {
+      if (!response.ok) {
+        throw new Error("Map configuration is unavailable.");
+      }
+      return response.json() as Promise<MapsConfig>;
+    });
+  }
+
+  return mapsConfigPromise;
+}
 
 export async function sendChat(request: ChatRequest): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/chat`, {

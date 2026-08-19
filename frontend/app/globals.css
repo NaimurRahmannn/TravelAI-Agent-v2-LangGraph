@@ -783,6 +783,131 @@ textarea:disabled {
   text-shadow: 0 2px 16px rgba(0, 0, 0, 0.42);
 }
 
+.tripMapSection {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07);
+}
+
+.tripMapHeader {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 18px;
+}
+
+.tripMapHeader > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: #e2f1f3;
+  color: var(--primary-dark);
+}
+
+.tripMapHeader p,
+.tripMapHeader h3 {
+  margin: 0;
+}
+
+.tripMapHeader p {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tripMapHeader h3 {
+  margin-top: 2px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.tripMapFrame {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(18, 110, 130, 0.13), transparent 34%),
+    #eef3f3;
+}
+
+.tripMapCanvas {
+  width: 100%;
+  height: 420px;
+}
+
+.itineraryMapMarker {
+  border: 0;
+  background: transparent;
+  filter: drop-shadow(0 5px 7px rgba(15, 23, 42, 0.3));
+}
+
+.itineraryMapMarker span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 50% 50% 50% 12px;
+  background: var(--primary-dark);
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  transform: rotate(-45deg);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.itineraryMapMarker b {
+  font: inherit;
+  transform: rotate(45deg);
+}
+
+.itineraryMapMarkerSelected span {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(138, 90, 18, 0.24);
+  transform: rotate(-45deg) scale(1.14);
+}
+
+.itineraryMapMarker:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 4px;
+}
+
+.tripMapState {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.5), transparent),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(18, 110, 130, 0.035) 0,
+      rgba(18, 110, 130, 0.035) 12px,
+      transparent 12px,
+      transparent 24px
+    );
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tripMapUnavailable {
+  background: #f7f9fa;
+}
+
 .itineraryDays {
   display: flex;
   flex-direction: column;
@@ -872,6 +997,14 @@ textarea:disabled {
   border-color: #a9cbd2;
   box-shadow: 0 15px 34px rgba(15, 23, 42, 0.09);
   transform: translateY(-1px);
+}
+
+.activityMapSelected,
+.activityMapSelected:hover {
+  border-color: var(--primary);
+  outline: 3px solid rgba(18, 110, 130, 0.22);
+  outline-offset: 2px;
+  box-shadow: 0 18px 42px rgba(13, 82, 97, 0.16);
 }
 
 .activityWithImage {
@@ -1022,6 +1155,39 @@ textarea:disabled {
 .activityCost {
   margin-top: auto;
   color: #344054;
+}
+
+.activityMapAction {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  align-self: flex-start;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 2px;
+  border: 1px solid #8db7c1;
+  border-radius: 8px;
+  background: #eff8f9;
+  padding: 8px 11px;
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.activityMapAction:hover {
+  border-color: var(--primary);
+  background: #e1f1f3;
+}
+
+.activityMapAction[aria-pressed="true"] {
+  border-color: var(--primary-dark);
+  background: var(--primary-dark);
+  color: white;
+}
+
+.activityMapAction:focus-visible {
+  outline: 3px solid rgba(18, 110, 130, 0.3);
+  outline-offset: 2px;
 }
 
 .recommendation {
@@ -1397,6 +1563,18 @@ textarea:disabled {
     max-width: 100%;
   }
 
+  .tripMapHeader {
+    padding: 14px;
+  }
+
+  .tripMapFrame {
+    min-height: 300px;
+  }
+
+  .tripMapCanvas {
+    height: 300px;
+  }
+
   .dayHeader,
   .activityHeader {
     align-items: flex-start;
@@ -1432,7 +1610,8 @@ textarea:disabled {
 @media (prefers-reduced-motion: reduce) {
   .itineraryDay,
   .activityCard,
-  .activityImageFrame img {
+  .activityImageFrame img,
+  .itineraryMapMarker span {
     animation: none;
     transition: none;
   }

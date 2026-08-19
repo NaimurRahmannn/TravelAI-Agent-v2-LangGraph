@@ -1,4 +1,4 @@
-import { Clock3, MapPin, Sparkles, WalletCards } from "lucide-react";
+import { Clock3, MapPin, MapPinned, Sparkles, WalletCards } from "lucide-react";
 import type { Activity } from "@/lib/api";
 import { ActivityImage } from "./ActivityImage";
 import {
@@ -11,9 +11,21 @@ import {
 
 type ActivityCardProps = {
   activity: Activity;
+  activityDomId: string;
+  isMapSelected: boolean;
+  mapPointId?: string;
+  mapReady: boolean;
+  onShowOnMap: (pointId: string) => void;
 };
 
-export function ActivityCard({ activity }: ActivityCardProps) {
+export function ActivityCard({
+  activity,
+  activityDomId,
+  isMapSelected,
+  mapPointId,
+  mapReady,
+  onShowOnMap,
+}: ActivityCardProps) {
   const resolvedPlace = activity.place?.resolution_status === "resolved";
   const trustedImage = activity.image
     ? trustedWikimediaImageUrl(
@@ -29,7 +41,8 @@ export function ActivityCard({ activity }: ActivityCardProps) {
     <article
       className={`activityCard ${compact ? "activityCompact" : "activityPlace"} ${
         trustedImage ? "activityWithImage" : "activityWithoutImage"
-      }`}
+      } ${isMapSelected ? "activityMapSelected" : ""}`}
+      id={activityDomId}
     >
       {trustedImage && activity.image ? (
         <ActivityImage activityName={activity.name} image={activity.image} />
@@ -77,6 +90,18 @@ export function ActivityCard({ activity }: ActivityCardProps) {
             <WalletCards aria-hidden="true" size={16} />
             <span>Estimated cost: {formatUsd(activity.estimated_cost_usd)}</span>
           </div>
+        ) : null}
+
+        {mapReady && mapPointId ? (
+          <button
+            aria-pressed={isMapSelected}
+            className="activityMapAction"
+            onClick={() => onShowOnMap(mapPointId)}
+            type="button"
+          >
+            <MapPinned aria-hidden="true" size={15} />
+            {isMapSelected ? "Shown on map" : "Show on map"}
+          </button>
         ) : null}
       </div>
     </article>

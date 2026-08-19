@@ -1,14 +1,29 @@
 import { CalendarDays, Coins } from "lucide-react";
 import type { ItineraryDay as ItineraryDayData } from "@/lib/api";
+import {
+  buildActivityDomId,
+  type ItineraryMapPoint,
+} from "@/lib/itineraryMap";
 import { ActivityCard } from "./ActivityCard";
 import { formatItineraryDate, formatUsd } from "./formatters";
 
 type ItineraryDayProps = {
   day: ItineraryDayData;
   idPrefix: string;
+  mapPoints: readonly ItineraryMapPoint[];
+  mapReady: boolean;
+  onShowOnMap: (pointId: string) => void;
+  selectedMapPointId: string | null;
 };
 
-export function ItineraryDay({ day, idPrefix }: ItineraryDayProps) {
+export function ItineraryDay({
+  day,
+  idPrefix,
+  mapPoints,
+  mapReady,
+  onShowOnMap,
+  selectedMapPointId,
+}: ItineraryDayProps) {
   const formattedDate = formatItineraryDate(day.date);
   const headingId = `${idPrefix}-day-${day.day_number}-heading`;
 
@@ -37,13 +52,25 @@ export function ItineraryDay({ day, idPrefix }: ItineraryDayProps) {
 
       <div className="activityList">
         {day.activities.map((activity, index) => {
+          const mapPoint = mapPoints.find(
+            (point) => point.activityIndex === index,
+          );
           const identity =
             activity.place?.provider_place_id ??
             `${activity.name.toLocaleLowerCase()}-${index}`;
           return (
             <ActivityCard
               activity={activity}
-              key={`${day.day_number}-${identity}`}
+              activityDomId={buildActivityDomId(
+                idPrefix,
+                day.day_number,
+                index,
+              )}
+              isMapSelected={mapPoint?.id === selectedMapPointId}
+              key={`${day.day_number}-${index}-${identity}`}
+              mapPointId={mapPoint?.id}
+              mapReady={mapReady}
+              onShowOnMap={onShowOnMap}
             />
           );
         })}
