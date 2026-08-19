@@ -634,52 +634,63 @@ textarea:disabled {
 .tripOverview {
   position: relative;
   isolation: isolate;
+  display: flex;
+  min-height: clamp(360px, 38vw, 430px);
   overflow: hidden;
-  border: 1px solid #8db7c1;
-  border-radius: 18px;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid rgba(230, 219, 183, 0.46);
+  border-radius: 22px;
   background:
-    linear-gradient(125deg, rgba(5, 78, 91, 0.97), rgba(18, 110, 130, 0.92)),
-    #0d5261;
-  padding: clamp(24px, 5vw, 44px);
+    linear-gradient(
+      90deg,
+      rgba(8, 29, 21, 0.96) 0%,
+      rgba(10, 38, 27, 0.9) 36%,
+      rgba(12, 38, 29, 0.64) 61%,
+      rgba(8, 27, 21, 0.18) 100%
+    ),
+    linear-gradient(180deg, rgba(21, 41, 33, 0.12), rgba(7, 24, 18, 0.66)),
+    url("/images/itinerary-overview.jpg") center 54% / cover no-repeat;
+  padding: clamp(28px, 5vw, 52px);
   color: #f8ffff;
-  box-shadow: 0 24px 54px rgba(13, 82, 97, 0.2);
+  box-shadow:
+    0 28px 64px rgba(23, 45, 31, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .tripOverview::after {
   position: absolute;
   z-index: -1;
-  top: -90px;
-  right: -60px;
-  width: 300px;
-  height: 300px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 34px rgba(255, 255, 255, 0.035),
-    0 0 0 70px rgba(255, 255, 255, 0.025);
+  inset: 0;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.08), transparent 26%),
+    radial-gradient(circle at 76% 72%, rgba(217, 158, 74, 0.2), transparent 28%);
   content: "";
+  pointer-events: none;
 }
 
 .overviewGlow {
   position: absolute;
   z-index: -1;
-  right: 16%;
-  bottom: -90px;
-  width: 240px;
-  height: 180px;
+  bottom: -120px;
+  left: -70px;
+  width: 360px;
+  height: 250px;
   border-radius: 50%;
-  background: rgba(220, 167, 78, 0.2);
-  filter: blur(45px);
+  background: rgba(218, 156, 72, 0.18);
+  filter: blur(58px);
 }
 
 .tripEyebrow {
   display: inline-flex;
+  align-self: flex-start;
   margin-bottom: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 235, 196, 0.42);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 6px 10px;
-  color: #dff6f8;
+  background: rgba(22, 42, 30, 0.48);
+  padding: 7px 11px;
+  color: #ffe5b8;
+  backdrop-filter: blur(10px);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -687,13 +698,14 @@ textarea:disabled {
 }
 
 .tripOverview h2 {
-  max-width: 760px;
+  max-width: min(700px, 72%);
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(30px, 5vw, 52px);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.02;
+  text-shadow: 0 3px 24px rgba(0, 0, 0, 0.38);
 }
 
 .tripRoute,
@@ -707,11 +719,17 @@ textarea:disabled {
 .tripRoute {
   gap: 8px;
   margin-top: 22px;
-  color: #e9f9fa;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(6, 29, 20, 0.46);
+  padding: 9px 12px;
+  color: #edf8ee;
+  backdrop-filter: blur(12px);
   font-size: 15px;
 }
 
 .tripRoute strong {
+  color: #ffd894;
   font-weight: 800;
 }
 
@@ -724,10 +742,12 @@ textarea:disabled {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  border-radius: 8px;
-  background: rgba(1, 49, 58, 0.34);
-  padding: 8px 10px;
-  color: #effcfd;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: rgba(6, 29, 20, 0.48);
+  padding: 9px 12px;
+  color: #f1f8ef;
+  backdrop-filter: blur(12px);
   font-size: 13px;
   font-weight: 700;
 }
@@ -740,21 +760,23 @@ textarea:disabled {
 }
 
 .preferenceList li {
-  border: 1px solid rgba(255, 232, 191, 0.38);
+  border: 1px solid rgba(255, 224, 169, 0.42);
   border-radius: 999px;
-  background: rgba(138, 90, 18, 0.28);
-  padding: 5px 10px;
-  color: #fff3db;
+  background: rgba(109, 67, 20, 0.44);
+  padding: 6px 11px;
+  color: #ffedce;
+  backdrop-filter: blur(10px);
   font-size: 12px;
   font-weight: 700;
 }
 
 .tripSummary {
-  max-width: 760px;
+  max-width: min(650px, 68%);
   margin: 20px 0 0;
-  color: rgba(244, 255, 255, 0.86);
+  color: rgba(244, 252, 243, 0.9);
   font-size: 15px;
   line-height: 1.65;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.42);
 }
 
 .itineraryDays {
@@ -1341,12 +1363,32 @@ textarea:disabled {
   }
 
   .tripOverview {
+    min-height: 400px;
     border-radius: 14px;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(8, 28, 20, 0.3) 0%,
+        rgba(8, 29, 20, 0.7) 45%,
+        rgba(7, 25, 18, 0.96) 100%
+      ),
+      url("/images/itinerary-overview.jpg") 53% center / cover no-repeat;
     padding: 24px 20px;
+    justify-content: flex-end;
   }
 
   .tripOverview h2 {
+    max-width: 100%;
     font-size: 32px;
+  }
+
+  .tripRoute {
+    align-self: flex-start;
+    border-radius: 14px;
+  }
+
+  .tripSummary {
+    max-width: 100%;
   }
 
   .dayHeader,
