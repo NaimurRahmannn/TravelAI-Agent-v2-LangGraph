@@ -453,7 +453,9 @@ textarea:disabled {
 }
 
 .travelCalendar .rdp-day_button:focus-visible,
-.datePickerContinue:focus-visible {
+.datePickerContinue:focus-visible,
+.datePickerCancel:focus-visible,
+.changeDatesButton:focus-visible {
   outline: 3px solid rgba(18, 110, 130, 0.35);
   outline-offset: 2px;
 }
@@ -498,19 +500,44 @@ textarea:disabled {
   color: var(--primary);
 }
 
-.datePickerContinue {
+.datePickerError {
+  margin: 10px 0 0;
+  border: 1px solid #fda29b;
+  border-radius: 7px;
+  background: #fff3f1;
+  padding: 9px 10px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.datePickerActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.datePickerActions button {
   display: inline-flex;
+  min-height: 42px;
+  flex: 1 1 0;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  width: 100%;
-  min-height: 42px;
-  margin-top: 12px;
-  border: 1px solid var(--primary);
   border-radius: 8px;
+  font-weight: 800;
+}
+
+.datePickerContinue {
+  border: 1px solid var(--primary);
   background: var(--primary);
   color: white;
-  font-weight: 800;
+}
+
+.datePickerCancel {
+  border: 1px solid #b9cbd0;
+  background: white;
+  color: var(--primary-dark);
 }
 
 .messageBody > :first-child {
@@ -889,6 +916,35 @@ textarea:disabled {
   backdrop-filter: blur(12px);
   font-size: 13px;
   font-weight: 700;
+}
+
+.changeDatesButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 37px;
+  border: 1px solid rgba(255, 224, 169, 0.5);
+  border-radius: 999px;
+  background: rgba(130, 79, 19, 0.68);
+  padding: 8px 12px;
+  color: #fff0d3;
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.changeDatesButton:hover:not(:disabled) {
+  background: rgba(154, 94, 24, 0.82);
+}
+
+.tripDateEditor {
+  z-index: 1;
+  width: min(100%, 440px);
+  align-self: flex-start;
+}
+
+.tripDateEditor .travelDatePicker {
+  color: var(--text);
 }
 
 .preferenceList {

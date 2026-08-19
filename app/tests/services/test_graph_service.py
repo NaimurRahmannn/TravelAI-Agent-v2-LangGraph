@@ -124,6 +124,47 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
     assert response.itinerary == plan
 
 
+def test_date_update_keeps_thread_and_uses_structured_date_fields(monkeypatch):
+    plan = _plan()
+    captured = {}
+    start_date = date.today() + timedelta(days=10)
+    end_date = start_date + timedelta(days=3)
+
+    class FakeGraph:
+        async def aget_state(self, config):
+            return None
+
+        async def ainvoke(self, graph_input, *, config):
+            captured["input"] = graph_input
+            captured["config"] = config
+            return {
+                "response": "# Updated Thailand Plan",
+                "itinerary": plan,
+                "missing_fields": [],
+            }
+
+    async def get_fake_graph():
+        return FakeGraph()
+
+    monkeypatch.setattr(GraphService, "_get_graph", staticmethod(get_fake_graph))
+
+    response = asyncio.run(
+        GraphService().ainvoke(
+            ChatRequest(
+                message="I changed my exact travel dates.",
+                thread_id="existing-thread",
+                start_date=start_date,
+                end_date=end_date,
+            )
+        )
+    )
+
+    assert response.thread_id == "existing-thread"
+    assert captured["config"]["configurable"]["thread_id"] == "existing-thread"
+    assert captured["input"]["selected_start_date"] == start_date
+    assert captured["input"]["selected_end_date"] == end_date
+
+
 def test_chat_response_serializes_nested_place_without_backend_secret():
     plan = _plan()
     data = plan.model_dump()

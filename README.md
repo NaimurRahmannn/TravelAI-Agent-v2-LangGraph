@@ -37,8 +37,9 @@ The repository contains both the Python API and a browser client for regular cha
 
 - Stateful, multi-turn travel conversations identified by a `thread_id`
 - Long-term traveler memory keyed by `user_id` through Mem0 and Qdrant
-- Structured extraction of destination, origin, dates, duration, budget, travelers, and preferences
-- Clarification prompts when destination, duration, budget, origin, or traveler count is missing
+- Structured extraction of destination, origin, exact travel dates, budget, travelers, and preferences
+- Date-picker clarification when exact dates are missing; `duration_days` is derived inclusively from `start_date` and `end_date`
+- Clarification prompts when destination, dates, budget, origin, or traveler count is missing
 - Parallel weather, currency, and visa research through a LangGraph subgraph
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Geoapify-backed resolution for attraction-like itinerary activities

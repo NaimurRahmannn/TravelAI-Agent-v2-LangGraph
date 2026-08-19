@@ -1,22 +1,49 @@
+"use client";
+
 import {
   ArrowRight,
+  CalendarClock,
   CalendarRange,
   Clock3,
   MapPinned,
   UsersRound,
 } from "lucide-react";
+import { useState } from "react";
 import type { TripPlan } from "@/lib/api";
+import { parseIsoDate, TravelDatePicker } from "../TravelDatePicker";
 import { formatActivityCategory } from "./formatters";
 
 type TripOverviewProps = {
+  isUpdatingDates?: boolean;
   itinerary: TripPlan;
+  onDateUpdate?: (startDate: string, endDate: string) => Promise<void> | void;
 };
 
-export function TripOverview({ itinerary }: TripOverviewProps) {
+export function TripOverview({
+  isUpdatingDates = false,
+  itinerary,
+  onDateUpdate,
+}: TripOverviewProps) {
+  const [isEditingDates, setIsEditingDates] = useState(false);
   const formattedRange = formatTripDateRange(
     itinerary.start_date,
     itinerary.end_date,
   );
+  const canEditDates =
+    formattedRange !== null &&
+    itinerary.start_date !== undefined &&
+    itinerary.start_date !== null &&
+    itinerary.end_date !== undefined &&
+    itinerary.end_date !== null &&
+    onDateUpdate !== undefined;
+
+  async function handleDateUpdate(startDate: string, endDate: string) {
+    if (!onDateUpdate) {
+      return;
+    }
+    await onDateUpdate(startDate, endDate);
+    setIsEditingDates(false);
+  }
 
   return (
     <header className="tripOverview">
@@ -50,7 +77,32 @@ export function TripOverview({ itinerary }: TripOverviewProps) {
           <UsersRound aria-hidden="true" size={17} />
           {itinerary.travelers} {itinerary.travelers === 1 ? "traveler" : "travelers"}
         </span>
+        {canEditDates && !isEditingDates ? (
+          <button
+            className="changeDatesButton"
+            disabled={isUpdatingDates}
+            onClick={() => setIsEditingDates(true)}
+            type="button"
+          >
+            <CalendarClock aria-hidden="true" size={16} />
+            Change dates
+          </button>
+        ) : null}
       </div>
+
+      {canEditDates && isEditingDates ? (
+        <div className="tripDateEditor">
+          <TravelDatePicker
+            disabled={isUpdatingDates}
+            initialEndDate={itinerary.end_date}
+            initialStartDate={itinerary.start_date}
+            onCancel={() => setIsEditingDates(false)}
+            onContinue={handleDateUpdate}
+            submitLabel="Update dates"
+            title="Change your travel dates"
+          />
+        </div>
+      ) : null}
 
       {itinerary.preferences.length > 0 ? (
         <ul aria-label="Trip preferences" className="preferenceList">
@@ -73,7 +125,7 @@ function formatTripDateRange(
 ): string | null {
   const start = parseIsoDate(startDate);
   const end = parseIsoDate(endDate);
-  if (!start || !end) {
+  if (!start || !end || end < start) {
     return null;
   }
 
@@ -100,15 +152,4 @@ function formatTripDateRange(
     return `${shortDate.format(start)} - ${fullDate.format(end)}`;
   }
   return `${fullDate.format(start)} - ${fullDate.format(end)}`;
-}
-
-function parseIsoDate(value?: string | null): Date | null {
-  if (!value) {
-    return null;
-  }
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!parts) {
-    return null;
-  }
-  return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
 }

@@ -10,10 +10,16 @@ import { TripMap, type TripMapStatus } from "./TripMap";
 import { TripOverview } from "./TripOverview";
 
 type TripItineraryProps = {
+  isUpdatingDates?: boolean;
   itinerary: TripPlan;
+  onDateUpdate?: (startDate: string, endDate: string) => Promise<void> | void;
 };
 
-export function TripItinerary({ itinerary }: TripItineraryProps) {
+export function TripItinerary({
+  isUpdatingDates = false,
+  itinerary,
+  onDateUpdate,
+}: TripItineraryProps) {
   const idPrefix = useId();
   const [mapStatus, setMapStatus] = useState<TripMapStatus>("loading");
   const [selectedMapPointId, setSelectedMapPointId] = useState<string | null>(
@@ -46,7 +52,11 @@ export function TripItinerary({ itinerary }: TripItineraryProps) {
 
   return (
     <div className="tripItinerary">
-      <TripOverview itinerary={itinerary} />
+      <TripOverview
+        isUpdatingDates={isUpdatingDates}
+        itinerary={itinerary}
+        onDateUpdate={onDateUpdate}
+      />
       {mapPoints.length > 0 ? (
         <TripMap
           mapSectionId={mapSectionId}

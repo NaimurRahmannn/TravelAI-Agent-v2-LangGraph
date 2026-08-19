@@ -9,6 +9,7 @@ type AssistantMessageProps = {
   missingFields?: string[];
   isLoading?: boolean;
   onDateContinue?: (startDate: string, endDate: string) => Promise<void> | void;
+  onDateUpdate?: (startDate: string, endDate: string) => Promise<void> | void;
 };
 
 export function AssistantMessage({
@@ -17,9 +18,16 @@ export function AssistantMessage({
   missingFields = [],
   isLoading = false,
   onDateContinue,
+  onDateUpdate,
 }: AssistantMessageProps) {
   if (itinerary) {
-    return <TripItinerary itinerary={itinerary} />;
+    return (
+      <TripItinerary
+        isUpdatingDates={isLoading}
+        itinerary={itinerary}
+        onDateUpdate={onDateUpdate}
+      />
+    );
   }
 
   const needsDates =

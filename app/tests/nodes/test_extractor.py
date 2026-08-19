@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+import pytest
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableLambda
 
@@ -161,6 +162,58 @@ def test_picker_dates_are_stored_and_override_existing_duration():
     assert trip.start_date == start_date
     assert trip.end_date == end_date
     assert trip.duration == 5
+
+
+def test_date_update_preserves_other_trip_fields():
+    original = Trip(
+        origin="Dhaka",
+        destination="Japan",
+        start_date=date.today() + timedelta(days=5),
+        end_date=date.today() + timedelta(days=9),
+        duration=5,
+        budget=3000,
+        budget_original=360000,
+        currency="USD",
+        travelers=2,
+        preferences=["culture", "food"],
+    )
+    new_start = date.today() + timedelta(days=20)
+    new_end = new_start + timedelta(days=6)
+
+    updated = _apply_selected_dates(original, new_start, new_end)
+
+    assert updated.start_date == new_start
+    assert updated.end_date == new_end
+    assert updated.duration == 7
+    assert updated.origin == original.origin
+    assert updated.destination == original.destination
+    assert updated.travelers == original.travelers
+    assert updated.budget == original.budget
+    assert updated.budget_original == original.budget_original
+    assert updated.currency == original.currency
+    assert updated.preferences == original.preferences
+
+
+def test_invalid_date_update_does_not_replace_existing_trip():
+    old_start = date.today() + timedelta(days=10)
+    old_end = old_start + timedelta(days=4)
+    original = Trip(
+        destination="Japan",
+        start_date=old_start,
+        end_date=old_end,
+        duration=5,
+    )
+
+    with pytest.raises(ValueError, match="End date cannot be before start date"):
+        _apply_selected_dates(
+            original,
+            old_start + timedelta(days=20),
+            old_start + timedelta(days=19),
+        )
+
+    assert original.start_date == old_start
+    assert original.end_date == old_end
+    assert original.duration == 5
 
 
 def test_same_day_picker_range_has_one_day_duration():

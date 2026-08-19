@@ -60,6 +60,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const dateUpdateInFlightRef = useRef(false);
 
   const visibleEvents = useMemo(
     () =>
@@ -69,6 +70,14 @@ export default function Home() {
         .reverse(),
     [events],
   );
+  const editableItineraryMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].itinerary) {
+        return messages[index].id;
+      }
+    }
+    return null;
+  }, [messages]);
 
   useEffect(() => {
     const savedUserId = window.localStorage.getItem(TRAVELER_ID_STORAGE_KEY);
@@ -274,6 +283,61 @@ export default function Home() {
     }
   }
 
+  async function handleDateUpdate(
+    sourceMessageId: string,
+    startDate: string,
+    endDate: string,
+  ) {
+    if (dateUpdateInFlightRef.current || isLoading) {
+      throw new Error("A date update is already in progress.");
+    }
+    if (!threadId) {
+      throw new Error("The current travel thread is unavailable.");
+    }
+
+    dateUpdateInFlightRef.current = true;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const response = await sendChat({
+        message: "I changed my exact travel dates.",
+        thread_id: threadId,
+        user_id: userId || null,
+        start_date: startDate,
+        end_date: endDate,
+      });
+      if (!response.itinerary) {
+        throw new Error(
+          "The itinerary could not be regenerated. Please try again.",
+        );
+      }
+      if (response.thread_id !== threadId) {
+        throw new Error("The date update did not retain the current thread.");
+      }
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === sourceMessageId
+            ? {
+                ...item,
+                content: response.response,
+                itinerary: response.itinerary,
+                missingFields: response.missing_fields,
+              }
+            : item,
+        ),
+      );
+    } catch (caughtError) {
+      if (caughtError instanceof Error) {
+        throw caughtError;
+      }
+      throw new Error("Unable to update the travel dates. Please try again.");
+    } finally {
+      dateUpdateInFlightRef.current = false;
+      setIsLoading(false);
+    }
+  }
+
   async function handleApproval(approved: boolean) {
     if (!threadId || isLoading) {
       return;
@@ -359,7 +423,12 @@ export default function Home() {
           <div className="threadBox">
             <span>{threadId ?? "No thread yet"}</span>
           </div>
-          <button className="secondaryButton" type="button" onClick={resetThread}>
+          <button
+            className="secondaryButton"
+            disabled={isLoading}
+            onClick={resetThread}
+            type="button"
+          >
             <RefreshCcw size={16} />
             Reset
           </button>
@@ -376,6 +445,7 @@ export default function Home() {
           </div>
           <button
             className="secondaryButton"
+            disabled={isLoading}
             type="button"
             onClick={resetTravelerMemory}
           >
@@ -471,6 +541,16 @@ export default function Home() {
                       missingFields={message.missingFields}
                       onDateContinue={(startDate, endDate) =>
                         handleDateSelection(message.id, startDate, endDate)
+                      }
+                      onDateUpdate={
+                        message.id === editableItineraryMessageId
+                          ? (startDate, endDate) =>
+                              handleDateUpdate(
+                                message.id,
+                                startDate,
+                                endDate,
+                              )
+                          : undefined
                       }
                     />
                   ) : (
