@@ -11,6 +11,7 @@ from app.models import (
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
+    TravelLeg,
     TripPlan,
 )
 
@@ -87,6 +88,43 @@ def test_unknown_fields_are_rejected():
 
     with pytest.raises(ValidationError):
         TripPlan.model_validate(data)
+
+
+def test_resolved_and_unavailable_travel_leg_invariants():
+    resolved = TravelLeg(
+        provider="geoapify",
+        from_activity_index=0,
+        to_activity_index=1,
+        from_name="Temple",
+        to_name="Museum",
+        mode="walk",
+        distance_meters=850,
+        duration_seconds=620,
+        status="resolved",
+    )
+
+    assert resolved.duration_seconds == 620
+    with pytest.raises(ValidationError):
+        TravelLeg(
+            provider="geoapify",
+            from_activity_index=0,
+            to_activity_index=2,
+            from_name="Temple",
+            to_name="Museum",
+            mode="walk",
+            status="unavailable",
+        )
+    with pytest.raises(ValidationError):
+        TravelLeg(
+            provider="geoapify",
+            from_activity_index=0,
+            to_activity_index=1,
+            from_name="Temple",
+            to_name="Museum",
+            mode="walk",
+            distance_meters=850,
+            status="unavailable",
+        )
 
 
 def _resolved_place(**updates) -> ResolvedPlace:

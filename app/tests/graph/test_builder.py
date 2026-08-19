@@ -30,6 +30,7 @@ def test_graph_contains_structured_itinerary_and_memory_nodes():
     assert "place_enrichment" in graph.nodes
     assert "image_enrichment" in graph.nodes
     assert "weather_enrichment" in graph.nodes
+    assert "routing_enrichment" in graph.nodes
     edges = {
         (edge.source, edge.target)
         for edge in graph.get_graph().edges
@@ -38,7 +39,8 @@ def test_graph_contains_structured_itinerary_and_memory_nodes():
     assert ("itinerary_generator", "place_enrichment") in edges
     assert ("place_enrichment", "image_enrichment") in edges
     assert ("image_enrichment", "weather_enrichment") in edges
-    assert ("weather_enrichment", "responder") in edges
+    assert ("weather_enrichment", "routing_enrichment") in edges
+    assert ("routing_enrichment", "responder") in edges
 
 
 def test_build_input_includes_user_id():
@@ -151,6 +153,11 @@ def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):
         return {"itinerary": state.get("itinerary")}
 
     monkeypatch.setattr(builder, "weather_enrichment_node", skip_weather_enrichment)
+
+    async def skip_routing_enrichment(state, config):
+        return {"itinerary": state.get("itinerary")}
+
+    monkeypatch.setattr(builder, "routing_enrichment_node", skip_routing_enrichment)
 
     graph = builder._build_graph()
     result = asyncio.run(

@@ -117,6 +117,7 @@ def _clear_untrusted_place_enrichment(plan: TripPlan) -> TripPlan:
     for day in plan_data["days"]:
         day["weather"] = None
         day["weather_status"] = "skipped"
+        day["travel_legs"] = []
         for activity in day["activities"]:
             activity["place"] = None
             activity["place_resolution_status"] = "unresolved"

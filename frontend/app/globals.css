@@ -1217,7 +1217,94 @@ textarea:disabled {
 .activityList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
+}
+
+.activityCard + .activityCard {
+  margin-top: 12px;
+}
+
+.travelLegConnector {
+  position: relative;
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  padding-left: 26px;
+}
+
+.travelLegLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 12px;
+  width: 2px;
+  background: linear-gradient(var(--primary), rgba(18, 110, 130, 0.24));
+}
+
+.travelLegLine::after {
+  position: absolute;
+  bottom: 9px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  content: "";
+}
+
+.travelLegSummary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  color: #526173;
+  font-size: 12px;
+}
+
+.travelLegSummary strong {
+  color: var(--primary-dark);
+  font-weight: 900;
+}
+
+.travelLegSummary span + span::before,
+.travelLegSummary strong + span::before {
+  margin-right: 9px;
+  color: #9aa6b2;
+  content: "·";
+}
+
+.travelLegSummary small {
+  border-radius: 999px;
+  background: #eef3f4;
+  padding: 3px 7px;
+  color: #687687;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.travelLegUnavailable .travelLegLine {
+  background: repeating-linear-gradient(
+    to bottom,
+    #aab4be 0,
+    #aab4be 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.routingAttribution {
+  margin: 8px 4px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.routingAttribution a {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .activityCard {

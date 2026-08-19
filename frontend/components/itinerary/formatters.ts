@@ -1,4 +1,4 @@
-import type { Activity } from "@/lib/api";
+import type { Activity, TravelMode } from "@/lib/api";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -56,6 +56,32 @@ export function formatItineraryDate(value: string | null | undefined): string | 
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+export function formatTravelMode(mode: TravelMode): string {
+  return mode === "bicycle"
+    ? "Cycle"
+    : mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+export function formatTravelDuration(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes === 0
+    ? `${hours} hr`
+    : `${hours} hr ${remainingMinutes} min`;
+}
+
+export function formatTravelDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${Math.round(meters / 10) * 10} m`;
+  }
+  const kilometers = meters / 1000;
+  return `${kilometers < 10 ? kilometers.toFixed(1) : Math.round(kilometers)} km`;
 }
 
 export function isTrustedWikimediaImageUrl(value: string | null | undefined): boolean {

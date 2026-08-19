@@ -46,6 +46,7 @@ The repository contains both the Python API and a browser client for regular cha
 - Wikidata and Wikimedia Commons attraction images with reuse metadata
 - Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
+- Geoapify travel-time estimates between adjacent resolved itinerary activities
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -79,7 +80,8 @@ flowchart TD
     P --> Q[Place enrichment]
     Q --> R[Image enrichment]
     R --> W[Weather enrichment]
-    W --> L
+    W --> T[Routing enrichment]
+    T --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -100,9 +102,10 @@ visible author, license, and Commons source attribution. The frontend plots only
 fully resolved Geoapify coordinates on a Leaflet map backed by Geoapify tiles
 and synchronizes markers with their itinerary cards. After image enrichment,
 the backend uses one fully resolved Geoapify place per dated itinerary day to
-request date-specific OpenWeather forecasts. Forecast enrichment never changes
-the itinerary plan or dates. Routing and itinerary validation remain future
-work.
+request date-specific OpenWeather forecasts. The backend then requests
+pair-by-pair Geoapify route estimates only between adjacent, fully resolved
+same-day activities. Weather and routing enrichment never change the itinerary
+plan or dates. Itinerary validation and replanning remain future work.
 
 ```text
 final_response
@@ -126,7 +129,7 @@ final_response
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | Streaming | Server-sent events (SSE) |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, Wikidata, Wikimedia Commons, OpenStreetMap |
+| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Wikidata, Wikimedia Commons, OpenStreetMap |
 
 ## Project Layout
 
@@ -236,7 +239,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEMINI_MODEL_NAME` | No | `gemini-2.5-flash-lite` | Gemini model used for tool reasoning and final answers |
 | `GROQ_API_KEY` | Yes | None | Authenticates requests to the Groq API |
 | `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
-| `GEOAPIFY_API_KEY` | No | None | Resolves itinerary activities to provider-backed place identities, addresses, and coordinates; enrichment is skipped when unset |
+| `GEOAPIFY_API_KEY` | No | None | Private backend key for place resolution and adjacent-activity routing estimates; both enrichments degrade gracefully when unset |
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
@@ -446,6 +449,19 @@ serialized to the frontend.
 Weather-aware activity changes and replanning are not implemented in this
 phase; forecasts are informational enrichment only.
 
+After weather enrichment, Geoapify Routing estimates distance and duration for
+adjacent activities whose places both have trusted Geoapify coordinates. An
+explicit planning mode (`walk`, `drive`, `transit`, or `bicycle`) is preferred;
+otherwise trips up to 1.5 km straight-line distance use walking and longer
+trips use driving. Transit is never inferred. Same-place pairs are omitted, and
+unresolved logistics break adjacency so routing never skips over an activity.
+Requests are pair-by-pair, request-locally deduplicated, paced for the free API
+tier, limited to two concurrent calls and capped at 20 unique calls per trip.
+Authentication failures, rate limits, malformed responses, and provider
+outages produce graceful unavailable legs without blocking itinerary delivery.
+Only typed distance and duration values are retained; provider responses and
+route geometry are not stored.
+
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
 visibility, practical notes, readable Wikimedia attribution, and a lazily loaded
@@ -453,8 +469,11 @@ Leaflet map. The map consumes existing Geoapify coordinates without additional
 geocoding or place-search calls. Its numbered markers and activity-card actions
 share stable per-itinerary identities for two-way selection. Dated days display
 compact OpenWeather forecasts when available, with visible provider attribution.
-Markdown remains the fallback for clarification and other non-itinerary
-messages. Routing and directions are not implemented.
+Resolved travel legs appear between their corresponding activity cards with
+visible Geoapify and OpenStreetMap attribution. Estimates do not include live
+traffic. Markdown remains the fallback for clarification and other
+non-itinerary messages. Route geometry and turn-by-turn directions are not
+implemented.
 
 ```text
 TripPlan
@@ -462,6 +481,7 @@ TripPlan
   |                  ^
   |             Geoapify coordinates
   +-- itinerary cards
+  |       +-- adjacent travel legs --> Geoapify Routing estimates
           ^   |
           +---+ selection synchronization
 ```
@@ -493,8 +513,8 @@ With `app/.env` configured and the virtual environment active, run:
 python -m pytest -q app/tests
 ```
 
-Provider tests use mocked HTTP transports and do not call Geoapify, Wikidata, or
-Wikimedia Commons.
+Provider tests use mocked HTTP transports and do not call Geoapify, OpenWeather,
+Wikidata, or Wikimedia Commons.
 
 ### Frontend checks
 
@@ -539,8 +559,8 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Conversation persistence is disk-backed but not durable across redeploys on ephemeral hosting (see [Conversation State](#conversation-state)).
 - No authentication or per-user thread ownership is implemented.
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
-- Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
+- Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
-- The itinerary map is visualization-only; routing, directions, and travel times are not implemented.
+- The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

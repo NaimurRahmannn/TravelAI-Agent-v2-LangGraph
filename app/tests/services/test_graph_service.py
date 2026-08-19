@@ -12,6 +12,7 @@ from app.models import (
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
+    TravelLeg,
     TripPlan,
 )
 from app.schemas.api import ChatRequest, ChatResponse
@@ -208,6 +209,34 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
             ).model_dump(),
         }
     )
+    data["days"][0]["activities"].append(
+        Activity(
+            name="Grand Palace",
+            category="culture",
+            place=ResolvedPlace(
+                provider="geoapify",
+                provider_place_id="geo-place-2",
+                name="Grand Palace",
+                latitude=13.7500,
+                longitude=100.4913,
+                resolution_status="resolved",
+            ),
+            place_resolution_status="resolved",
+        ).model_dump()
+    )
+    data["days"][0]["travel_legs"] = [
+        TravelLeg(
+            provider="geoapify",
+            from_activity_index=0,
+            to_activity_index=1,
+            from_name="Wat Arun",
+            to_name="Grand Palace",
+            mode="walk",
+            distance_meters=1500,
+            duration_seconds=1200,
+            status="resolved",
+        ).model_dump()
+    ]
     response = ChatResponse(
         response="# Thailand Plan",
         thread_id="thread-1",
@@ -222,6 +251,8 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
     assert "wikimedia_commons" in serialized
     assert '"provider":"openweather"' in serialized
     assert '"weather_status":"resolved"' in serialized
+    assert '"distance_meters":1500.0' in serialized
+    assert '"duration_seconds":1200' in serialized
     assert "GEOAPIFY_API_KEY" not in serialized
     assert "OPENWEATHER_API_KEY" not in serialized
     assert "WIKIMEDIA_USER_AGENT" not in serialized

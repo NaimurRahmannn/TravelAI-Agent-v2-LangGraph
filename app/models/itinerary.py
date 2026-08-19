@@ -22,6 +22,8 @@ WeatherStatus = Literal[
     "unavailable",
     "skipped",
 ]
+TravelMode = Literal["walk", "drive", "transit", "bicycle"]
+TravelLegStatus = Literal["resolved", "unavailable"]
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
@@ -115,6 +117,33 @@ class DailyWeather(BaseModel):
         return self
 
 
+class TravelLeg(BaseModel):
+    """Provider-authoritative travel estimate between adjacent activities."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["geoapify"]
+    from_activity_index: int = Field(ge=0)
+    to_activity_index: int = Field(ge=0)
+    from_name: NonEmptyString
+    to_name: NonEmptyString
+    mode: TravelMode
+    distance_meters: float | None = Field(default=None, ge=0)
+    duration_seconds: int | None = Field(default=None, ge=0)
+    status: TravelLegStatus
+
+    @model_validator(mode="after")
+    def validate_leg_status(self) -> "TravelLeg":
+        if self.to_activity_index != self.from_activity_index + 1:
+            raise ValueError("Travel legs must connect adjacent activities")
+        metrics = (self.distance_meters, self.duration_seconds)
+        if self.status == "resolved" and any(value is None for value in metrics):
+            raise ValueError("Resolved travel legs require distance and duration")
+        if self.status == "unavailable" and any(value is not None for value in metrics):
+            raise ValueError("Unavailable travel legs cannot include route metrics")
+        return self
+
+
 class Activity(BaseModel):
     """A planned activity with optional provider-backed place enrichment."""
 
@@ -129,6 +158,7 @@ class Activity(BaseModel):
     end_time: str | None = None
     estimated_cost_usd: float | None = Field(default=None, ge=0)
     reason_for_recommendation: str | None = None
+    travel_mode_to_next: TravelMode | None = None
     place: ResolvedPlace | None = None
     place_resolution_status: PlaceResolutionStatus = "unresolved"
     image: PlaceImage | None = None
@@ -160,6 +190,7 @@ class ItineraryDay(BaseModel):
     date: CalendarDate | None = None
     city: str = Field(min_length=1)
     activities: list[Activity] = Field(min_length=1, max_length=3)
+    travel_legs: list[TravelLeg] = Field(default_factory=list)
     estimated_daily_cost_usd: float | None = Field(default=None, ge=0)
     weather: DailyWeather | None = None
     weather_status: WeatherStatus = "skipped"
@@ -172,6 +203,17 @@ class ItineraryDay(BaseModel):
             raise ValueError("Trusted weather data requires resolved status")
         if self.weather is not None and self.date != self.weather.date:
             raise ValueError("Weather date must match the itinerary day date")
+        seen_from_indices: set[int] = set()
+        for leg in self.travel_legs:
+            if leg.to_activity_index >= len(self.activities):
+                raise ValueError("Travel leg activity index is out of range")
+            if leg.from_activity_index in seen_from_indices:
+                raise ValueError("Travel legs cannot duplicate an activity pair")
+            seen_from_indices.add(leg.from_activity_index)
+            from_activity = self.activities[leg.from_activity_index]
+            to_activity = self.activities[leg.to_activity_index]
+            if leg.from_name != from_activity.name or leg.to_name != to_activity.name:
+                raise ValueError("Travel leg names must match their activities")
         return self
 
 

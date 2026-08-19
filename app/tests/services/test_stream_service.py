@@ -9,6 +9,7 @@ from app.models import (
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
+    TravelLeg,
     TripPlan,
 )
 
@@ -161,6 +162,32 @@ def test_final_sse_serializes_nested_place_without_api_key():
                                 "Jane Doe / CC BY 4.0 / Wikimedia Commons"
                             ),
                         ),
+                    ),
+                    Activity(
+                        name="Grand Palace",
+                        category="culture",
+                        place=ResolvedPlace(
+                            provider="geoapify",
+                            provider_place_id="geo-place-2",
+                            name="Grand Palace",
+                            latitude=13.7500,
+                            longitude=100.4913,
+                            resolution_status="resolved",
+                        ),
+                        place_resolution_status="resolved",
+                    ),
+                ],
+                travel_legs=[
+                    TravelLeg(
+                        provider="geoapify",
+                        from_activity_index=0,
+                        to_activity_index=1,
+                        from_name="Wat Arun",
+                        to_name="Grand Palace",
+                        mode="walk",
+                        distance_meters=1500,
+                        duration_seconds=1200,
+                        status="resolved",
                     )
                 ],
             )
@@ -188,6 +215,9 @@ def test_final_sse_serializes_nested_place_without_api_key():
     ] == "Q5948"
     assert normalized["itinerary"]["days"][0]["weather"]["condition"] == "Rain"
     assert normalized["itinerary"]["days"][0]["weather_status"] == "resolved"
+    assert normalized["itinerary"]["days"][0]["travel_legs"][0][
+        "duration_seconds"
+    ] == 1200
     assert "GEOAPIFY_API_KEY" not in formatted
     assert "OPENWEATHER_API_KEY" not in formatted
     assert "WIKIMEDIA_USER_AGENT" not in formatted

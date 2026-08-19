@@ -52,6 +52,11 @@ Rules:
   destinations and a full evening program unless the schedule clearly explains
   the transfer.
 - Give every activity a useful location_hint in the form "Place, City, Country".
+- Set travel_mode_to_next to walk, drive, transit, or bicycle when the activity
+  is followed by another physical place. Use transit only when public transport
+  is an intentional part of the plan. Leave it null for the final activity and
+  when the next item is not a routeable physical place. Do not estimate route
+  distance or duration.
 - Origin is a departure location, not passport nationality. Never infer a
   passport, citizenship, or nationality from origin. Visa notes must be
   conditional and tell the traveler to check rules for their actual passport.
@@ -65,6 +70,8 @@ Rules:
   trusted provider enrichment step owns those fields after generation.
 - Always leave weather null and weather_status skipped. A separate trusted
   provider enrichment step owns date-specific forecast fields after generation.
+- Always leave travel_legs empty. A separate trusted provider enrichment step
+  owns route distances and durations after place resolution.
 - Do not mention prompts, models, LangGraph, graph nodes, internal state, or
   research workers.
 """,

@@ -55,9 +55,24 @@ export type Activity = {
   end_time?: string | null;
   estimated_cost_usd?: number | null;
   reason_for_recommendation?: string | null;
+  travel_mode_to_next?: TravelMode | null;
   place?: ResolvedPlace | null;
   place_resolution_status: "resolved" | "partially_resolved" | "unresolved";
   image?: PlaceImage | null;
+};
+
+export type TravelMode = "walk" | "drive" | "transit" | "bicycle";
+
+export type TravelLeg = {
+  provider: "geoapify";
+  from_activity_index: number;
+  to_activity_index: number;
+  from_name: string;
+  to_name: string;
+  mode: TravelMode;
+  distance_meters?: number | null;
+  duration_seconds?: number | null;
+  status: "resolved" | "unavailable";
 };
 
 export type WeatherStatus =
@@ -83,6 +98,7 @@ export type ItineraryDay = {
   date?: string | null;
   city: string;
   activities: Activity[];
+  travel_legs: TravelLeg[];
   estimated_daily_cost_usd?: number | null;
   weather?: DailyWeather | null;
   weather_status: WeatherStatus;

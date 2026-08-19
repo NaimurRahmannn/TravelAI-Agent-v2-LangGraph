@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { CalendarDays, CloudSun, Coins, Droplets, Wind } from "lucide-react";
 import type { ItineraryDay as ItineraryDayData } from "@/lib/api";
 import {
@@ -6,6 +7,7 @@ import {
 } from "@/lib/itineraryMap";
 import { ActivityCard } from "./ActivityCard";
 import { formatItineraryDate, formatUsd } from "./formatters";
+import { TravelLegConnector } from "./TravelLegConnector";
 
 type ItineraryDayProps = {
   day: ItineraryDayData;
@@ -60,23 +62,42 @@ export function ItineraryDay({
           const identity =
             activity.place?.provider_place_id ??
             `${activity.name.toLocaleLowerCase()}-${index}`;
+          const travelLeg = day.travel_legs?.find(
+            (leg) =>
+              leg.from_activity_index === index &&
+              leg.to_activity_index === index + 1,
+          );
           return (
-            <ActivityCard
-              activity={activity}
-              activityDomId={buildActivityDomId(
-                idPrefix,
-                day.day_number,
-                index,
-              )}
-              isMapSelected={mapPoint?.id === selectedMapPointId}
-              key={`${day.day_number}-${index}-${identity}`}
-              mapPointId={mapPoint?.id}
-              mapReady={mapReady}
-              onShowOnMap={onShowOnMap}
-            />
+            <Fragment key={`${day.day_number}-${index}-${identity}`}>
+              <ActivityCard
+                activity={activity}
+                activityDomId={buildActivityDomId(
+                  idPrefix,
+                  day.day_number,
+                  index,
+                )}
+                isMapSelected={mapPoint?.id === selectedMapPointId}
+                mapPointId={mapPoint?.id}
+                mapReady={mapReady}
+                onShowOnMap={onShowOnMap}
+              />
+              {travelLeg ? <TravelLegConnector leg={travelLeg} /> : null}
+            </Fragment>
           );
         })}
       </div>
+      {day.travel_legs?.some((leg) => leg.status === "resolved") ? (
+        <p className="routingAttribution">
+          Routing by{" "}
+          <a href="https://www.geoapify.com/" rel="noopener noreferrer" target="_blank">
+            Geoapify
+          </a>{" "}
+          using ©{" "}
+          <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">
+            OpenStreetMap contributors
+          </a>
+        </p>
+      ) : null}
     </section>
   );
 }
