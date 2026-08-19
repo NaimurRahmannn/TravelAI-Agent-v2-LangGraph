@@ -1370,7 +1370,7 @@ textarea:disabled {
     width: calc(100% + 24px);
     min-height: 400px;
     margin-inline: -12px;
-    border-radius: 2 px;
+    border-radius: 2px;
     background:
       linear-gradient(
         180deg,

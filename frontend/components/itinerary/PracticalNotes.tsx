@@ -1,23 +1,26 @@
 import { Lightbulb } from "lucide-react";
 
 type PracticalNotesProps = {
+  idPrefix: string;
   notes: string[];
 };
 
-export function PracticalNotes({ notes }: PracticalNotesProps) {
+export function PracticalNotes({ idPrefix, notes }: PracticalNotesProps) {
   if (notes.length === 0) {
     return null;
   }
 
+  const headingId = `${idPrefix}-notes-heading`;
+
   return (
-    <section aria-labelledby="notes-heading" className="practicalNotes">
+    <section aria-labelledby={headingId} className="practicalNotes">
       <header className="sectionHeading">
         <span>
           <Lightbulb aria-hidden="true" size={18} />
         </span>
         <div>
           <p>Before you go</p>
-          <h3 id="notes-heading">Practical notes</h3>
+          <h3 id={headingId}>Practical notes</h3>
         </div>
       </header>
       <ul>

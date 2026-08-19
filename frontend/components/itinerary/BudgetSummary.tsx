@@ -4,18 +4,21 @@ import { formatUsd } from "./formatters";
 
 type BudgetSummaryProps = {
   budget: BudgetBreakdown;
+  idPrefix: string;
 };
 
-export function BudgetSummary({ budget }: BudgetSummaryProps) {
+export function BudgetSummary({ budget, idPrefix }: BudgetSummaryProps) {
+  const headingId = `${idPrefix}-budget-heading`;
+
   return (
-    <section aria-labelledby="budget-heading" className="budgetSummary">
+    <section aria-labelledby={headingId} className="budgetSummary">
       <header className="sectionHeading">
         <span>
           <ReceiptText aria-hidden="true" size={18} />
         </span>
         <div>
           <p>Plan finances</p>
-          <h3 id="budget-heading">Budget summary</h3>
+          <h3 id={headingId}>Budget summary</h3>
         </div>
       </header>
 

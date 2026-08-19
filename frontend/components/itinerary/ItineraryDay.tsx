@@ -5,17 +5,19 @@ import { formatItineraryDate, formatUsd } from "./formatters";
 
 type ItineraryDayProps = {
   day: ItineraryDayData;
+  idPrefix: string;
 };
 
-export function ItineraryDay({ day }: ItineraryDayProps) {
+export function ItineraryDay({ day, idPrefix }: ItineraryDayProps) {
   const formattedDate = formatItineraryDate(day.date);
+  const headingId = `${idPrefix}-day-${day.day_number}-heading`;
 
   return (
-    <section aria-labelledby={`day-${day.day_number}`} className="itineraryDay">
+    <section aria-labelledby={headingId} className="itineraryDay">
       <header className="dayHeader">
         <div className="dayIdentity">
           <span>Day {day.day_number}</span>
-          <h3 id={`day-${day.day_number}`}>{day.city}</h3>
+          <h3 id={headingId}>{day.city}</h3>
         </div>
         <div className="dayFacts">
           {formattedDate ? (

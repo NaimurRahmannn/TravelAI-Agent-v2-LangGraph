@@ -379,8 +379,9 @@ QID exposed by Geoapify/OpenStreetMap and uses that stable identity directly.
 When no QID is available, Wikidata falls back to conservative matching using
 normalized landmark aliases, coordinates, P17 country when available, and
 location/description context. Wikimedia Commons first tries the entity's P18
-image and then reusable files from its P373 Commons category. Commons supplies
-the file URL, an approximately 800px thumbnail URL, source page, dimensions,
+image and then supported reusable visual image files from its P373 Commons
+category. Commons supplies the file URL, an approximately 800px thumbnail URL,
+source page, dimensions,
 author/credit, license, and deterministic attribution text. Unknown, missing,
 non-commercial, or otherwise unsupported license metadata causes the image to
 be skipped rather than guessed. CC BY and CC BY-SA images also require an author

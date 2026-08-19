@@ -60,6 +60,8 @@ def _commons_payload(
     license_name="CC BY-SA 4.0",
     author="Jane Doe",
     license_url="https://creativecommons.org/licenses/by-sa/4.0/",
+    mime="image/jpeg",
+    mediatype="BITMAP",
 ):
     payload = {
         "query": {
@@ -77,6 +79,8 @@ def _commons_payload(
                             ),
                             "width": 4000,
                             "height": 3000,
+                            "mime": mime,
+                            "mediatype": mediatype,
                             "extmetadata": {
                                 "Artist": {"value": f"<a>{author}</a>"},
                                 "Credit": {"value": "Own &amp; archival work"},
@@ -98,6 +102,31 @@ def _commons_payload(
     if license_url is not None:
         metadata["LicenseUrl"] = {"value": license_url}
     return payload
+
+
+def _commons_page(title: str, mime: str | None) -> dict:
+    payload = _commons_payload(mime=mime)
+    page = payload["query"]["pages"][0]
+    page["title"] = title
+    return page
+
+
+def _wikidata_image_entity(*, p18_file: str | None = None) -> dict:
+    claims = {
+        "P625": [
+            _claim(
+                {"latitude": 14.3568, "longitude": 100.5682},
+                property_id="P625",
+            )
+        ],
+        "P373": [_claim("Wat Mahathat", property_id="P373")],
+    }
+    if p18_file is not None:
+        claims["P18"] = [_claim(p18_file)]
+    return {
+        "labels": {"en": {"value": "Wat Mahathat"}},
+        "claims": claims,
+    }
 
 
 @pytest.mark.parametrize(
@@ -349,6 +378,38 @@ def test_commons_metadata_builds_attribution_ready_image():
     )
 
 
+@pytest.mark.parametrize("mime", ["image/jpeg", "image/png", "image/webp"])
+def test_supported_commons_raster_media_is_accepted(mime):
+    image = _parse_commons_image(
+        _commons_payload(mime=mime),
+        entity_id="Q1",
+        requested_file_title="File:Supported image",
+    )
+
+    assert image is not None
+
+
+@pytest.mark.parametrize(
+    "mime",
+    [
+        "application/pdf",
+        "video/webm",
+        "audio/ogg",
+        "image/gif",
+        "image/svg+xml",
+        None,
+    ],
+)
+def test_unsupported_or_missing_commons_media_is_rejected(mime):
+    image = _parse_commons_image(
+        _commons_payload(mime=mime),
+        entity_id="Q1",
+        requested_file_title="File:Unsupported media",
+    )
+
+    assert image is None
+
+
 def test_cc_by_with_author_and_valid_license_url_is_accepted():
     image = _parse_commons_image(
         _commons_payload(
@@ -548,6 +609,9 @@ def test_provider_resolves_wikidata_p18_and_commons_with_user_agent():
             )
         assert action == "query"
         assert request.url.params.get("iiurlwidth") == "800"
+        assert request.url.params.get("iiprop") == (
+            "url|size|mime|mediatype|extmetadata"
+        )
         return httpx.Response(200, json=_commons_payload())
 
     async def run():
@@ -674,6 +738,140 @@ def test_rejected_p18_falls_back_to_entity_commons_category():
 
     assert image is not None
     assert image.license_short_name == "CC BY-SA 4.0"
+    assert len(requests) == 3
+
+
+def test_p373_mixed_category_skips_non_images_and_selects_jpeg():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.params.get("action") == "wbgetentities":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {"Q660585": _wikidata_image_entity()}
+                },
+            )
+        assert request.url.params.get("generator") == "categorymembers"
+        assert request.url.params.get("iiprop") == (
+            "url|size|mime|mediatype|extmetadata"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "query": {
+                    "pages": [
+                        _commons_page("File:A.pdf", "application/pdf"),
+                        _commons_page("File:B.jpg", "image/jpeg"),
+                        _commons_page("File:C.webm", "video/webm"),
+                    ]
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider.resolve_image(
+                place=_place(wikidata_entity_id="Q660585")
+            )
+
+    image = asyncio.run(run())
+
+    assert image is not None
+    assert image.commons_file_title == "File:B.jpg"
+    assert len(requests) == 2
+
+
+def test_p373_category_without_supported_visual_media_returns_none():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("action") == "wbgetentities":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {"Q660585": _wikidata_image_entity()}
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "query": {
+                    "pages": [
+                        _commons_page("File:A.pdf", "application/pdf"),
+                        _commons_page("File:B.webm", "video/webm"),
+                        _commons_page("File:C.svg", "image/svg+xml"),
+                    ]
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider.resolve_image(
+                place=_place(wikidata_entity_id="Q660585")
+            )
+
+    assert asyncio.run(run()) is None
+
+
+def test_unsupported_p18_media_falls_back_to_supported_p373_image():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.params.get("action") == "wbgetentities":
+            return httpx.Response(
+                200,
+                json={
+                    "entities": {
+                        "Q660585": _wikidata_image_entity(p18_file="A.pdf")
+                    }
+                },
+            )
+        if request.url.params.get("titles") == "File:A.pdf":
+            return httpx.Response(
+                200,
+                json={
+                    "query": {
+                        "pages": [
+                            _commons_page("File:A.pdf", "application/pdf")
+                        ]
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "query": {
+                    "pages": [
+                        _commons_page("File:B.png", "image/png")
+                    ]
+                }
+            },
+        )
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            provider = WikimediaImageProvider(
+                "TravelAI/1.0 (https://example.test/support)",
+                client=client,
+            )
+            return await provider.resolve_image(
+                place=_place(wikidata_entity_id="Q660585")
+            )
+
+    image = asyncio.run(run())
+
+    assert image is not None
+    assert image.commons_file_title == "File:B.png"
     assert len(requests) == 3
 
 

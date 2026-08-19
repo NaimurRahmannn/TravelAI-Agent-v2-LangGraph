@@ -34,6 +34,13 @@ COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA_RESULT_LIMIT = 5
 COMMONS_THUMBNAIL_WIDTH = 800
 COMMONS_CATEGORY_FILE_LIMIT = 12
+SUPPORTED_COMMONS_IMAGE_MIME_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+)
 MAX_REQUEST_ATTEMPTS = 3
 RETRY_BASE_DELAY_SECONDS = 0.25
 MAX_RETRY_AFTER_SECONDS = 5.0
@@ -479,7 +486,7 @@ class WikimediaImageProvider:
                 "action": "query",
                 "prop": "imageinfo",
                 "titles": file_title,
-                "iiprop": "url|size|extmetadata",
+                "iiprop": "url|size|mime|mediatype|extmetadata",
                 "iiurlwidth": COMMONS_THUMBNAIL_WIDTH,
                 "iiextmetadatalanguage": "en",
                 "iiextmetadatafilter": (
@@ -526,7 +533,7 @@ class WikimediaImageProvider:
                 "gcmtype": "file",
                 "gcmlimit": COMMONS_CATEGORY_FILE_LIMIT,
                 "prop": "imageinfo",
-                "iiprop": "url|size|extmetadata",
+                "iiprop": "url|size|mime|mediatype|extmetadata",
                 "iiurlwidth": COMMONS_THUMBNAIL_WIDTH,
                 "iiextmetadatalanguage": "en",
                 "iiextmetadatafilter": (
@@ -852,6 +859,8 @@ def _parse_commons_image(
     info = imageinfo[0]
     if not isinstance(info, Mapping):
         return None
+    if not _is_supported_commons_image(info):
+        return None
 
     original_url = _trusted_url(info.get("url"), _WIKIMEDIA_UPLOAD_HOSTS)
     thumbnail_url = _trusted_url(info.get("thumburl"), _WIKIMEDIA_UPLOAD_HOSTS)
@@ -894,6 +903,13 @@ def _parse_commons_image(
         )
     except (ValidationError, ValueError):
         return None
+
+
+def _is_supported_commons_image(info: Mapping[str, Any]) -> bool:
+    """Accept only ordinary raster image MIME types reported by Commons."""
+
+    mime = _string(info.get("mime")).casefold()
+    return mime in SUPPORTED_COMMONS_IMAGE_MIME_TYPES
 
 
 def _metadata_text(metadata: Mapping[str, Any], key: str) -> str | None:
