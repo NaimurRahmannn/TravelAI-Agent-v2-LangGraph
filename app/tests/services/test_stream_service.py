@@ -1,8 +1,11 @@
+from datetime import date, datetime, timezone
+
 from app.services.stream_service import StreamService
 from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    DailyWeather,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
@@ -124,7 +127,19 @@ def test_final_sse_serializes_nested_place_without_api_key():
         days=[
             ItineraryDay(
                 day_number=1,
+                date=date(2026, 8, 21),
                 city="Bangkok",
+                weather=DailyWeather(
+                    provider="openweather",
+                    date=date(2026, 8, 21),
+                    condition="Rain",
+                    min_temperature_c=25,
+                    max_temperature_c=31,
+                    precipitation_probability_pct=60,
+                    wind_speed_mps=4,
+                    fetched_at=datetime(2026, 8, 19, 12, tzinfo=timezone.utc),
+                ),
+                weather_status="resolved",
                 activities=[
                     Activity(
                         name="Wat Arun",
@@ -171,6 +186,9 @@ def test_final_sse_serializes_nested_place_without_api_key():
     assert normalized["itinerary"]["days"][0]["activities"][0]["image"][
         "wikidata_entity_id"
     ] == "Q5948"
+    assert normalized["itinerary"]["days"][0]["weather"]["condition"] == "Rain"
+    assert normalized["itinerary"]["days"][0]["weather_status"] == "resolved"
     assert "GEOAPIFY_API_KEY" not in formatted
+    assert "OPENWEATHER_API_KEY" not in formatted
     assert "WIKIMEDIA_USER_AGENT" not in formatted
     assert "test-geo-key" not in formatted

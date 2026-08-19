@@ -63,6 +63,8 @@ Rules:
   photos, photo attribution, or any other external-provider metadata.
 - Always leave place null and place_resolution_status unresolved. A separate
   trusted provider enrichment step owns those fields after generation.
+- Always leave weather null and weather_status skipped. A separate trusted
+  provider enrichment step owns date-specific forecast fields after generation.
 - Do not mention prompts, models, LangGraph, graph nodes, internal state, or
   research workers.
 """,

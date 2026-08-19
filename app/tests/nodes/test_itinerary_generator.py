@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
@@ -13,6 +13,7 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    DailyWeather,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
@@ -295,6 +296,21 @@ def test_round_trip_transfer_must_include_a_price():
 
 def test_generator_clears_llm_invented_place_enrichment():
     plan_data = _plan().model_dump()
+    forecast_date = date(2099, 1, 1)
+    plan_data["days"][0].update(
+        {
+            "date": forecast_date,
+            "weather": DailyWeather(
+                provider="openweather",
+                date=forecast_date,
+                condition="Clear",
+                min_temperature_c=24,
+                max_temperature_c=31,
+                fetched_at=datetime.now(timezone.utc),
+            ).model_dump(),
+            "weather_status": "resolved",
+        }
+    )
     plan_data["days"][0]["activities"][0].update(
         {
             "place": ResolvedPlace(
@@ -325,4 +341,5 @@ def test_generator_clears_llm_invented_place_enrichment():
     assert activity.place is None
     assert activity.place_resolution_status == "unresolved"
     assert activity.image is None
-from datetime import date, timedelta
+    assert sanitized.days[0].weather is None
+    assert sanitized.days[0].weather_status == "skipped"

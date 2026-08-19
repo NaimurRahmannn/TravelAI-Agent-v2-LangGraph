@@ -1,4 +1,4 @@
-from datetime import date as CalendarDate
+from datetime import date as CalendarDate, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -15,6 +15,12 @@ PlaceResolutionStatus = Literal[
     "resolved",
     "partially_resolved",
     "unresolved",
+]
+WeatherStatus = Literal[
+    "resolved",
+    "outside_forecast_horizon",
+    "unavailable",
+    "skipped",
 ]
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -87,6 +93,28 @@ class ResolvedPlace(BaseModel):
     source_attribution: str | None = None
 
 
+class DailyWeather(BaseModel):
+    """Provider-authoritative daily forecast derived from 3-hour entries."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["openweather"]
+    date: CalendarDate
+    condition: NonEmptyString
+    description: str | None = None
+    min_temperature_c: float
+    max_temperature_c: float
+    precipitation_probability_pct: float | None = Field(default=None, ge=0, le=100)
+    wind_speed_mps: float | None = Field(default=None, ge=0)
+    fetched_at: datetime
+
+    @model_validator(mode="after")
+    def validate_temperature_range(self) -> "DailyWeather":
+        if self.max_temperature_c < self.min_temperature_c:
+            raise ValueError("Maximum temperature cannot be below minimum temperature")
+        return self
+
+
 class Activity(BaseModel):
     """A planned activity with optional provider-backed place enrichment."""
 
@@ -133,6 +161,18 @@ class ItineraryDay(BaseModel):
     city: str = Field(min_length=1)
     activities: list[Activity] = Field(min_length=1, max_length=3)
     estimated_daily_cost_usd: float | None = Field(default=None, ge=0)
+    weather: DailyWeather | None = None
+    weather_status: WeatherStatus = "skipped"
+
+    @model_validator(mode="after")
+    def validate_weather_status(self) -> "ItineraryDay":
+        if self.weather is None and self.weather_status == "resolved":
+            raise ValueError("Resolved weather status requires trusted weather data")
+        if self.weather is not None and self.weather_status != "resolved":
+            raise ValueError("Trusted weather data requires resolved status")
+        if self.weather is not None and self.date != self.weather.date:
+            raise ValueError("Weather date must match the itinerary day date")
+        return self
 
 
 class BudgetItem(BaseModel):

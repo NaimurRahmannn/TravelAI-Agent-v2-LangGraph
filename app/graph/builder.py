@@ -23,6 +23,7 @@ from app.graph.nodes.place_enrichment import place_enrichment_node
 from app.graph.nodes.planner import planner_node
 from app.graph.nodes.responder import responder_node
 from app.graph.nodes.tool_executor import build_tool_executor_node
+from app.graph.nodes.weather_enrichment import weather_enrichment_node
 from app.graph.routers.approval_router import approval_router
 from app.graph.routers.clarification_router import clarification_router
 from app.graph.routers.tool_router import tool_router
@@ -76,6 +77,7 @@ def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
     builder.add_node("itinerary_generator", itinerary_generator_node)
     builder.add_node("place_enrichment", place_enrichment_node)
     builder.add_node("image_enrichment", image_enrichment_node)
+    builder.add_node("weather_enrichment", weather_enrichment_node)
     builder.add_node("responder", responder_node)
     builder.add_node("memory_recall", memory_recall_node)
     builder.add_node("memory_write", memory_write_node)
@@ -123,7 +125,8 @@ def _build_graph(checkpointer: AsyncSqliteSaver | None = None) -> Any:
     builder.add_edge("tools", "agent")
     builder.add_edge("itinerary_generator", "place_enrichment")
     builder.add_edge("place_enrichment", "image_enrichment")
-    builder.add_edge("image_enrichment", "responder")
+    builder.add_edge("image_enrichment", "weather_enrichment")
+    builder.add_edge("weather_enrichment", "responder")
     # Only final responses are written; clarification prompts skip Mem0 because
     # they rarely contain durable traveler facts and must remain a short-circuit.
     builder.add_edge("responder", "memory_write")

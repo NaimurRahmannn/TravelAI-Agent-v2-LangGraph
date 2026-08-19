@@ -13,6 +13,7 @@ def _response(*, api_key: str | None):
         GEMINI_API_KEY="must-not-leak",
         GROQ_API_KEY="must-not-leak",
         GEOAPIFY_API_KEY="must-not-leak",
+        OPENWEATHER_API_KEY="must-not-leak",
     )
     response = Response()
     payload = asyncio.run(maps_config(response, settings))

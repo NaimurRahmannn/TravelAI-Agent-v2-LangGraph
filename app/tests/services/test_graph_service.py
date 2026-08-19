@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -8,6 +8,7 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    DailyWeather,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
@@ -168,6 +169,21 @@ def test_date_update_keeps_thread_and_uses_structured_date_fields(monkeypatch):
 def test_chat_response_serializes_nested_place_without_backend_secret():
     plan = _plan()
     data = plan.model_dump()
+    forecast_date = date.today() + timedelta(days=2)
+    data["days"][0].update(
+        {
+            "date": forecast_date,
+            "weather": DailyWeather(
+                provider="openweather",
+                date=forecast_date,
+                condition="Clouds",
+                min_temperature_c=25,
+                max_temperature_c=31,
+                fetched_at=datetime.now(UTC),
+            ).model_dump(),
+            "weather_status": "resolved",
+        }
+    )
     data["days"][0]["activities"][0].update(
         {
             "place": ResolvedPlace(
@@ -204,6 +220,9 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
     assert '\"latitude\":13.7437' in serialized
     assert "wikidata_entity_id" in serialized
     assert "wikimedia_commons" in serialized
+    assert '"provider":"openweather"' in serialized
+    assert '"weather_status":"resolved"' in serialized
     assert "GEOAPIFY_API_KEY" not in serialized
+    assert "OPENWEATHER_API_KEY" not in serialized
     assert "WIKIMEDIA_USER_AGENT" not in serialized
     assert "test-geo-key" not in serialized

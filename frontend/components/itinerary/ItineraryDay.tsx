@@ -1,4 +1,4 @@
-import { CalendarDays, Coins } from "lucide-react";
+import { CalendarDays, CloudSun, Coins, Droplets, Wind } from "lucide-react";
 import type { ItineraryDay as ItineraryDayData } from "@/lib/api";
 import {
   buildActivityDomId,
@@ -50,6 +50,8 @@ export function ItineraryDay({
         </div>
       </header>
 
+      <DayWeather day={day} />
+
       <div className="activityList">
         {day.activities.map((activity, index) => {
           const mapPoint = mapPoints.find(
@@ -76,5 +78,58 @@ export function ItineraryDay({
         })}
       </div>
     </section>
+  );
+}
+
+function DayWeather({ day }: { day: ItineraryDayData }) {
+  if (day.weather_status === "skipped") {
+    return null;
+  }
+
+  if (day.weather_status === "outside_forecast_horizon") {
+    return (
+      <p className="dayWeatherFallback">
+        Forecast not available yet.
+      </p>
+    );
+  }
+
+  if (day.weather_status === "unavailable" || !day.weather) {
+    return <p className="dayWeatherFallback">Weather unavailable.</p>;
+  }
+
+  const weather = day.weather;
+  const condition = weather.description?.trim() || weather.condition;
+
+  return (
+    <aside aria-label={`Weather forecast for day ${day.day_number}`} className="dayWeather">
+      <div className="dayWeatherCondition">
+        <CloudSun aria-hidden="true" size={18} />
+        <span>{condition}</span>
+      </div>
+      <span className="dayWeatherTemperature">
+        {Math.round(weather.min_temperature_c)}-{Math.round(weather.max_temperature_c)}°C
+      </span>
+      {weather.precipitation_probability_pct != null ? (
+        <span className="dayWeatherMetric">
+          <Droplets aria-hidden="true" size={14} />
+          {Math.round(weather.precipitation_probability_pct)}%
+        </span>
+      ) : null}
+      {weather.wind_speed_mps != null ? (
+        <span className="dayWeatherMetric">
+          <Wind aria-hidden="true" size={14} />
+          {weather.wind_speed_mps.toFixed(1)} m/s
+        </span>
+      ) : null}
+      <a
+        className="dayWeatherAttribution"
+        href="https://openweathermap.org/"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        Weather data by OpenWeather
+      </a>
+    </aside>
   );
 }

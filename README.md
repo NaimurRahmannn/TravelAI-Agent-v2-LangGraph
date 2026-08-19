@@ -40,11 +40,12 @@ The repository contains both the Python API and a browser client for regular cha
 - Structured extraction of destination, origin, exact travel dates, budget, travelers, and preferences
 - Date-picker clarification when exact dates are missing; `duration_days` is derived inclusively from `start_date` and `end_date`
 - Clarification prompts when destination, dates, budget, origin, or traveler count is missing
-- Parallel weather, currency, and visa research through a LangGraph subgraph
+- Parallel climate, currency, and visa research through a LangGraph subgraph
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Geoapify-backed resolution for attraction-like itinerary activities
 - Wikidata and Wikimedia Commons attraction images with reuse metadata
 - Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
+- Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -60,7 +61,7 @@ flowchart TD
     B --> C[Trip extractor]
     C -->|Missing required fields| D[Clarification]
     C -->|Trip is complete| E[Parallel research]
-    E --> E1[Weather worker]
+    E --> E1[General climate worker]
     E --> E2[Currency worker]
     E --> E3[Visa worker]
     E1 --> F[Research merger]
@@ -77,7 +78,8 @@ flowchart TD
     K --> G
     P --> Q[Place enrichment]
     Q --> R[Image enrichment]
-    R --> L
+    R --> W[Weather enrichment]
+    W --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -96,8 +98,11 @@ their P18 claims are resolved through Wikimedia Commons into image URLs and
 attribution-ready licensing metadata. Trusted attraction images render with
 visible author, license, and Commons source attribution. The frontend plots only
 fully resolved Geoapify coordinates on a Leaflet map backed by Geoapify tiles
-and synchronizes markers with their itinerary cards. Routing, real weather
-upgrades, and itinerary validation remain future work.
+and synchronizes markers with their itinerary cards. After image enrichment,
+the backend uses one fully resolved Geoapify place per dated itinerary day to
+request date-specific OpenWeather forecasts. Forecast enrichment never changes
+the itinerary plan or dates. Routing and itinerary validation remain future
+work.
 
 ```text
 final_response
@@ -184,7 +189,9 @@ GEMINI_MODEL_NAME=gemini-2.5-flash-lite
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL_NAME=openai/gpt-oss-20b
 GEOAPIFY_API_KEY=your_geoapify_api_key_here
+GEOAPIFY_MAPS_API_KEY=your_browser_restricted_geoapify_maps_key_here
 WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
+OPENWEATHER_API_KEY=your_openweather_api_key_here
 TEMPERATURE=0.0
 ```
 
@@ -232,6 +239,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEOAPIFY_API_KEY` | No | None | Resolves itinerary activities to provider-backed place identities, addresses, and coordinates; enrichment is skipped when unset |
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
+| `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -388,11 +396,15 @@ The LLM can currently call three registered tools:
 
 | Tool | Input | Behavior |
 | --- | --- | --- |
-| `weather` | Destination | Returns mock general weather guidance |
+| `weather` | Destination | Returns static general climate guidance, not a date-specific forecast |
 | `currency` | Country | Looks up a currency in a local mapping |
 | `visa` | Destination and nationality | Returns general verification guidance |
 
-The research subgraph independently builds static destination context for weather, currency, and visa topics. These results are useful for itinerary drafting, but they are not live travel advisories.
+The research subgraph independently builds static destination context for
+climate, currency, and visa topics. This climate context is useful for itinerary
+drafting but is explicitly labeled as general guidance, not a date-specific
+forecast. Real forecast data is added later by deterministic server-side
+enrichment and does not involve a new LLM call.
 
 Budget conversion is the exception: when the extractor identifies a non-USD budget, the backend requests a current conversion rate from the public Frankfurter API and caches it for six hours. If the request fails, the original budget is retained without a fabricated conversion.
 
@@ -419,14 +431,30 @@ deduplication, bounded retries/concurrency, and a trip-local outage circuit.
 `WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
 descriptive application identity with an appropriate contact method.
 
+For each dated itinerary day, weather enrichment selects one fully resolved
+Geoapify place, preferring a place in the day's city. Requests for the same city
+and country are deduplicated, and OpenWeather's location timezone is used to
+group 3-hour forecast entries by local calendar date. Daily values use the
+minimum and maximum temperatures, maximum precipitation probability and wind
+speed, and the condition nearest local noon. Days beyond the provider horizon
+are marked separately from temporary provider failures. Missing configuration,
+malformed responses, rate limits, and provider outages degrade gracefully and
+never block itinerary delivery or trigger replanning. The
+`OPENWEATHER_API_KEY` remains server-side; only typed daily forecast fields are
+serialized to the frontend.
+
+Weather-aware activity changes and replanning are not implemented in this
+phase; forecasts are informational enrichment only.
+
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
 visibility, practical notes, readable Wikimedia attribution, and a lazily loaded
 Leaflet map. The map consumes existing Geoapify coordinates without additional
 geocoding or place-search calls. Its numbered markers and activity-card actions
-share stable per-itinerary identities for two-way selection. Markdown remains
-the fallback for clarification and other non-itinerary messages. Routing and
-real weather integration are not implemented.
+share stable per-itinerary identities for two-way selection. Dated days display
+compact OpenWeather forecasts when available, with visible provider attribution.
+Markdown remains the fallback for clarification and other non-itinerary
+messages. Routing and directions are not implemented.
 
 ```text
 TripPlan
@@ -507,12 +535,12 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 
 ## Current Limitations
 
-- Weather, currency guidance, and visa guidance are static or mock data.
+- General climate, currency, and visa research remains static guidance; date-specific weather uses OpenWeather only within its available forecast horizon.
 - Conversation persistence is disk-backed but not durable across redeploys on ephemeral hosting (see [Conversation State](#conversation-state)).
 - No authentication or per-user thread ownership is implemented.
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify deduplication and circuit state are request-local; there is no persistent place cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
-- The itinerary map is visualization-only; routing, directions, travel times, and real weather integration are not implemented yet.
+- The itinerary map is visualization-only; routing, directions, and travel times are not implemented.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

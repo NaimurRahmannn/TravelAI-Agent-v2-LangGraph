@@ -1164,6 +1164,56 @@ textarea:disabled {
   font-weight: 700;
 }
 
+.dayWeather {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 4px 13px;
+  border-left: 3px solid rgba(18, 110, 130, 0.45);
+  background: linear-gradient(90deg, rgba(18, 110, 130, 0.07), transparent 78%);
+  padding: 8px 11px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dayWeatherCondition,
+.dayWeatherMetric {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dayWeatherCondition {
+  color: var(--text);
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.dayWeatherTemperature {
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.dayWeatherMetric {
+  font-weight: 700;
+}
+
+.dayWeatherAttribution {
+  margin-left: auto;
+  color: inherit;
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dayWeatherFallback {
+  margin: 0 4px 13px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 .activityList {
   display: flex;
   flex-direction: column;
@@ -1793,6 +1843,11 @@ textarea:disabled {
 
   .dayFacts {
     justify-content: flex-start;
+  }
+
+  .dayWeatherAttribution {
+    flex-basis: 100%;
+    margin-left: 0;
   }
 
   .activityTime {

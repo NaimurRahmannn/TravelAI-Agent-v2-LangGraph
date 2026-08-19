@@ -1,3 +1,5 @@
+from datetime import date, datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
@@ -5,6 +7,7 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    DailyWeather,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
@@ -208,3 +211,66 @@ def test_activity_image_requires_a_fully_resolved_place():
     )
 
     assert activity.image is not None
+
+
+def _daily_weather(**updates) -> DailyWeather:
+    data = {
+        "provider": "openweather",
+        "date": date(2026, 8, 21),
+        "condition": "Rain",
+        "description": "light rain",
+        "min_temperature_c": 25.2,
+        "max_temperature_c": 31.4,
+        "precipitation_probability_pct": 70,
+        "wind_speed_mps": 4.5,
+        "fetched_at": datetime(2026, 8, 19, 12, tzinfo=timezone.utc),
+    }
+    data.update(updates)
+    return DailyWeather.model_validate(data)
+
+
+def test_daily_weather_validates_and_serializes():
+    serialized = _daily_weather().model_dump(mode="json")
+
+    assert serialized["provider"] == "openweather"
+    assert serialized["date"] == "2026-08-21"
+    assert serialized["precipitation_probability_pct"] == 70
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("precipitation_probability_pct", -1),
+        ("precipitation_probability_pct", 101),
+        ("wind_speed_mps", -0.1),
+        ("max_temperature_c", 20),
+    ],
+)
+def test_daily_weather_rejects_invalid_values(field, value):
+    updates = {field: value}
+    if field == "max_temperature_c":
+        updates["min_temperature_c"] = 21
+
+    with pytest.raises(ValidationError):
+        _daily_weather(**updates)
+
+
+def test_itinerary_day_requires_consistent_weather_status_and_date():
+    with pytest.raises(ValidationError, match="requires trusted weather data"):
+        ItineraryDay(
+            day_number=1,
+            date=date(2026, 8, 21),
+            city="Bangkok",
+            activities=[Activity(name="Wat Arun", category="culture")],
+            weather_status="resolved",
+        )
+
+    with pytest.raises(ValidationError, match="must match"):
+        ItineraryDay(
+            day_number=1,
+            date=date(2026, 8, 22),
+            city="Bangkok",
+            activities=[Activity(name="Wat Arun", category="culture")],
+            weather=_daily_weather(),
+            weather_status="resolved",
+        )

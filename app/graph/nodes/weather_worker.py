@@ -59,7 +59,10 @@ def weather_worker(
     logger.info("ResearchGraph.Worker.weather entered destination=%s", destination)
 
     climate_note = _CLIMATE_PROFILES.get(destination.lower(), _DEFAULT_CLIMATE_NOTE)
-    result = f"Weather in {destination}: {climate_note}"
+    result = (
+        f"General climate guidance for {destination} (not a date-specific "
+        f"forecast): {climate_note}"
+    )
 
     duration = perf_counter() - started_at
     logger.info(

@@ -60,12 +60,32 @@ export type Activity = {
   image?: PlaceImage | null;
 };
 
+export type WeatherStatus =
+  | "resolved"
+  | "outside_forecast_horizon"
+  | "unavailable"
+  | "skipped";
+
+export type DailyWeather = {
+  provider: "openweather";
+  date: string;
+  condition: string;
+  description?: string | null;
+  min_temperature_c: number;
+  max_temperature_c: number;
+  precipitation_probability_pct?: number | null;
+  wind_speed_mps?: number | null;
+  fetched_at: string;
+};
+
 export type ItineraryDay = {
   day_number: number;
   date?: string | null;
   city: string;
   activities: Activity[];
   estimated_daily_cost_usd?: number | null;
+  weather?: DailyWeather | null;
+  weather_status: WeatherStatus;
 };
 
 export type BudgetItem = {
