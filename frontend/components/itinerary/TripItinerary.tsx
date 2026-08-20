@@ -6,6 +6,7 @@ import type { TripPlan } from "@/lib/api";
 import { buildItineraryMapPoints } from "@/lib/itineraryMap";
 import { BudgetSummary } from "./BudgetSummary";
 import { FlightRecommendations } from "./FlightRecommendations";
+import { HotelRecommendations } from "./HotelRecommendations";
 import { ItineraryDay } from "./ItineraryDay";
 import { PracticalNotes } from "./PracticalNotes";
 import { TripMap, type TripMapStatus } from "./TripMap";
@@ -76,6 +77,7 @@ export function TripItinerary({
           )
         : null}
       <FlightRecommendations idPrefix={idPrefix} itinerary={itinerary} />
+      <HotelRecommendations idPrefix={idPrefix} itinerary={itinerary} />
       <div className="itineraryDays">
         {itinerary.days.map((day) => {
           const dayMapPoints = mapPoints.filter(

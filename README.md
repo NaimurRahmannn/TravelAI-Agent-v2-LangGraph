@@ -49,6 +49,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
 - Provider-neutral travel recommendation foundation with independent search statuses
 - Automatic Swoop flight shopping using exact selected trip dates
+- Automatic LiteAPI / Nuitee Connect hotel rate recommendations for each stay
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -84,7 +85,8 @@ flowchart TD
     R --> W[Weather enrichment]
     W --> T[Routing enrichment]
     T --> U[Swoop flight recommendations]
-    U --> L
+    U --> V[LiteAPI hotel recommendations]
+    V --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -110,8 +112,10 @@ pair-by-pair Geoapify route estimates only between adjacent, fully resolved
 same-day activities. After those factual enrichments, a focused Geoapify airport
 resolver maps the departure and first/last itinerary cities to trusted IATA
 codes. Swoop then retrieves current Google Flights-derived shopping results for
-the exact selected dates and adult traveler count.
-Weather, routing, and flight recommendation enrichment never change the
+the exact selected dates and adult traveler count. Next, the backend derives
+consecutive city stays and uses trusted Geoapify coordinates to request current
+LiteAPI hotel rates for each exact check-in/check-out window.
+Weather, routing, flight, and hotel recommendation enrichment never change the
 itinerary plan or dates. Itinerary validation and replanning remain future work.
 
 ```text
@@ -120,6 +124,7 @@ final_response
       +-- itinerary present --> TripItinerary
       |                         +-- trip overview
       |                         +-- trip map <--> activity cards
+      |                         +-- flight and hotel recommendations
       |                         +-- day/activity cards
       |                         +-- budget and practical notes
       |
@@ -135,7 +140,7 @@ final_response
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Swoop, Wikidata, Wikimedia Commons, OpenStreetMap |
+| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Swoop, LiteAPI / Nuitee Connect, Wikidata, Wikimedia Commons, OpenStreetMap |
 
 ## Project Layout
 
@@ -201,6 +206,7 @@ GEOAPIFY_API_KEY=your_geoapify_api_key_here
 GEOAPIFY_MAPS_API_KEY=your_browser_restricted_geoapify_maps_key_here
 WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
 OPENWEATHER_API_KEY=your_openweather_api_key_here
+LITEAPI_API_KEY=your_liteapi_api_key_here
 TEMPERATURE=0.0
 ```
 
@@ -249,6 +255,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
+| `LITEAPI_API_KEY` | No | None | Private backend key for LiteAPI hotel-rate recommendations; hotels are marked unavailable when unset and the key is never returned to the browser |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -313,7 +320,8 @@ Content-Type: application/json
 ```json
 {
   "message": "Plan a 7-day Japan trip from Bangladesh with a $2000 budget",
-  "user_id": "traveler-123"
+  "user_id": "traveler-123",
+  "guest_nationality_country_code": "BD"
 }
 ```
 
@@ -442,11 +450,11 @@ route geometry are not stored.
 
 Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
 models, separate provider protocols, per-domain search statuses, and deterministic
-ranking helpers. Phase 7.6C implements only the flight provider:
+ranking helpers. Flights and hotels now use separate factual providers:
 
 ```text
 Flights     -> Swoop
-Hotels      -> Not integrated
+Hotels      -> LiteAPI / Nuitee Connect
 Restaurants -> Not integrated
 ```
 
@@ -471,10 +479,22 @@ blocking can temporarily make only flight recommendations unavailable. No Swoop
 API key is required. The integration uses shopping data only and does not call
 booking, seller-selection, reservation, or payment APIs.
 
-Hotel and restaurant provider integrations remain unimplemented. The LLM is
-not trusted to populate recommendation facts, prices, provider IDs, ratings,
-availability, or external URLs; generated recommendation data is cleared at the
-itinerary trust boundary.
+LiteAPI searches `POST /v3.0/hotels/rates` once per bounded stay segment using
+the exact dates, one occupancy containing the authoritative adult traveler
+count, USD currency, and an explicit guest-nationality ISO-2 code. Nationality
+is never inferred from origin, residence, IP address, device location, locale,
+language, or name. If it is missing, only hotel enrichment is unavailable. The
+current MVP models all travelers as adults in one requested occupancy; child
+ages, room allocation, and room preferences require future authoritative input.
+
+Python groups consecutive itinerary days by normalized city, calculates nights
+as checkout minus check-in, derives display-only price per night with decimal
+arithmetic, and ranks results deterministically by total price, rating, and
+stable hotel ID. Geoapify supplies trusted geographic anchors, while LiteAPI is
+authoritative for hotel/rate facts. The LLM is used for planning only and is not
+trusted to create hotel rates, availability, provider IDs, ratings, or URLs.
+The integration preserves LiteAPI's sandbox flag and labels sandbox cards; it
+does not claim that sandbox inventory is production-bookable.
 
 The itinerary budget is a base trip estimate for food, activities, admission,
 local and intercity ground transport, shopping, and contingency. Flights and
@@ -497,8 +517,10 @@ TripPlan
 |-- Base Trip Estimate
 |   `-- excludes airfare and accommodation
 `-- TravelRecommendations
-    `-- Flight Recommendations
-        `-- Swoop
+    |-- Flight Recommendations
+    |   `-- Swoop
+    `-- Hotel Recommendations
+        `-- LiteAPI / Nuitee Connect
 ```
 
 Flight recommendations are generated automatically and displayed with the
@@ -506,9 +528,15 @@ itinerary using current Swoop shopping data. They are ranked deterministically
 by price, duration, stops, and stable provider ID; they are not filtered by the
 traveler's target and are not included in the base estimate.
 
-Hotel recommendations, flight/hotel selection, and the calculation that will
-add selected flight and hotel prices to the base estimate are future behavior
-and are not implemented yet.
+Hotel recommendations are also generated automatically when the LiteAPI key,
+authoritative nationality, dates, and a trusted search anchor are available.
+Multi-city results use separate, non-overlapping date windows and are grouped by
+city and stay dates in the UI. LiteAPI's returned `retailRate.total` is kept as
+the total for the requested stay and occupancy; it is not multiplied again by
+nights or travelers. Hotel rates are stored only in
+`TravelRecommendations.hotels`, are never filtered by the user's target budget,
+and are not added to the Base Trip Estimate. Flight/hotel selection, updated
+trip totals, prebooking, booking, and payment remain future behavior.
 
 ```text
 FlightSearchRequest
@@ -519,6 +547,13 @@ FlightSearchRequest
    -> FlightOption[]
    -> deterministic price/duration/stops ranking
    -> top five Flight Recommendations
+
+HotelStay
+   -> trusted Geoapify search anchor
+   -> LiteAPIHotelProvider
+   -> date- and occupancy-specific HotelOption[]
+   -> deterministic price/rating/ID ranking
+   -> top three Hotel Recommendations per stay
 ```
 
 Completed plans use the structured itinerary UI, including rich image cards,
@@ -623,6 +658,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
 - Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
 - Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.
-- Hotel and restaurant provider integrations are not implemented; LiteAPI and Geoapify recommendation calls remain future work.
+- LiteAPI hotel search currently uses one adults-only occupancy and requires an explicit guest-nationality ISO-2 code; child ages, multiple-room allocation, selection, and booking are not implemented.
+- Restaurant recommendation provider integration remains future work.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

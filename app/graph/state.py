@@ -33,6 +33,7 @@ class TravelState(MessagesState):
     trip: Trip | None
     selected_start_date: date | None
     selected_end_date: date | None
+    guest_nationality_country_code: str | None
     itinerary: TripPlan | None
     missing_fields: list[str]
     needs_clarification: bool

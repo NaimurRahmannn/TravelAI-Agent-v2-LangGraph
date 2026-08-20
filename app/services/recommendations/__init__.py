@@ -2,6 +2,8 @@ from app.services.recommendations.base import (
     FlightProviderError,
     FlightProviderUnavailableError,
     FlightProvider,
+    HotelProviderError,
+    HotelProviderUnavailableError,
     HotelProvider,
     RestaurantProvider,
 )
@@ -16,6 +18,8 @@ __all__ = [
     "FlightProviderError",
     "FlightProviderUnavailableError",
     "HotelProvider",
+    "HotelProviderError",
+    "HotelProviderUnavailableError",
     "RestaurantProvider",
     "build_recommendation_status",
     "rank_flights",

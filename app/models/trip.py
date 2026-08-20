@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Trip(BaseModel):
@@ -48,9 +48,19 @@ class Trip(BaseModel):
         ge=1
     )
 
+    guest_nationality_country_code: str | None = Field(
+        default=None,
+        description="Traveler-supplied passport nationality as an ISO-2 code",
+    )
+
     preferences: list[str] = Field(
         default_factory=list
     )
+
+    @field_validator("guest_nationality_country_code", mode="before")
+    @classmethod
+    def normalize_guest_nationality(cls, value: object) -> object:
+        return _normalize_iso2_country_code(value)
 
 
 class TripExtraction(BaseModel):
@@ -71,6 +81,25 @@ class TripExtraction(BaseModel):
         description="Number of travelers explicitly stated by the user",
         ge=1,
     )
+    guest_nationality_country_code: str | None = Field(
+        description="ISO-2 passport nationality explicitly stated by the user",
+    )
     preferences: list[str] = Field(
         description="Travel preferences newly stated by the user"
     )
+
+    @field_validator("guest_nationality_country_code", mode="before")
+    @classmethod
+    def normalize_guest_nationality(cls, value: object) -> object:
+        return _normalize_iso2_country_code(value)
+
+
+def _normalize_iso2_country_code(value: object) -> object:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Guest nationality must be an ISO-2 country code")
+    normalized = value.strip().upper()
+    if len(normalized) != 2 or not normalized.isalpha():
+        raise ValueError("Guest nationality must be an ISO-2 country code")
+    return normalized

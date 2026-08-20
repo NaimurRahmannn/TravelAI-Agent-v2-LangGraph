@@ -7,9 +7,11 @@ from langchain_core.runnables import RunnableLambda
 from app.graph.nodes import extractor
 from app.graph.nodes.extractor import (
     _apply_deterministic_fallback,
+    _apply_authoritative_guest_nationality,
     _apply_selected_dates,
     _get_missing_required_fields,
     _merge_trip,
+    _protect_guest_nationality,
 )
 from app.models import (
     Activity,
@@ -32,8 +34,37 @@ def _empty_extraction() -> TripExtraction:
         budget=None,
         currency=None,
         travelers=None,
+        guest_nationality_country_code=None,
         preferences=[],
     )
+
+
+def test_guest_nationality_is_normalized_but_never_inferred_from_origin():
+    extracted = _empty_extraction().model_copy(
+        update={"origin": "Bangladesh", "guest_nationality_country_code": "BD"}
+    )
+
+    protected = _protect_guest_nationality(
+        extracted,
+        "I am traveling from Bangladesh.",
+    )
+    authoritative = _apply_authoritative_guest_nationality(Trip(), " bd ")
+
+    assert protected.guest_nationality_country_code is None
+    assert authoritative.guest_nationality_country_code == "BD"
+
+
+def test_explicit_nationality_may_be_retained_from_existing_extraction_call():
+    extracted = _empty_extraction().model_copy(
+        update={"guest_nationality_country_code": "JP"}
+    )
+
+    protected = _protect_guest_nationality(
+        extracted,
+        "My passport nationality is Japanese.",
+    )
+
+    assert protected.guest_nationality_country_code == "JP"
 
 
 def test_thailand_request_recovers_destination_and_duration():

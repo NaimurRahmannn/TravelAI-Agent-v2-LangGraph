@@ -2,6 +2,9 @@ import asyncio
 from datetime import date, timedelta
 from unittest.mock import Mock
 
+import pytest
+from pydantic import ValidationError
+
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
@@ -32,6 +35,7 @@ def test_graph_contains_structured_itinerary_and_memory_nodes():
     assert "weather_enrichment" in graph.nodes
     assert "routing_enrichment" in graph.nodes
     assert "flight_recommendation" in graph.nodes
+    assert "hotel_recommendation" in graph.nodes
     edges = {
         (edge.source, edge.target)
         for edge in graph.get_graph().edges
@@ -42,7 +46,8 @@ def test_graph_contains_structured_itinerary_and_memory_nodes():
     assert ("image_enrichment", "weather_enrichment") in edges
     assert ("weather_enrichment", "routing_enrichment") in edges
     assert ("routing_enrichment", "flight_recommendation") in edges
-    assert ("flight_recommendation", "responder") in edges
+    assert ("flight_recommendation", "hotel_recommendation") in edges
+    assert ("hotel_recommendation", "responder") in edges
 
 
 def test_build_input_includes_user_id():
@@ -75,6 +80,22 @@ def test_build_input_includes_structured_date_selection():
 
     assert result["selected_start_date"] == start_date
     assert result["selected_end_date"] == end_date
+
+
+def test_build_input_carries_only_valid_authoritative_guest_nationality():
+    request = ChatRequest(
+        message="Plan a trip.",
+        guest_nationality_country_code="bd",
+    )
+
+    result = GraphService.build_input(request)
+
+    assert result["guest_nationality_country_code"] == "BD"
+    with pytest.raises(ValidationError):
+        ChatRequest(
+            message="Plan a trip.",
+            guest_nationality_country_code="Bangladesh",
+        )
 
 
 def test_full_graph_invoke_with_user_id_and_mocked_memory(monkeypatch):

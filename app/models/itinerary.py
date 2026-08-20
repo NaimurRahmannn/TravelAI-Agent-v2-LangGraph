@@ -293,12 +293,25 @@ class TripPlan(BaseModel):
     end_date: CalendarDate | None = None
     duration_days: int = Field(ge=1)
     travelers: int = Field(ge=1)
+    guest_nationality_country_code: str | None = None
     summary: str | None = None
     preferences: list[str]
     days: list[ItineraryDay] = Field(min_length=1)
     budget: BudgetBreakdown
     recommendations: TravelRecommendations | None = None
     practical_notes: list[str]
+
+    @field_validator("guest_nationality_country_code", mode="before")
+    @classmethod
+    def normalize_guest_nationality(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("Guest nationality must be an ISO-2 country code")
+        normalized = value.strip().upper()
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("Guest nationality must be an ISO-2 country code")
+        return normalized
 
 
 def _normalized_cost_label(value: str) -> str:

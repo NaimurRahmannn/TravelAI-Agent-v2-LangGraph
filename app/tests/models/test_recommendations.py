@@ -66,6 +66,7 @@ def _hotel(**updates) -> HotelOption:
     data = {
         "provider": "future-hotel-provider",
         "provider_hotel_id": "hotel-1",
+        "provider_offer_id": "offer-1",
         "name": "Riverside Hotel",
         "city": "Bangkok",
         "country": "Thailand",
@@ -171,12 +172,15 @@ def test_provider_neutral_search_requests_validate_authoritative_inputs():
         adults=2,
     ).adults == 2
     assert HotelSearchRequest(
-        destination="Thailand",
         city="Bangkok",
+        latitude=13.75,
+        longitude=100.5,
         check_in=departure,
         check_out=departure + timedelta(days=4),
-        travelers=2,
-    ).travelers == 2
+        adults=2,
+        guest_nationality_country_code="bd",
+        radius_meters=5_000,
+    ).guest_nationality_country_code == "BD"
     assert RestaurantSearchRequest(
         day_number=1,
         date=departure,

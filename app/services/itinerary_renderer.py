@@ -38,6 +38,60 @@ def render_itinerary(plan: TripPlan) -> str:
             ]
         )
 
+    if plan.recommendations and plan.recommendations.hotels:
+        lines.extend(["", "## Hotel Recommendations", ""])
+        current_stay: tuple[str, object, object] | None = None
+        for option in plan.recommendations.hotels:
+            stay = (option.city or "This stay", option.check_in, option.check_out)
+            if stay != current_stay:
+                lines.extend(
+                    [
+                        f"### Hotels in {stay[0]}",
+                        "",
+                        f"{option.check_in} to {option.check_out} "
+                        f"({option.nights} night"
+                        f"{'s' if option.nights != 1 else ''})",
+                        "",
+                    ]
+                )
+                current_stay = stay
+            sandbox = " — Sandbox hotel data" if option.is_sandbox else ""
+            lines.append(f"- **Hotel recommendation: {option.name}**{sandbox}")
+            if option.formatted_address:
+                lines.append(f"  - Address: {option.formatted_address}")
+            if option.room_name:
+                lines.append(f"  - Room: {option.room_name}")
+            if option.board_name:
+                lines.append(f"  - Board: {option.board_name}")
+            lines.append(
+                f"  - Total stay: {_format_money(option.total_price, option.currency)}"
+            )
+            if option.price_per_night is not None:
+                lines.append(
+                    f"  - Per night: "
+                    f"{_format_money(option.price_per_night, option.currency)}"
+                )
+            if option.refundable is not None:
+                lines.append(
+                    "  - " + ("Refundable" if option.refundable else "Non-refundable")
+                )
+            if option.taxes_included is not None:
+                lines.append(
+                    "  - "
+                    + (
+                        "Taxes included"
+                        if option.taxes_included
+                        else "Taxes not included"
+                    )
+                )
+        lines.extend(
+            [
+                "",
+                "Current hotel-search rates from LiteAPI / Nuitee Connect. "
+                "Prices and availability can change before booking.",
+            ]
+        )
+
     for day in plan.days:
         day_heading = f"## Day {day.day_number} — {day.city}"
         if day.date:

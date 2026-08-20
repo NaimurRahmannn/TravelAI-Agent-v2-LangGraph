@@ -168,9 +168,11 @@ class HotelOption(_ProviderOption):
     """Provider-neutral, provider-authoritative total-stay hotel offer."""
 
     provider_hotel_id: NonEmptyString
+    provider_offer_id: NonEmptyString
     name: NonEmptyString
     city: str | None = None
     country: str | None = None
+    formatted_address: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     check_in: CalendarDate
@@ -179,10 +181,15 @@ class HotelOption(_ProviderOption):
     total_price: float = Field(ge=0)
     currency: str
     price_per_night: float | None = Field(default=None, ge=0)
+    room_name: str | None = None
+    board_name: str | None = None
     rating: float | None = Field(default=None, ge=0)
     review_count: int | None = Field(default=None, ge=0)
+    refundable: bool | None = None
+    taxes_included: bool | None = None
     image_url: str | None = None
     external_url: str | None = None
+    is_sandbox: bool = False
     fetched_at: datetime
 
     @field_validator("currency", mode="before")
@@ -291,20 +298,29 @@ class FlightSearchRequest(BaseModel):
 class HotelSearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    destination: NonEmptyString
-    city: str | None = None
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
+    city: NonEmptyString
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
     check_in: CalendarDate
     check_out: CalendarDate
-    travelers: int = Field(ge=1)
+    adults: int = Field(ge=1)
+    guest_nationality_country_code: str
+    radius_meters: int = Field(ge=1, le=50_000)
+
+    @field_validator("guest_nationality_country_code", mode="before")
+    @classmethod
+    def normalize_guest_nationality(cls, value: object) -> object:
+        if not isinstance(value, str):
+            raise ValueError("Guest nationality must be an ISO-2 country code")
+        normalized = value.strip().upper()
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("Guest nationality must be an ISO-2 country code")
+        return normalized
 
     @model_validator(mode="after")
     def validate_stay(self) -> "HotelSearchRequest":
         if self.check_out <= self.check_in:
             raise ValueError("Hotel search check-out must be after check-in")
-        if (self.latitude is None) != (self.longitude is None):
-            raise ValueError("Hotel search coordinates must be supplied together")
         return self
 
 

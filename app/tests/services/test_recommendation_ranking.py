@@ -58,6 +58,7 @@ def _hotel(hotel_id: str, *, price: float, rating: float | None) -> HotelOption:
     return HotelOption(
         provider="future-hotel-provider",
         provider_hotel_id=hotel_id,
+        provider_offer_id=f"offer-{hotel_id}",
         name=f"Hotel {hotel_id}",
         check_in=date(2026, 9, 10),
         check_out=date(2026, 9, 14),

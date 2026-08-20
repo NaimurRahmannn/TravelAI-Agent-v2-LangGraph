@@ -7,6 +7,7 @@ from app.models import (
     FlightOption,
     FlightSegment,
     FlightSlice,
+    HotelOption,
     ItineraryDay,
     ResolvedPlace,
     TravelRecommendations,
@@ -240,3 +241,62 @@ def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
     assert "Projected trip total" not in rendered
     assert "trip budget" not in rendered
     assert "Google Flights via Swoop" in rendered
+
+
+def test_renderer_groups_hotel_rate_as_recommendation_outside_base_estimate():
+    plan = TripPlan(
+        title="Tokyo plan",
+        destination="Japan",
+        start_date=datetime(2026, 9, 10).date(),
+        end_date=datetime(2026, 9, 13).date(),
+        duration_days=3,
+        travelers=2,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Tokyo",
+                activities=[Activity(name="Temple", category="culture")],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Local costs", amount_usd=800)],
+            estimated_total_usd=800,
+        ),
+        recommendations=TravelRecommendations(
+            hotels=[
+                HotelOption(
+                    provider="liteapi",
+                    provider_hotel_id="hotel-1",
+                    provider_offer_id="offer-1",
+                    name="Hotel Sakura",
+                    city="Tokyo",
+                    check_in=datetime(2026, 9, 10).date(),
+                    check_out=datetime(2026, 9, 13).date(),
+                    nights=3,
+                    total_price=480,
+                    currency="USD",
+                    price_per_night=160,
+                    room_name="Deluxe Room",
+                    board_name="Breakfast Included",
+                    refundable=True,
+                    taxes_included=True,
+                    is_sandbox=True,
+                    fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+                )
+            ],
+            hotel_status={"status": "available", "provider_result_count": 1},
+        ),
+        practical_notes=[],
+    )
+
+    rendered = render_itinerary(plan)
+
+    assert "## Hotel Recommendations" in rendered
+    assert "### Hotels in Tokyo" in rendered
+    assert "Hotel recommendation: Hotel Sakura" in rendered
+    assert "Sandbox hotel data" in rendered
+    assert "Total stay: $480" in rendered
+    assert "Per night: $160" in rendered
+    assert "**Base trip estimate:** $800" in rendered
+    assert "Projected trip total" not in rendered

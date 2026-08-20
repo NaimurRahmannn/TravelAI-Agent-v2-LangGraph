@@ -18,6 +18,14 @@ class FlightProviderUnavailableError(FlightProviderError):
     """A flight provider could not complete the optional search."""
 
 
+class HotelProviderError(RuntimeError):
+    """Base error for safe hotel-provider failures."""
+
+
+class HotelProviderUnavailableError(HotelProviderError):
+    """A hotel provider could not complete the optional search."""
+
+
 class FlightProvider(Protocol):
     async def search_flights(
         self,

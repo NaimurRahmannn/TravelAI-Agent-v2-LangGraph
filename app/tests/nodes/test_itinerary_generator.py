@@ -90,6 +90,7 @@ def _state() -> dict:
             budget=1000,
             currency="USD",
             travelers=2,
+            guest_nationality_country_code="BD",
             preferences=["culture"],
         ),
         "messages": [
@@ -111,7 +112,9 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
             return RunnableLambda(
                 lambda prompt: captured.update({"prompt": prompt.to_string()})
                 or ItineraryGenerationOutput.model_validate(
-                    _plan().model_dump(exclude={"recommendations"})
+                    _plan().model_dump(
+                        exclude={"recommendations", "guest_nationality_country_code"}
+                    )
                 )
             )
 
@@ -139,6 +142,7 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
         _state()["trip"].end_date,
     ]
     assert plan.travelers == 2
+    assert plan.guest_nationality_country_code == "BD"
     assert plan.preferences == ["culture"]
     assert plan.budget.user_budget_usd == 1000
     assert all("flight" not in item.category.casefold() for item in plan.budget.items)

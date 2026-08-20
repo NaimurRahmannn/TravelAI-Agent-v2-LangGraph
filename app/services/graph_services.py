@@ -164,4 +164,7 @@ class GraphService:
             "user_id": request.user_id,
             "selected_start_date": request.start_date,
             "selected_end_date": request.end_date,
+            "guest_nationality_country_code": (
+                request.guest_nationality_country_code
+            ),
         }

@@ -220,6 +220,7 @@ def test_flight_update_preserves_existing_hotel_and_restaurant_state():
     hotel = HotelOption(
         provider="future-hotel",
         provider_hotel_id="hotel-1",
+        provider_offer_id="offer-1",
         name="Hotel",
         check_in=date(2026, 9, 10),
         check_out=date(2026, 9, 15),
