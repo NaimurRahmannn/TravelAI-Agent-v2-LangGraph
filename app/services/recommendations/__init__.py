@@ -1,4 +1,6 @@
 from app.services.recommendations.base import (
+    FlightProviderError,
+    FlightProviderUnavailableError,
     FlightProvider,
     HotelProvider,
     RestaurantProvider,
@@ -17,6 +19,8 @@ from app.services.recommendations.budget import (
 
 __all__ = [
     "FlightProvider",
+    "FlightProviderError",
+    "FlightProviderUnavailableError",
     "HotelProvider",
     "RestaurantProvider",
     "build_recommendation_status",

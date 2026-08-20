@@ -231,12 +231,18 @@ def test_status_distinguishes_no_results_from_no_affordable_results():
         provider_result_count=20,
         affordable_result_count=3,
     )
+    budget_unverified = build_recommendation_status(
+        provider_result_count=3,
+        affordable_result_count=0,
+        budget_verified=False,
+    )
 
     assert no_results.status == "no_results"
     assert none_affordable.status == "no_affordable_results"
     assert none_affordable.provider_result_count == 20
     assert available.status == "available"
     assert available.affordable_result_count == 3
+    assert budget_unverified.status == "budget_unverified"
 
 
 def test_context_model_rejects_negative_costs():

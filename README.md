@@ -48,6 +48,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
 - Provider-neutral, budget-aware travel recommendation foundation
+- Budget-aware Duffel flight recommendations using exact selected trip dates
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -82,7 +83,8 @@ flowchart TD
     Q --> R[Image enrichment]
     R --> W[Weather enrichment]
     W --> T[Routing enrichment]
-    T --> L
+    T --> U[Duffel flight recommendations]
+    U --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
@@ -105,8 +107,11 @@ and synchronizes markers with their itinerary cards. After image enrichment,
 the backend uses one fully resolved Geoapify place per dated itinerary day to
 request date-specific OpenWeather forecasts. The backend then requests
 pair-by-pair Geoapify route estimates only between adjacent, fully resolved
-same-day activities. Weather and routing enrichment never change the itinerary
-plan or dates. Itinerary validation and replanning remain future work.
+same-day activities. After those factual enrichments, Duffel resolves the
+departure and first/last itinerary cities to trusted IATA codes and searches a
+bounded set of round-trip offers. Weather, routing, and flight recommendation
+enrichment never change the itinerary plan or dates. Itinerary validation and
+replanning remain future work.
 
 ```text
 final_response
@@ -129,7 +134,7 @@ final_response
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Wikidata, Wikimedia Commons, OpenStreetMap |
+| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Duffel, Wikidata, Wikimedia Commons, OpenStreetMap |
 
 ## Project Layout
 
@@ -195,6 +200,7 @@ GEOAPIFY_API_KEY=your_geoapify_api_key_here
 GEOAPIFY_MAPS_API_KEY=your_browser_restricted_geoapify_maps_key_here
 WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
 OPENWEATHER_API_KEY=your_openweather_api_key_here
+DUFFEL_ACCESS_TOKEN=your_server_side_duffel_token_here
 TEMPERATURE=0.0
 ```
 
@@ -243,6 +249,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
+| `DUFFEL_ACCESS_TOKEN` | No | None | Private backend Duffel token for airport/city resolution and budget-aware flight offer searches; recommendations degrade gracefully when unset |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -432,11 +439,11 @@ outages produce graceful unavailable legs without blocking itinerary delivery.
 Only typed distance and duration values are retained; provider responses and
 route geometry are not stored.
 
-### Budget-aware travel recommendation foundation
+### Budget-aware travel recommendations
 
 Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
 models, separate provider protocols, per-domain search statuses, and pure budget
-evaluation/ranking helpers. The intended future providers are:
+evaluation/ranking helpers. Phase 7.6 implements only the flight provider:
 
 ```text
 Flights     -> Duffel
@@ -444,8 +451,16 @@ Hotels      -> LiteAPI
 Restaurants -> Geoapify
 ```
 
-Those provider integrations, searches, booking actions, recommendation graph
-nodes, and recommendation cards are not implemented in Phase 7.5. The LLM is
+Duffel Places resolves the outbound origin, first itinerary city, last itinerary
+city, and return destination to trusted airport or metropolitan-city IATA codes.
+Duffel Offer Requests then searches the exact picker-selected dates for the
+authoritative adult traveler count in economy class. Offer retrieval is bounded,
+and the resulting slices, segments, operating carriers, schedules, totals,
+currency, expiry, and live/test mode are normalized into provider-neutral
+models. Test-token results are visibly labeled as sandbox data. No flight order,
+booking, payment, affiliate redirect, baggage, or ancillary flow is implemented.
+
+Hotel and restaurant provider integrations remain unimplemented. The LLM is
 not trusted to populate recommendation facts, prices, provider IDs, ratings,
 availability, or external URLs; generated recommendation data is cleared at the
 itinerary trust boundary.
@@ -456,7 +471,9 @@ hotel total replaces its matching estimate before total-budget validation; it
 is never added on top of that estimate. Combined flight-and-hotel feasibility
 is evaluated independently, non-USD prices remain unknown until a future
 trusted normalization step, and rejected provider payloads are not serialized
-as traveler-facing recommendations.
+as traveler-facing recommendations. When a user budget exists, only Duffel
+offers whose projected total is within budget are shown. Test-mode prices are
+sandbox data and should not be treated as live or bookable.
 
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
@@ -510,7 +527,7 @@ python -m pytest -q app/tests
 ```
 
 Provider tests use mocked HTTP transports and do not call Geoapify, OpenWeather,
-Wikidata, or Wikimedia Commons.
+Duffel, Wikidata, or Wikimedia Commons.
 
 ### Frontend checks
 
@@ -558,6 +575,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
-- Flight, hotel, and restaurant provider integrations are not implemented; Phase 7.5 contains only provider-neutral models and deterministic budget helpers.
+- Duffel flight recommendations are search-only: prices can expire, optional extras may cost more, and no booking, order, payment, seat, or baggage flow is implemented.
+- Hotel and restaurant provider integrations are not implemented; LiteAPI and Geoapify recommendation calls remain future work.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

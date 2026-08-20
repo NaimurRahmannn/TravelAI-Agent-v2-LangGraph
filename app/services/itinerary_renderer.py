@@ -8,6 +8,52 @@ def render_itinerary(plan: TripPlan) -> str:
     if plan.summary:
         lines.extend(["", plan.summary])
 
+    if plan.recommendations and plan.recommendations.flights:
+        lines.extend(["", "## Flight Recommendations", ""])
+        for option in plan.recommendations.flights:
+            airline = option.airline_name or "Flight option"
+            lines.append(f"- **{airline}**")
+            for index, flight_slice in enumerate(option.slices):
+                if len(option.slices) == 2:
+                    label = "Outbound" if index == 0 else "Return"
+                else:
+                    label = f"Leg {index + 1}"
+                stop_label = (
+                    "nonstop"
+                    if flight_slice.stops == 0
+                    else f"{flight_slice.stops} stop"
+                    + ("s" if flight_slice.stops != 1 else "")
+                )
+                lines.append(
+                    f"  - {label}: {flight_slice.origin_code} → "
+                    f"{flight_slice.destination_code} ({stop_label})"
+                )
+            operating_carriers = sorted(
+                {
+                    segment.operating_carrier_name
+                    for flight_slice in option.slices
+                    for segment in flight_slice.segments
+                }
+            )
+            if operating_carriers:
+                lines.append(f"  - Operated by: {', '.join(operating_carriers)}")
+            lines.append(
+                f"  - Total for {plan.travelers} adult"
+                f"{'s' if plan.travelers != 1 else ''}: "
+                f"{_format_money(option.total_price, option.currency)}"
+            )
+            evaluation = option.budget_evaluation
+            if evaluation and evaluation.projected_trip_total_usd is not None:
+                lines.append(
+                    "  - Projected trip total: "
+                    f"{_format_usd(evaluation.projected_trip_total_usd)}"
+                )
+            if option.live_data is False:
+                lines.append("  - Test flight data")
+        lines.extend(
+            ["", "Flight prices can change. Optional extras may cost more."]
+        )
+
     for day in plan.days:
         day_heading = f"## Day {day.day_number} — {day.city}"
         if day.date:
@@ -89,6 +135,13 @@ def _format_usd(amount: float) -> str:
     if amount.is_integer():
         return f"${amount:,.0f}"
     return f"${amount:,.2f}"
+
+
+def _format_money(amount: float, currency: str) -> str:
+    if currency == "USD":
+        return _format_usd(amount)
+    formatted = f"{amount:,.0f}" if amount.is_integer() else f"{amount:,.2f}"
+    return f"{currency} {formatted}"
 
 
 def _format_time_range(start_time: str | None, end_time: str | None) -> str:

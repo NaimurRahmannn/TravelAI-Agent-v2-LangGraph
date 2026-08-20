@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.models import (
     FlightOption,
+    FlightSegment,
     FlightSearchRequest,
     HotelOption,
     HotelSearchRequest,
@@ -67,6 +68,18 @@ def test_valid_flight_option_normalizes_provider_codes_and_currency():
     assert flight.provider == "future-flight-provider"
     assert flight.origin_code == "DAC"
     assert flight.currency == "USD"
+
+
+def test_naive_provider_local_times_allow_cross_timezone_clock_order():
+    segment = FlightSegment(
+        origin_code="NRT",
+        destination_code="LAX",
+        departure_at=datetime(2026, 9, 10, 17),
+        arrival_at=datetime(2026, 9, 10, 11),
+        operating_carrier_name="Japan Airlines",
+    )
+
+    assert segment.arrival_at.hour == 11
 
 
 def test_valid_hotel_option_preserves_total_stay_price():

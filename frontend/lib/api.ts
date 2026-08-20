@@ -120,6 +120,7 @@ export type RecommendationStatus =
   | "available"
   | "no_results"
   | "no_affordable_results"
+  | "budget_unverified"
   | "unavailable";
 
 export type RecommendationDomainState = {
@@ -139,8 +140,43 @@ export type FlightOption = {
   stops: number;
   total_price: number;
   currency: string;
+  airline_name?: string | null;
+  airline_code?: string | null;
+  slices: FlightSlice[];
+  expires_at?: string | null;
+  live_data?: boolean | null;
+  budget_evaluation?: BudgetEvaluation | null;
   external_url?: string | null;
   fetched_at: string;
+};
+
+export type FlightSegment = {
+  origin_code: string;
+  destination_code: string;
+  departure_at: string;
+  arrival_at: string;
+  operating_carrier_name: string;
+  operating_carrier_code?: string | null;
+  flight_number?: string | null;
+};
+
+export type FlightSlice = {
+  origin_code: string;
+  destination_code: string;
+  duration_minutes: number;
+  stops: number;
+  segments: FlightSegment[];
+};
+
+export type BudgetEvaluation = {
+  status: "within_budget" | "over_budget" | "unknown";
+  reason:
+    | "within_total_budget"
+    | "exceeds_total_budget"
+    | "missing_user_budget"
+    | "currency_mismatch";
+  projected_trip_total_usd?: number | null;
+  remaining_budget_usd?: number | null;
 };
 
 export type HotelOption = {

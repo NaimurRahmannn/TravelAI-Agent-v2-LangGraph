@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { TripPlan } from "@/lib/api";
 import { buildItineraryMapPoints } from "@/lib/itineraryMap";
 import { BudgetSummary } from "./BudgetSummary";
+import { FlightRecommendations } from "./FlightRecommendations";
 import { ItineraryDay } from "./ItineraryDay";
 import { PracticalNotes } from "./PracticalNotes";
 import { TripMap, type TripMapStatus } from "./TripMap";
@@ -74,6 +75,7 @@ export function TripItinerary({
             mapPortalTarget,
           )
         : null}
+      <FlightRecommendations idPrefix={idPrefix} itinerary={itinerary} />
       <div className="itineraryDays">
         {itinerary.days.map((day) => {
           const dayMapPoints = mapPoints.filter(

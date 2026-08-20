@@ -171,6 +171,7 @@ def build_recommendation_status(
     affordable_result_count: int = 0,
     searched: bool = True,
     provider_available: bool = True,
+    budget_verified: bool = True,
 ) -> RecommendationDomainState:
     """Distinguish search, outage, empty, rejected, and successful outcomes."""
 
@@ -180,6 +181,11 @@ def build_recommendation_status(
         return RecommendationDomainState(status="unavailable")
     if provider_result_count == 0:
         return RecommendationDomainState(status="no_results")
+    if affordable_result_count == 0 and not budget_verified:
+        return RecommendationDomainState(
+            status="budget_unverified",
+            provider_result_count=provider_result_count,
+        )
     if affordable_result_count == 0:
         return RecommendationDomainState(
             status="no_affordable_results",

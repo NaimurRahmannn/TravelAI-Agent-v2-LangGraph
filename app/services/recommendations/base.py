@@ -10,6 +10,14 @@ from app.models import (
 )
 
 
+class FlightProviderError(RuntimeError):
+    """Base error for safe flight-provider failures."""
+
+
+class FlightProviderUnavailableError(FlightProviderError):
+    """A flight provider could not complete the optional search."""
+
+
 class FlightProvider(Protocol):
     async def search_flights(
         self,

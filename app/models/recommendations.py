@@ -17,6 +17,7 @@ RecommendationStatus = Literal[
     "available",
     "no_results",
     "no_affordable_results",
+    "budget_unverified",
     "unavailable",
 ]
 BudgetEvaluationStatus = Literal["within_budget", "over_budget", "unknown"]
@@ -26,6 +27,17 @@ BudgetEvaluationReason = Literal[
     "missing_user_budget",
     "currency_mismatch",
 ]
+
+
+class BudgetEvaluation(BaseModel):
+    """Deterministic projected-total comparison result."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: BudgetEvaluationStatus
+    reason: BudgetEvaluationReason
+    projected_trip_total_usd: float | None = Field(default=None, ge=0)
+    remaining_budget_usd: float | None = None
 
 
 class _ProviderOption(BaseModel):
@@ -41,6 +53,70 @@ class _ProviderOption(BaseModel):
         return value
 
 
+class FlightSegment(BaseModel):
+    """One provider-authoritative operating flight within a journey slice."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin_code: NonEmptyString
+    destination_code: NonEmptyString
+    departure_at: datetime
+    arrival_at: datetime
+    operating_carrier_name: NonEmptyString
+    operating_carrier_code: str | None = None
+    flight_number: str | None = None
+
+    @field_validator(
+        "origin_code",
+        "destination_code",
+        "operating_carrier_code",
+        mode="before",
+    )
+    @classmethod
+    def normalize_codes(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def validate_schedule(self) -> "FlightSegment":
+        if (
+            self.departure_at.utcoffset() is not None
+            and self.arrival_at.utcoffset() is not None
+            and self.arrival_at <= self.departure_at
+        ):
+            raise ValueError("Flight segment arrival must be after departure")
+        return self
+
+
+class FlightSlice(BaseModel):
+    """One outbound or return journey with slice-level stop information."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin_code: NonEmptyString
+    destination_code: NonEmptyString
+    duration_minutes: int = Field(ge=1)
+    stops: int = Field(ge=0)
+    segments: list[FlightSegment] = Field(min_length=1)
+
+    @field_validator("origin_code", "destination_code", mode="before")
+    @classmethod
+    def normalize_codes(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def validate_segments(self) -> "FlightSlice":
+        if self.stops != len(self.segments) - 1:
+            raise ValueError("Flight slice stops must match its segment count")
+        if self.segments[0].origin_code != self.origin_code:
+            raise ValueError("Flight slice origin must match its first segment")
+        if self.segments[-1].destination_code != self.destination_code:
+            raise ValueError("Flight slice destination must match its last segment")
+        for previous, current in zip(self.segments, self.segments[1:]):
+            if previous.destination_code != current.origin_code:
+                raise ValueError("Flight slice segments must be contiguous")
+        return self
+
+
 class FlightOption(_ProviderOption):
     """Provider-neutral, provider-authoritative flight offer."""
 
@@ -53,12 +129,23 @@ class FlightOption(_ProviderOption):
     stops: int = Field(ge=0)
     total_price: float = Field(ge=0)
     currency: str
+    airline_name: str | None = None
+    airline_code: str | None = None
+    slices: list[FlightSlice] = Field(default_factory=list)
+    expires_at: datetime | None = None
+    live_data: bool | None = None
+    budget_evaluation: BudgetEvaluation | None = None
     external_url: str | None = None
     fetched_at: datetime
 
     @field_validator("origin_code", "destination_code", mode="before")
     @classmethod
     def normalize_location_code(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+    @field_validator("airline_code", mode="before")
+    @classmethod
+    def normalize_airline_code(cls, value: object) -> object:
         return value.strip().upper() if isinstance(value, str) else value
 
     @field_validator("currency", mode="before")
@@ -73,7 +160,11 @@ class FlightOption(_ProviderOption):
 
     @model_validator(mode="after")
     def validate_schedule(self) -> "FlightOption":
-        if self.arrival_at <= self.departure_at:
+        if (
+            self.departure_at.utcoffset() is not None
+            and self.arrival_at.utcoffset() is not None
+            and self.arrival_at <= self.departure_at
+        ):
             raise ValueError("Flight arrival must be after departure")
         return self
 
@@ -164,6 +255,10 @@ class RecommendationDomainState(BaseModel):
             raise ValueError("No-affordable-results status requires rejected results")
         if self.status == "available" and self.affordable_result_count == 0:
             raise ValueError("Available status requires affordable results")
+        if self.status == "budget_unverified" and (
+            self.provider_result_count == 0 or self.affordable_result_count != 0
+        ):
+            raise ValueError("Budget-unverified status requires provider results")
         return self
 
 
@@ -191,6 +286,12 @@ class FlightSearchRequest(BaseModel):
 
     origin: NonEmptyString
     destination: NonEmptyString
+    return_origin: str | None = None
+    return_destination: str | None = None
+    origin_country_hint: str | None = None
+    destination_country_hint: str | None = None
+    return_origin_country_hint: str | None = None
+    return_destination_country_hint: str | None = None
     departure_date: CalendarDate
     return_date: CalendarDate | None = None
     adults: int = Field(ge=1)
@@ -242,17 +343,6 @@ class RecommendationBudgetContext(BaseModel):
     estimated_flight_usd: float = Field(ge=0)
     estimated_hotel_usd: float = Field(ge=0)
     estimated_other_trip_cost_usd: float = Field(ge=0)
-
-
-class BudgetEvaluation(BaseModel):
-    """Deterministic projected-total comparison result."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    status: BudgetEvaluationStatus
-    reason: BudgetEvaluationReason
-    projected_trip_total_usd: float | None = Field(default=None, ge=0)
-    remaining_budget_usd: float | None = None
 
 
 def _normalize_currency(value: object) -> object:
