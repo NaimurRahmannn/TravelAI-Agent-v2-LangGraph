@@ -1253,7 +1253,7 @@ textarea:disabled {
 
 .flightPricePanel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px 16px;
   border-top: 1px solid #dde6e0;
   background: #f5f9f6;
@@ -1276,43 +1276,6 @@ textarea:disabled {
   color: #183e33;
   font-size: 17px;
   font-variant-numeric: tabular-nums;
-}
-
-.flightBudgetFit {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 7px;
-  margin: 2px 0 0;
-  border-radius: 8px;
-  background: #dff2e7;
-  padding: 8px 10px;
-  color: #075d3a;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.flightBudgetOver,
-.flightBudgetUnknown {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 7px;
-  margin: 2px 0 0;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.flightBudgetOver {
-  background: #fde8e2;
-  color: #9a321f;
-}
-
-.flightBudgetUnknown {
-  background: #fff3d6;
-  color: #77530b;
 }
 
 .flightEmptyState {
@@ -1881,6 +1844,13 @@ textarea:disabled {
   margin: 0;
 }
 
+.budgetScopeNote {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .budgetRows > div,
 .budgetTotals > div {
   display: grid;
@@ -1935,27 +1905,6 @@ textarea:disabled {
 .budgetTotals > div:first-child dd {
   color: var(--primary-dark);
   font-size: 17px;
-}
-
-.budgetStatus {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 15px 0 0;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.budgetStatus[data-status="within"] {
-  background: #e8f6ef;
-  color: #06633d;
-}
-
-.budgetStatus[data-status="over"] {
-  background: #fff4e5;
-  color: #8a5209;
 }
 
 .practicalNotes {

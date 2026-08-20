@@ -8,8 +8,6 @@ from app.models import (
 )
 from app.services.recommendations import (
     build_recommendation_status,
-    derive_recommendation_budget_context,
-    evaluate_flight_option,
     rank_flights,
 )
 from app.services.recommendations.base import FlightProvider
@@ -23,7 +21,7 @@ async def enrich_flight_recommendations(
     trip_plan: TripPlan,
     provider: FlightProvider,
 ) -> TripPlan:
-    """Search and rank flights while retaining deterministic budget guidance."""
+    """Search and rank provider flights independently of itinerary budget."""
 
     request = build_flight_search_request(trip_plan)
     if request is None:
@@ -41,43 +39,13 @@ async def enrich_flight_recommendations(
             status=build_recommendation_status(provider_result_count=0),
         )
 
-    context = derive_recommendation_budget_context(trip_plan)
-    evaluated_options = [
-        option.model_copy(
-            update={"budget_evaluation": evaluate_flight_option(context, option)}
-        )
-        for option in provider_options
-    ]
-
-    ranked_options = rank_flights(evaluated_options)
-    if context.user_budget_usd is None:
-        affordable_count = len(provider_options)
-        status = build_recommendation_status(
-            provider_result_count=len(provider_options),
-            affordable_result_count=affordable_count,
-        )
-    else:
-        affordable_count = sum(
-            option.budget_evaluation is not None
-            and option.budget_evaluation.status == "within_budget"
-            for option in evaluated_options
-        )
-        has_unverified_budget = any(
-            option.budget_evaluation is not None
-            and option.budget_evaluation.status == "unknown"
-            for option in evaluated_options
-        )
-        status = build_recommendation_status(
-            provider_result_count=len(provider_options),
-            affordable_result_count=affordable_count,
-            budget_verified=not has_unverified_budget,
-        )
-
-    selected = ranked_options[:MAX_FLIGHT_RECOMMENDATIONS]
+    selected = rank_flights(provider_options)[:MAX_FLIGHT_RECOMMENDATIONS]
+    status = build_recommendation_status(
+        provider_result_count=len(provider_options),
+    )
     logger.info(
-        "flight_recommendations_evaluated provider_count=%s affordable_count=%s selected_count=%s status=%s",
+        "flight_recommendations_ranked provider_count=%s selected_count=%s status=%s",
         len(provider_options),
-        affordable_count,
         len(selected),
         status.status,
     )

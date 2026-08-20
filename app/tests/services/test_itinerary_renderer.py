@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 
 from app.models import (
     Activity,
-    BudgetEvaluation,
     BudgetBreakdown,
     BudgetItem,
     FlightOption,
@@ -41,7 +40,7 @@ def test_renderer_outputs_structured_plan_deterministically():
         ],
         budget=BudgetBreakdown(
             items=[
-                BudgetItem(category="Accommodation", amount_usd=100),
+                BudgetItem(category="Food", amount_usd=100),
                 BudgetItem(category="Activities", amount_usd=80),
             ],
             estimated_total_usd=0,
@@ -57,11 +56,12 @@ def test_renderer_outputs_structured_plan_deterministically():
     assert "## Day 1 — Bangkok" in rendered
     assert "**Grand Palace**" in rendered
     assert "**Listed activity costs:** $80" in rendered
-    assert "- Accommodation: $100" in rendered
-    assert "**Estimated total:** $180" in rendered
-    assert "**Budget status:** Within budget" in rendered
-    assert "**Traveler budget (total for 2 travelers):** $200" in rendered
-    assert "**International travel:** Not included" in rendered
+    assert "## Base Trip Estimate" in rendered
+    assert "Flights and accommodation are not included." in rendered
+    assert "- Food: $100" in rendered
+    assert "**Base trip estimate:** $180" in rendered
+    assert "**Overall target budget (total for 2 travelers):** $200" in rendered
+    assert "Budget status" not in rendered
     assert "- Carry some Thai baht." in rendered
 
 
@@ -185,7 +185,7 @@ def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
             )
         ],
         budget=BudgetBreakdown(
-            items=[BudgetItem(category="Flights", amount_usd=800)],
+            items=[BudgetItem(category="Local costs", amount_usd=800)],
             estimated_total_usd=800,
             user_budget_usd=2000,
         ),
@@ -221,19 +221,12 @@ def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
                             0,
                         ),
                     ],
-                    budget_evaluation=BudgetEvaluation(
-                        status="within_budget",
-                        reason="within_total_budget",
-                        projected_trip_total_usd=1814,
-                        remaining_budget_usd=186,
-                    ),
                     fetched_at=datetime(2026, 8, 20, tzinfo=UTC),
                 )
             ],
             flight_status={
                 "status": "available",
                 "provider_result_count": 1,
-                "affordable_result_count": 1,
             },
         ),
         practical_notes=[],
@@ -245,5 +238,6 @@ def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
     assert "Outbound: DAC → HND" in rendered
     assert "Return: HND → DAC" in rendered
     assert "Total for 2 adults: $714.20" in rendered
-    assert "Projected trip total: $1,814" in rendered
+    assert "Projected trip total" not in rendered
+    assert "trip budget" not in rendered
     assert "Google Flights via Swoop" in rendered

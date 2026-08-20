@@ -62,8 +62,6 @@ def _plan(*, user_budget: float | None = 2000) -> TripPlan:
         days=[_day(1, "Tokyo", "JP"), _day(6, "Osaka", "JP")],
         budget=BudgetBreakdown(
             items=[
-                BudgetItem(category="Flights", amount_usd=700),
-                BudgetItem(category="Accommodation", amount_usd=600),
                 BudgetItem(category="Food and activities", amount_usd=500),
             ],
             estimated_total_usd=0,
@@ -144,43 +142,38 @@ def test_search_request_uses_first_last_cities_selected_dates_and_adults():
     assert request.adults == 2
 
 
-def test_real_fare_replaces_estimate_and_over_budget_options_remain_visible():
+def test_results_are_ranked_and_available_regardless_of_user_budget():
     provider = Provider(
         [
-            _flight("fits", 800),
-            _flight("over", 950),
+            _flight("lower", 800),
+            _flight("higher", 5000),
         ]
     )
 
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
 
     assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
-        "fits",
-        "over",
+        "lower",
+        "higher",
     ]
-    evaluation = enriched.recommendations.flights[0].budget_evaluation
-    assert evaluation is not None
-    assert evaluation.projected_trip_total_usd == 1900
-    assert evaluation.status == "within_budget"
-    assert enriched.recommendations.flights[1].budget_evaluation.status == "over_budget"
+    assert "budget_evaluation" not in enriched.recommendations.flights[0].model_dump()
     assert enriched.recommendations.flight_status.status == "available"
     assert enriched.recommendations.flight_status.provider_result_count == 2
-    assert enriched.recommendations.flight_status.affordable_result_count == 1
 
 
-def test_all_over_budget_options_are_shown_with_no_affordable_status():
-    provider = Provider([_flight("over-1", 901), _flight("over-2", 1000)])
+def test_expensive_options_still_have_available_status():
+    provider = Provider([_flight("expensive-1", 9001), _flight("expensive-2", 10000)])
 
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
 
     assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
-        "over-1",
-        "over-2",
+        "expensive-1",
+        "expensive-2",
     ]
-    assert enriched.recommendations.flight_status.status == "no_affordable_results"
+    assert enriched.recommendations.flight_status.status == "available"
 
 
-def test_currency_mismatch_is_budget_unverified_not_no_affordable_results():
+def test_non_usd_result_remains_available_without_budget_comparison():
     provider = Provider([_flight("eur", 500, currency="EUR")])
 
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
@@ -188,7 +181,14 @@ def test_currency_mismatch_is_budget_unverified_not_no_affordable_results():
     assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
         "eur"
     ]
-    assert enriched.recommendations.flight_status.status == "budget_unverified"
+    assert enriched.recommendations.flight_status.status == "available"
+
+
+def test_empty_provider_result_has_no_results_status():
+    enriched = asyncio.run(enrich_flight_recommendations(_plan(), Provider([])))
+
+    assert enriched.recommendations.flights == []
+    assert enriched.recommendations.flight_status.status == "no_results"
 
 
 def test_no_budget_retains_deterministically_ranked_top_five():
@@ -229,7 +229,6 @@ def test_flight_update_preserves_existing_hotel_and_restaurant_state():
         hotel_status=RecommendationDomainState(
             status="available",
             provider_result_count=1,
-            affordable_result_count=1,
         ),
     )
 

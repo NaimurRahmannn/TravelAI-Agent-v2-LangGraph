@@ -1,11 +1,10 @@
-import { BadgeCheck, CircleAlert, Clock3, Plane } from "lucide-react";
+import { CircleAlert, Clock3, Plane } from "lucide-react";
 import type {
   FlightOption,
   FlightSlice,
   RecommendationStatus,
   TripPlan,
 } from "@/lib/api";
-import { formatUsd } from "./formatters";
 
 type FlightRecommendationsProps = {
   idPrefix: string;
@@ -42,11 +41,7 @@ export function FlightRecommendations({
       {flights.length > 0 ? (
         <div className="flightCardGrid">
           {flights.map((flight) => (
-            <FlightCard
-              flight={flight}
-              key={flight.provider_offer_id}
-              userBudget={itinerary.budget.user_budget_usd}
-            />
+            <FlightCard flight={flight} key={flight.provider_offer_id} />
           ))}
         </div>
       ) : (
@@ -64,14 +59,7 @@ export function FlightRecommendations({
   );
 }
 
-function FlightCard({
-  flight,
-  userBudget,
-}: {
-  flight: FlightOption;
-  userBudget?: number | null;
-}) {
-  const projectedTotal = flight.budget_evaluation?.projected_trip_total_usd;
+function FlightCard({ flight }: { flight: FlightOption }) {
   const airlines = flight.airline_names.join(" + ") || "Airline unavailable";
   const route = flight.slices
     .map((slice) => `${slice.origin_code} → ${slice.destination_code}`)
@@ -105,35 +93,6 @@ function FlightCard({
           </span>
           <strong>{formatMoney(flight.total_price, flight.currency)}</strong>
         </div>
-        {projectedTotal != null ? (
-          <div>
-            <span>Projected trip total</span>
-            <strong>{formatUsd(projectedTotal)}</strong>
-          </div>
-        ) : null}
-        {flight.budget_evaluation?.status === "within_budget" &&
-        userBudget != null ? (
-          <p className="flightBudgetFit">
-            <BadgeCheck aria-hidden="true" size={17} />
-            Within your {formatUsd(userBudget)} trip budget
-          </p>
-        ) : null}
-        {flight.budget_evaluation?.status === "over_budget" &&
-        userBudget != null ? (
-          <p className="flightBudgetOver">
-            <CircleAlert aria-hidden="true" size={17} />
-            Over your {formatUsd(userBudget)} trip budget
-            {flight.budget_evaluation.remaining_budget_usd != null
-              ? ` by ${formatUsd(Math.abs(flight.budget_evaluation.remaining_budget_usd))}`
-              : ""}
-          </p>
-        ) : null}
-        {flight.budget_evaluation?.status === "unknown" ? (
-          <p className="flightBudgetUnknown">
-            <CircleAlert aria-hidden="true" size={17} />
-            Budget fit could not be verified for this currency
-          </p>
-        ) : null}
       </footer>
     </article>
   );
@@ -201,10 +160,6 @@ function FlightEmptyState({ status }: { status: RecommendationStatus }) {
     available: "Flight recommendations are available.",
     no_results:
       "No matching flight results were found for these dates and route.",
-    no_affordable_results:
-      "No matching flight results fit within the current trip budget.",
-    budget_unverified:
-      "Flight results were found, but their budget fit could not be verified without currency conversion.",
     unavailable: "Flight search is temporarily unavailable.",
   };
 

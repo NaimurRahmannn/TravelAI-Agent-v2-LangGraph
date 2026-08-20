@@ -24,7 +24,7 @@ async def flight_recommendation_node(
     state: TravelState,
     config: RunnableConfig,
 ) -> dict[str, TripPlan | None]:
-    """Add optional budget-valid flight results without blocking the itinerary."""
+    """Add optional ranked flight results without blocking the itinerary."""
 
     del config
     started_at = perf_counter()

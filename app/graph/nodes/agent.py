@@ -102,6 +102,7 @@ def _build_trip_context_message(state: TravelState) -> SystemMessage:
     latest_preferences = _extract_latest_preferences(latest_user_message)
     trip_details = trip.model_dump_json() if trip is not None else "None"
     preference_instruction = _build_preference_instruction(latest_preferences)
+    authoritative_scope = _build_authoritative_scope_instruction(trip)
 
     return SystemMessage(
         content=(
@@ -112,16 +113,43 @@ def _build_trip_context_message(state: TravelState) -> SystemMessage:
             "previous answer unchanged. For preferences like temples, food, and "
             "nature, give concrete recommendations or itinerary adjustments for "
             "those interests. When no tool call is needed, return the complete "
-            "final itinerary directly. Include exactly one numbered section per "
-            "trip day with 1-3 concrete named activities, followed by an "
-            "estimated USD budget breakdown and brief practical notes supported "
-            "by the available research. Respect the traveler's stated budget and "
-            "clearly explain when it is insufficient. Do not describe the answer "
-            "as a draft or mention internal graph steps.\n\n"
+            "final itinerary directly. The current trip state is authoritative "
+            "and supersedes conflicting durations or dates in older conversation "
+            "messages. Include exactly one numbered section per authoritative "
+            "trip day with 1-3 concrete named activities. The budget breakdown is "
+            "a base trip estimate for local costs only. Include food, activities, "
+            "admission, local and intercity ground transportation, shopping, and "
+            "contingency. Never include airfare, flights, hotels, accommodation, "
+            "lodging, hostels, resorts, Airbnb, or room costs. Flight and "
+            "accommodation recommendations are separate systems. Do not claim "
+            "that the base estimate makes the complete trip affordable. Add brief "
+            "practical notes supported by the available research. Do not describe "
+            "the answer as a draft or mention internal graph steps.\n\n"
+            f"{authoritative_scope}"
             f"{preference_instruction}"
             f"Current trip state:\n{trip_details}\n\n"
             f"Latest user message:\n{latest_user_message}"
         )
+    )
+
+
+def _build_authoritative_scope_instruction(trip: object) -> str:
+    """State exact date-derived scope prominently when a complete trip exists."""
+
+    duration = getattr(trip, "duration", None)
+    start_date = getattr(trip, "start_date", None)
+    end_date = getattr(trip, "end_date", None)
+    if duration is None:
+        return ""
+    date_scope = (
+        f" from {start_date} through {end_date}"
+        if start_date is not None and end_date is not None
+        else ""
+    )
+    return (
+        f"Authoritative trip length: exactly {duration} days{date_scope}. "
+        f"Output exactly {duration} numbered day sections. Do not reuse an "
+        "earlier requested duration when it conflicts with these exact dates.\n\n"
     )
 
 
@@ -219,21 +247,13 @@ def _build_preference_instruction(preferences: list[str]) -> str:
 
 
 def _build_relevant_history(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Keep prior human messages plus the full tool exchange for the current turn."""
+    """Keep only the current turn; consolidated trip state owns prior facts."""
 
     last_human_index = _get_last_human_message_index(messages)
     if last_human_index == -1:
         return list(messages)
 
-    prior_human_messages = [
-        message
-        for message in messages[:last_human_index]
-        if isinstance(message, HumanMessage)
-    ]
-
-    current_turn_messages = messages[last_human_index:]
-
-    return [*prior_human_messages, *current_turn_messages]
+    return messages[last_human_index:]
 
 
 def _get_last_human_message_index(messages: list[BaseMessage]) -> int:

@@ -438,16 +438,16 @@ outages produce graceful unavailable legs without blocking itinerary delivery.
 Only typed distance and duration values are retained; provider responses and
 route geometry are not stored.
 
-### Budget-aware travel recommendations
+### Travel recommendations and base trip budget
 
 Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
-models, separate provider protocols, per-domain search statuses, and pure budget
-evaluation/ranking helpers. Phase 7.6C implements only the flight provider:
+models, separate provider protocols, per-domain search statuses, and deterministic
+ranking helpers. Phase 7.6C implements only the flight provider:
 
 ```text
 Flights     -> Swoop
-Hotels      -> LiteAPI
-Restaurants -> Geoapify
+Hotels      -> Not integrated
+Restaurants -> Not integrated
 ```
 
 The Geoapify airport resolver forward-geocodes each endpoint, searches a bounded
@@ -456,9 +456,9 @@ Details. Clean three-letter IATA input bypasses lookup. Selection prefers a
 same-country international airport that matches the requested city, followed by
 distance and stable IATA tie-breaks. Resolution is request-locally deduplicated.
 
-Swoop performs passenger-aware economy shopping with a US point of sale because
-TravelAI's deterministic budget model is USD-based. Fares and availability may
-differ by point of sale. A normal return trip uses one round-trip `search()`;
+Swoop performs passenger-aware economy shopping with a US point of sale. Fares
+and availability may differ by point of sale. A normal return trip uses one
+round-trip `search()`;
 an open-jaw trip such as Dhaka to Tokyo followed by Osaka to Dhaka uses one
 explicit multi-leg `search_legs()` call. Swoop's returned price is already the
 shopping total for the complete query and adult count, so TravelAI does not
@@ -476,16 +476,14 @@ not trusted to populate recommendation facts, prices, provider IDs, ratings,
 availability, or external URLs; generated recommendation data is cleared at the
 itinerary trust boundary.
 
-Projected totals deterministically separate the existing itinerary estimate
-into flight, hotel/accommodation, and other trip costs. A future real flight or
-hotel total replaces its matching estimate before total-budget validation; it
-is never added on top of that estimate. Combined flight-and-hotel feasibility
-is evaluated independently, non-USD prices remain unknown until a future
-trusted normalization step, and rejected provider payloads are not serialized
-as traveler-facing recommendations. Flight results remain visible even when
-their projected trip total exceeds the user budget; each result is labeled as
-within budget, over budget, or unverifiable. The project does not currently
-provide booking, order creation, or payment.
+The itinerary budget is a base trip estimate for food, activities, admission,
+local and intercity ground transport, shopping, and contingency. Flights and
+accommodation are deliberately excluded and remain separate recommendation and
+future selection systems. The user's USD budget is preserved as an overall
+target, but the UI does not claim that the base estimate or any flight result
+makes the complete trip affordable. Flight search results are never filtered or
+classified by that target. The project does not currently provide booking,
+order creation, or payment.
 
 ```text
 TripPlan
@@ -495,8 +493,8 @@ TripPlan
    -> SwoopFlightProvider
    -> Google Flights-derived shopping results
    -> FlightOption[]
-   -> Phase 7.5 budget evaluator
-   -> ranked FlightRecommendations with budget guidance
+   -> deterministic price/duration/stops ranking
+   -> top five FlightRecommendations
 ```
 
 Completed plans use the structured itinerary UI, including rich image cards,

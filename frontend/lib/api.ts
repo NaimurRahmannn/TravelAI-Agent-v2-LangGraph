@@ -119,14 +119,11 @@ export type RecommendationStatus =
   | "not_searched"
   | "available"
   | "no_results"
-  | "no_affordable_results"
-  | "budget_unverified"
   | "unavailable";
 
 export type RecommendationDomainState = {
   status: RecommendationStatus;
   provider_result_count: number;
-  affordable_result_count: number;
 };
 
 export type FlightOption = {
@@ -142,7 +139,6 @@ export type FlightOption = {
   price_type: "shopping_total";
   airline_names: string[];
   slices: FlightSlice[];
-  budget_evaluation?: BudgetEvaluation | null;
   fetched_at: string;
 };
 
@@ -176,17 +172,6 @@ export type FlightSlice = {
   stops: number;
   segments: FlightSegment[];
   layovers: FlightLayover[];
-};
-
-export type BudgetEvaluation = {
-  status: "within_budget" | "over_budget" | "unknown";
-  reason:
-    | "within_total_budget"
-    | "exceeds_total_budget"
-    | "missing_user_budget"
-    | "currency_mismatch";
-  projected_trip_total_usd?: number | null;
-  remaining_budget_usd?: number | null;
 };
 
 export type HotelOption = {

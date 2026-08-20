@@ -141,17 +141,16 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert plan.travelers == 2
     assert plan.preferences == ["culture"]
     assert plan.budget.user_budget_usd == 1000
-    assert plan.budget.international_travel_included is True
+    assert plan.budget.international_travel_included is False
+    assert all("flight" not in item.category.casefold() for item in plan.budget.items)
     assert any(
         item.category == "Contingency reserve"
         for item in plan.budget.items
     )
-    international_flights = next(
-        item
-        for item in plan.budget.items
-        if item.category == "International Flights"
+    assert any(
+        "Flights and accommodation are not included" in note
+        for note in plan.practical_notes
     )
-    assert "Travel class is not specified" in international_flights.note
     assert [day.estimated_daily_cost_usd for day in plan.days] == [100, 50]
     assert all(
         activity.location_hint
@@ -164,7 +163,8 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert "Visa on Arrival" not in visa_note
     assert "Research context" in captured["prompt"]
     assert "Traveler prefers vegetarian food" in captured["prompt"]
-    assert "Use Bangkok as the base" in captured["prompt"]
+    assert "Agent planning draft" not in captured["prompt"]
+    assert "output exactly `Trip.duration` numbered days" in captured["prompt"]
 
 
 def test_generator_overwrites_conflicting_llm_day_dates(monkeypatch):
@@ -270,13 +270,12 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
 
     assert categories["Activities and Tours"] == 150
     assert categories["Local Transportation"] == 30
-    assert "Contingency" not in categories
-    assert normalized.budget.estimated_total_usd == 1880
+    assert categories["Contingency"] == 100
+    assert "International Transportation" not in categories
+    assert "Accommodation" not in categories
+    assert normalized.budget.estimated_total_usd == 680
     assert normalized.budget.within_budget is True
-    assert not any(
-        "contingency" in note.casefold()
-        for note in normalized.practical_notes
-    )
+    assert normalized.budget.international_travel_included is False
     assert any(
         "Day 1 includes stops outside Bangkok" in note
         and "Floating Market" in note
@@ -284,6 +283,67 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
         and "not included in the estimate" in note
         for note in normalized.practical_notes
     )
+
+
+def test_base_budget_strips_room_costs_but_keeps_ground_transport_and_food():
+    plan = TripPlan(
+        title="Scoped plan",
+        origin="Dhaka",
+        destination="Thailand",
+        duration_days=1,
+        travelers=2,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Bangkok",
+                activities=[
+                    Activity(
+                        name="Hotel check-in",
+                        category="accommodation",
+                        estimated_cost_usd=300,
+                    ),
+                    Activity(
+                        name="Taxi from airport to hotel",
+                        category="transport",
+                        estimated_cost_usd=25,
+                    ),
+                    Activity(
+                        name="Hotel-area restaurant",
+                        category="food",
+                        estimated_cost_usd=40,
+                    ),
+                ],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[
+                BudgetItem(category="Round-trip airfare", amount_usd=700),
+                BudgetItem(category="Hotel rooms", amount_usd=300),
+                BudgetItem(category="Airport transfer", amount_usd=25),
+                BudgetItem(category="Taxi to hotel", amount_usd=10),
+                BudgetItem(category="Bus to hotel", amount_usd=5),
+                BudgetItem(category="Hotel-area restaurant", amount_usd=40),
+            ],
+            estimated_total_usd=0,
+            user_budget_usd=1000,
+        ),
+        practical_notes=[],
+    )
+
+    normalized = _normalize_plan_details(plan)
+    categories = {item.category: item.amount_usd for item in normalized.budget.items}
+
+    assert normalized.days[0].activities[0].estimated_cost_usd is None
+    assert normalized.days[0].activities[1].estimated_cost_usd == 25
+    assert normalized.days[0].activities[2].estimated_cost_usd == 40
+    assert "Round-trip airfare" not in categories
+    assert "Hotel rooms" not in categories
+    assert categories["Airport transfer"] == 25
+    assert categories["Taxi to hotel"] == 10
+    assert categories["Bus to hotel"] == 5
+    assert categories["Hotel-area restaurant"] == 40
+    assert normalized.budget.estimated_total_usd == 130
 
 
 def test_round_trip_transfer_must_include_a_price():
@@ -400,7 +460,6 @@ def test_generator_clears_llm_invented_commercial_recommendations():
         flight_status={
             "status": "available",
             "provider_result_count": 1,
-            "affordable_result_count": 1,
         },
     ).model_dump()
 

@@ -30,26 +30,6 @@ def render_itinerary(plan: TripPlan) -> str:
                 f"{'s' if option.adults != 1 else ''}: "
                 f"{_format_money(option.total_price, option.currency)}"
             )
-            evaluation = option.budget_evaluation
-            if evaluation and evaluation.projected_trip_total_usd is not None:
-                lines.append(
-                    "  - Projected trip total: "
-                    f"{_format_usd(evaluation.projected_trip_total_usd)}"
-                )
-            if evaluation and evaluation.status == "within_budget":
-                lines.append(
-                    "  - Within the traveler’s total trip budget."
-                )
-            elif evaluation and evaluation.status == "over_budget":
-                difference = evaluation.remaining_budget_usd
-                suffix = (
-                    f" by {_format_usd(abs(difference))}"
-                    if difference is not None
-                    else ""
-                )
-                lines.append(f"  - Exceeds the traveler’s trip budget{suffix}.")
-            elif evaluation and evaluation.status == "unknown":
-                lines.append("  - Budget fit could not be verified for this currency.")
         lines.extend(
             [
                 "",
@@ -93,7 +73,15 @@ def render_itinerary(plan: TripPlan) -> str:
                 f"{_format_usd(day.estimated_daily_cost_usd)}"
             )
 
-    lines.extend(["", "## Budget Breakdown", ""])
+    lines.extend(
+        [
+            "",
+            "## Base Trip Estimate",
+            "",
+            "Flights and accommodation are not included.",
+            "",
+        ]
+    )
     for item in plan.budget.items:
         budget_line = f"- {item.category}: {_format_usd(item.amount_usd)}"
         if item.note:
@@ -103,7 +91,7 @@ def render_itinerary(plan: TripPlan) -> str:
     lines.extend(
         [
             "",
-            f"**Estimated total:** {_format_usd(plan.budget.estimated_total_usd)}",
+            f"**Base trip estimate:** {_format_usd(plan.budget.estimated_total_usd)}",
         ]
     )
     if plan.budget.user_budget_usd is not None:
@@ -111,21 +99,10 @@ def render_itinerary(plan: TripPlan) -> str:
         lines.extend(
             [
                 "",
-                f"**Traveler budget (total for {plan.travelers} {traveler_label}):** "
+                f"**Overall target budget (total for {plan.travelers} {traveler_label}):** "
                 f"{_format_usd(plan.budget.user_budget_usd)}",
             ]
         )
-    if plan.budget.international_travel_included is not None:
-        travel_scope = (
-            "Included"
-            if plan.budget.international_travel_included
-            else "Not included"
-        )
-        lines.extend(["", f"**International travel:** {travel_scope}"])
-    if plan.budget.within_budget is not None:
-        status = "Within budget" if plan.budget.within_budget else "Over budget"
-        lines.extend(["", f"**Budget status:** {status}"])
-
     if plan.practical_notes:
         lines.extend(["", "## Practical Notes", ""])
         lines.extend(f"- {note}" for note in plan.practical_notes)

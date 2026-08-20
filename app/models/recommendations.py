@@ -16,29 +16,9 @@ RecommendationStatus = Literal[
     "not_searched",
     "available",
     "no_results",
-    "no_affordable_results",
-    "budget_unverified",
     "unavailable",
 ]
-BudgetEvaluationStatus = Literal["within_budget", "over_budget", "unknown"]
 FlightPriceType = Literal["shopping_total"]
-BudgetEvaluationReason = Literal[
-    "within_total_budget",
-    "exceeds_total_budget",
-    "missing_user_budget",
-    "currency_mismatch",
-]
-
-
-class BudgetEvaluation(BaseModel):
-    """Deterministic projected-total comparison result."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    status: BudgetEvaluationStatus
-    reason: BudgetEvaluationReason
-    projected_trip_total_usd: float | None = Field(default=None, ge=0)
-    remaining_budget_usd: float | None = None
 
 
 class _ProviderOption(BaseModel):
@@ -152,7 +132,6 @@ class FlightOption(_ProviderOption):
     price_type: FlightPriceType
     airline_names: list[str] = Field(default_factory=list)
     slices: list[FlightSlice] = Field(min_length=1)
-    budget_evaluation: BudgetEvaluation | None = None
     fetched_at: datetime
 
     @field_validator("origin_code", "destination_code", mode="before")
@@ -255,26 +234,16 @@ class RecommendationDomainState(BaseModel):
 
     status: RecommendationStatus = "not_searched"
     provider_result_count: int = Field(default=0, ge=0)
-    affordable_result_count: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_counts(self) -> "RecommendationDomainState":
-        if self.affordable_result_count > self.provider_result_count:
-            raise ValueError("Affordable count cannot exceed provider result count")
-        if self.status in {"not_searched", "no_results", "unavailable"} and (
-            self.provider_result_count != 0 or self.affordable_result_count != 0
+        if (
+            self.status in {"not_searched", "no_results", "unavailable"}
+            and self.provider_result_count != 0
         ):
             raise ValueError(f"{self.status} status cannot include result counts")
-        if self.status == "no_affordable_results" and (
-            self.provider_result_count == 0 or self.affordable_result_count != 0
-        ):
-            raise ValueError("No-affordable-results status requires rejected results")
-        if self.status == "available" and self.affordable_result_count == 0:
-            raise ValueError("Available status requires affordable results")
-        if self.status == "budget_unverified" and (
-            self.provider_result_count == 0 or self.affordable_result_count != 0
-        ):
-            raise ValueError("Budget-unverified status requires provider results")
+        if self.status == "available" and self.provider_result_count == 0:
+            raise ValueError("Available status requires provider results")
         return self
 
 
@@ -348,17 +317,6 @@ class RestaurantSearchRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     preferences: list[str] = Field(default_factory=list)
-
-
-class RecommendationBudgetContext(BaseModel):
-    """USD itinerary allocations used when projecting real provider prices."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    user_budget_usd: float | None = Field(default=None, ge=0)
-    estimated_flight_usd: float = Field(ge=0)
-    estimated_hotel_usd: float = Field(ge=0)
-    estimated_other_trip_cost_usd: float = Field(ge=0)
 
 
 def _normalize_currency(value: object) -> object:

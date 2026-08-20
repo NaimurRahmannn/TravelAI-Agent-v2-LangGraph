@@ -1,4 +1,4 @@
-import { BadgeCheck, CircleAlert, ReceiptText } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 import type { BudgetBreakdown } from "@/lib/api";
 import { formatUsd } from "./formatters";
 
@@ -18,9 +18,13 @@ export function BudgetSummary({ budget, idPrefix }: BudgetSummaryProps) {
         </span>
         <div>
           <p>Plan finances</p>
-          <h3 id={headingId}>Budget summary</h3>
+          <h3 id={headingId}>Base Trip Estimate</h3>
         </div>
       </header>
+
+      <p className="budgetScopeNote">
+        Flights and accommodation are not included.
+      </p>
 
       <dl className="budgetRows">
         {budget.items.map((item, index) => (
@@ -36,32 +40,16 @@ export function BudgetSummary({ budget, idPrefix }: BudgetSummaryProps) {
 
       <dl className="budgetTotals">
         <div>
-          <dt>Estimated total</dt>
+          <dt>Base trip estimate</dt>
           <dd>{formatUsd(budget.estimated_total_usd)}</dd>
         </div>
         {budget.user_budget_usd != null ? (
           <div>
-            <dt>Traveler budget</dt>
+            <dt>Overall target budget</dt>
             <dd>{formatUsd(budget.user_budget_usd)}</dd>
           </div>
         ) : null}
       </dl>
-
-      {budget.within_budget != null ? (
-        <p
-          className="budgetStatus"
-          data-status={budget.within_budget ? "within" : "over"}
-        >
-          {budget.within_budget ? (
-            <BadgeCheck aria-hidden="true" size={18} />
-          ) : (
-            <CircleAlert aria-hidden="true" size={18} />
-          )}
-          {budget.within_budget
-            ? "Estimated plan is within your budget."
-            : "Estimated plan exceeds the current budget."}
-        </p>
-      ) : null}
     </section>
   );
 }

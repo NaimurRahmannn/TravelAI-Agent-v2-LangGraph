@@ -157,8 +157,7 @@ def test_recommendation_status_rejects_inconsistent_counts():
     with pytest.raises(ValidationError):
         RecommendationDomainState(
             status="available",
-            provider_result_count=2,
-            affordable_result_count=0,
+            provider_result_count=0,
         )
 
 
