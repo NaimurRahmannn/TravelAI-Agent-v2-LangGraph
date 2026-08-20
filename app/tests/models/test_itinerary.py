@@ -112,6 +112,7 @@ def test_trip_plan_validation_preserves_target_and_recomputes_base_total():
         "Train to hotel",
         "Local transport",
         "Local transportation",
+        "International Transportation",
         "Train Tokyo to Kyoto",
         "Inter-city train",
         "Meals near hotel",
@@ -174,6 +175,64 @@ def test_lodging_activity_cost_is_cleared_but_taxi_cost_is_retained():
 
     assert hotel.estimated_cost_usd is None
     assert taxi.estimated_cost_usd == 25
+
+
+@pytest.mark.parametrize(
+    ("name", "category"),
+    [
+        ("Flight to Osaka", "flight"),
+        ("Domestic flight to Osaka", "transport"),
+        ("International flight", "transport"),
+        ("Flight from Tokyo to Sapporo", "logistics"),
+        ("Airfare", "expense"),
+        ("Air ticket", "expense"),
+        ("Air tickets", "expense"),
+        ("Flight ticket", "expense"),
+        ("Flight tickets", "expense"),
+        ("Airline ticket", "expense"),
+        ("Airline tickets", "expense"),
+        ("Travel to Osaka", "airfare"),
+        ("Travel to Osaka", "air travel"),
+        ("Travel to Osaka", "air_transport"),
+        ("Travel to Osaka", "air transportation"),
+    ],
+)
+def test_explicit_flight_ticket_activity_cost_is_cleared(name, category):
+    activity = Activity(
+        name=name,
+        category=category,
+        estimated_cost_usd=300,
+    )
+
+    assert activity.estimated_cost_usd is None
+
+
+@pytest.mark.parametrize(
+    ("name", "category", "cost"),
+    [
+        ("Airport transfer", "transport", 35),
+        ("Airport shuttle", "transportation", 20),
+        ("Taxi to airport", "transport", 25),
+        ("Taxi from airport", "transport", 25),
+        ("Bus from airport", "transport", 10),
+        ("Airport rail", "transport", 18),
+        ("Airport express train", "transport", 18),
+        ("Train Tokyo to Kyoto", "transportation", 80),
+        ("Local transportation", "transportation", 100),
+        ("Inter-city train", "transport", 80),
+        ("Taxi from airport to hotel", "transport", 25),
+        ("Bus to hotel", "transport", 10),
+        ("Train to hotel", "transportation", 20),
+    ],
+)
+def test_ground_transport_activity_cost_is_retained(name, category, cost):
+    activity = Activity(
+        name=name,
+        category=category,
+        estimated_cost_usd=cost,
+    )
+
+    assert activity.estimated_cost_usd == cost
 
 
 @pytest.mark.parametrize(

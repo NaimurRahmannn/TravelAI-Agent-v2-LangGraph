@@ -9,6 +9,7 @@ from app.graph.nodes.itinerary_generator import (
     _clear_untrusted_place_enrichment,
     _has_priced_round_trip_transfer,
     _normalize_plan_details,
+    _reconcile_activity_budget_categories,
 )
 from app.models import (
     Activity,
@@ -250,7 +251,7 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
         ],
         budget=BudgetBreakdown(
             items=[
-                BudgetItem(category="International Transportation", amount_usd=600),
+                BudgetItem(category="International Air Transportation", amount_usd=600),
                 BudgetItem(category="Accommodation", amount_usd=700),
                 BudgetItem(category="Food and Dining", amount_usd=400),
                 BudgetItem(category="Activities and Tours", amount_usd=50),
@@ -268,7 +269,7 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
     assert categories["Activities and Tours"] == 150
     assert categories["Local Transportation"] == 30
     assert categories["Contingency"] == 100
-    assert "International Transportation" not in categories
+    assert "International Air Transportation" not in categories
     assert "Accommodation" not in categories
     assert normalized.budget.estimated_total_usd == 680
     assert any(
@@ -339,6 +340,89 @@ def test_base_budget_strips_room_costs_but_keeps_ground_transport_and_food():
     assert categories["Bus to hotel"] == 5
     assert categories["Hotel-area restaurant"] == 40
     assert normalized.budget.estimated_total_usd == 130
+
+
+def test_reconciliation_defense_skips_partially_normalized_flight_cost():
+    plan_data = TripPlan(
+        title="Flight defense",
+        destination="Japan",
+        duration_days=1,
+        travelers=1,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Tokyo",
+                activities=[
+                    Activity(
+                        name="Domestic flight to Osaka",
+                        category="transport",
+                    )
+                ],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Food", amount_usd=100)],
+            estimated_total_usd=100,
+        ),
+        practical_notes=[],
+    ).model_dump()
+    plan_data["days"][0]["activities"][0]["estimated_cost_usd"] = 300
+
+    _reconcile_activity_budget_categories(plan_data)
+
+    assert [item["category"] for item in plan_data["budget"]["items"]] == ["Food"]
+    assert all(item["amount_usd"] != 300 for item in plan_data["budget"]["items"])
+
+
+def test_normalization_excludes_flight_and_hotel_but_reconciles_ground_train():
+    plan = TripPlan(
+        title="Japan transport",
+        destination="Japan",
+        duration_days=1,
+        travelers=1,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Tokyo",
+                activities=[
+                    Activity(
+                        name="Domestic flight to Osaka",
+                        category="transport",
+                        estimated_cost_usd=300,
+                    ),
+                    Activity(
+                        name="Train Tokyo to Kyoto",
+                        category="transport",
+                        estimated_cost_usd=80,
+                    ),
+                ],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[
+                BudgetItem(category="Food", amount_usd=300),
+                BudgetItem(category="Activities", amount_usd=200),
+                BudgetItem(category="Domestic flight", amount_usd=300),
+                BudgetItem(category="Hotel", amount_usd=500),
+            ],
+            estimated_total_usd=1300,
+        ),
+        practical_notes=[],
+    )
+
+    normalized = _normalize_plan_details(plan)
+    categories = {item.category: item.amount_usd for item in normalized.budget.items}
+
+    assert normalized.days[0].activities[0].estimated_cost_usd is None
+    assert normalized.days[0].activities[1].estimated_cost_usd == 80
+    assert categories == {
+        "Food": 300,
+        "Activities": 200,
+        "Local Transportation": 80,
+    }
+    assert normalized.budget.estimated_total_usd == 580
 
 
 def test_round_trip_transfer_must_include_a_price():

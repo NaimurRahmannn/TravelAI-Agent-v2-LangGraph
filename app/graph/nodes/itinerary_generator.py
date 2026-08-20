@@ -11,6 +11,7 @@ from app.graph.prompts.itinerary import itinerary_prompt
 from app.graph.state import TravelState
 from app.llm import get_gemini_llm
 from app.models import BudgetBreakdown, ItineraryDay, Trip, TripPlan
+from app.models.itinerary import _is_flight_ticket_activity
 from app.services.message_content import message_content_to_text
 from app.services.trip_dates import validate_and_derive_duration
 
@@ -328,6 +329,11 @@ def _reconcile_activity_budget_categories(plan_data: dict) -> None:
         for activity in day["activities"]:
             cost = activity.get("estimated_cost_usd")
             if cost is None:
+                continue
+            if _is_flight_ticket_activity(
+                activity.get("name", ""),
+                activity.get("category"),
+            ):
                 continue
             category = _activity_budget_category(activity)
             listed_costs[category] = listed_costs.get(category, 0.0) + cost

@@ -181,11 +181,11 @@ class Activity(BaseModel):
             self.place is None or self.place.resolution_status != "resolved"
         ):
             raise ValueError("An image requires a fully resolved provider-backed place")
-        if self.estimated_cost_usd is not None and _is_lodging_room_activity(
-            self.name,
-            self.category,
-        ):
-            self.estimated_cost_usd = None
+        if self.estimated_cost_usd is not None:
+            if _is_lodging_room_activity(self.name, self.category):
+                self.estimated_cost_usd = None
+            elif _is_flight_ticket_activity(self.name, self.category):
+                self.estimated_cost_usd = None
         return self
 
 
@@ -341,11 +341,35 @@ _LODGING_CORE_LABELS = {
     "resorts",
     "vacation rental",
 }
-_GROUND_AMBIGUOUS_AIR_LABELS = {
+_EXPLICIT_AIR_TRANSPORT_LABELS = {
+    "air transport",
+    "air transportation",
+    "air travel",
+    "domestic air transport",
+    "domestic air transportation",
+    "domestic air travel",
     "international air transport",
     "international air transportation",
-    "international transport",
-    "international transportation",
+    "international air travel",
+}
+_FLIGHT_ACTIVITY_CATEGORY_LABELS = {
+    "air fare",
+    "air ticket",
+    "air tickets",
+    "air transport",
+    "air transportation",
+    "air travel",
+    "airfare",
+    "airline ticket",
+    "airline tickets",
+    "domestic flight",
+    "domestic flights",
+    "flight",
+    "flight ticket",
+    "flight tickets",
+    "flights",
+    "international flight",
+    "international flights",
 }
 
 
@@ -363,7 +387,7 @@ def _is_excluded_base_budget_category(category: str) -> bool:
     """Match only controlled airfare and room-cost category labels."""
 
     normalized = _normalized_cost_label(category)
-    if normalized in _GROUND_AMBIGUOUS_AIR_LABELS:
+    if normalized in _EXPLICIT_AIR_TRANSPORT_LABELS:
         return True
     if _AIRFARE_LABEL.fullmatch(normalized):
         return True
@@ -393,6 +417,26 @@ def _is_lodging_room_activity(name: str, category: str) -> bool:
             r"stay at (?:the )?(?:hotel|hostel|resort|airbnb)|"
             r"overnight (?:accommodation|lodging)|"
             r"(?:hotel|hostel|resort|airbnb) (?:room|stay|lodging|accommodation)",
+            normalized_name,
+        )
+    )
+
+
+def _is_flight_ticket_activity(name: str, category: str | None) -> bool:
+    """Match explicit airfare activities without matching airport ground travel."""
+
+    normalized_category = _normalized_cost_label(category or "")
+    if normalized_category in _FLIGHT_ACTIVITY_CATEGORY_LABELS:
+        return True
+
+    normalized_name = _normalized_cost_label(name)
+    return bool(
+        re.fullmatch(
+            r"(?:domestic |international )?flight"
+            r"(?: (?:to .+|from .+(?: to .+)?))?|"
+            r"(?:airfare|air fare|air ticket|air tickets|flight ticket|"
+            r"flight tickets|airline ticket|airline tickets)"
+            r"(?: (?:to .+|from .+(?: to .+)?))?",
             normalized_name,
         )
     )
