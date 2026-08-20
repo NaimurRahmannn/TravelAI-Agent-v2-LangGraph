@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.recommendations import TravelRecommendations
+
 PlaceResolutionStatus = Literal[
     "resolved",
     "partially_resolved",
@@ -271,4 +273,5 @@ class TripPlan(BaseModel):
     preferences: list[str]
     days: list[ItineraryDay] = Field(min_length=1)
     budget: BudgetBreakdown
+    recommendations: TravelRecommendations | None = None
     practical_notes: list[str]

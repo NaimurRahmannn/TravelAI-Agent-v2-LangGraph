@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableLambda
 
 from app.graph.nodes import itinerary_generator
 from app.graph.nodes.itinerary_generator import (
+    ItineraryGenerationOutput,
     _clear_untrusted_place_enrichment,
     _has_priced_round_trip_transfer,
     _normalize_plan_details,
@@ -14,11 +15,13 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     DailyWeather,
+    FlightOption,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
     Trip,
     TripPlan,
+    TravelRecommendations,
 )
 
 
@@ -104,7 +107,10 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
             captured["schema"] = schema
             captured["method"] = method
             return RunnableLambda(
-                lambda prompt: captured.update({"prompt": prompt.to_string()}) or _plan()
+                lambda prompt: captured.update({"prompt": prompt.to_string()})
+                or ItineraryGenerationOutput.model_validate(
+                    _plan().model_dump(exclude={"recommendations"})
+                )
             )
 
     monkeypatch.setattr(
@@ -117,7 +123,10 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     plan = result["itinerary"]
 
     assert isinstance(plan, TripPlan)
-    assert captured["schema"] is TripPlan
+    assert captured["schema"] is ItineraryGenerationOutput
+    assert "recommendations" not in captured["schema"].model_json_schema()[
+        "properties"
+    ]
     assert captured["method"] == "json_schema"
     assert plan.origin == "Dhaka"
     assert plan.destination == "Thailand"
@@ -343,3 +352,34 @@ def test_generator_clears_llm_invented_place_enrichment():
     assert activity.image is None
     assert sanitized.days[0].weather is None
     assert sanitized.days[0].weather_status == "skipped"
+
+
+def test_generator_clears_llm_invented_commercial_recommendations():
+    plan_data = _plan().model_dump()
+    plan_data["recommendations"] = TravelRecommendations(
+        flights=[
+            FlightOption(
+                provider="invented-provider",
+                provider_offer_id="fake-offer",
+                origin_code="DAC",
+                destination_code="BKK",
+                departure_at=datetime(2026, 9, 10, 2, tzinfo=timezone.utc),
+                arrival_at=datetime(2026, 9, 10, 6, tzinfo=timezone.utc),
+                total_duration_minutes=240,
+                stops=0,
+                total_price=1,
+                currency="USD",
+                external_url="https://fake.example/book",
+                fetched_at=datetime.now(timezone.utc),
+            )
+        ],
+        flight_status={
+            "status": "available",
+            "provider_result_count": 1,
+            "affordable_result_count": 1,
+        },
+    ).model_dump()
+
+    sanitized = _clear_untrusted_place_enrichment(TripPlan.model_validate(plan_data))
+
+    assert sanitized.recommendations is None

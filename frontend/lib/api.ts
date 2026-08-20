@@ -115,6 +115,78 @@ export type BudgetBreakdown = {
   international_travel_included?: boolean | null;
 };
 
+export type RecommendationStatus =
+  | "not_searched"
+  | "available"
+  | "no_results"
+  | "no_affordable_results"
+  | "unavailable";
+
+export type RecommendationDomainState = {
+  status: RecommendationStatus;
+  provider_result_count: number;
+  affordable_result_count: number;
+};
+
+export type FlightOption = {
+  provider: string;
+  provider_offer_id: string;
+  origin_code: string;
+  destination_code: string;
+  departure_at: string;
+  arrival_at: string;
+  total_duration_minutes: number;
+  stops: number;
+  total_price: number;
+  currency: string;
+  external_url?: string | null;
+  fetched_at: string;
+};
+
+export type HotelOption = {
+  provider: string;
+  provider_hotel_id: string;
+  name: string;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  total_price: number;
+  currency: string;
+  price_per_night?: number | null;
+  rating?: number | null;
+  review_count?: number | null;
+  image_url?: string | null;
+  external_url?: string | null;
+  fetched_at: string;
+};
+
+export type RestaurantRecommendation = {
+  provider: string;
+  provider_place_id: string;
+  name: string;
+  formatted_address?: string | null;
+  latitude: number;
+  longitude: number;
+  categories: string[];
+  cuisine: string[];
+  distance_meters?: number | null;
+  price_level?: string | null;
+  external_url?: string | null;
+};
+
+export type TravelRecommendations = {
+  flights: FlightOption[];
+  hotels: HotelOption[];
+  restaurants: RestaurantRecommendation[];
+  flight_status: RecommendationDomainState;
+  hotel_status: RecommendationDomainState;
+  restaurant_status: RecommendationDomainState;
+};
+
 export type TripPlan = {
   title: string;
   origin?: string | null;
@@ -127,6 +199,7 @@ export type TripPlan = {
   preferences: string[];
   days: ItineraryDay[];
   budget: BudgetBreakdown;
+  recommendations?: TravelRecommendations | null;
   practical_notes: string[];
 };
 

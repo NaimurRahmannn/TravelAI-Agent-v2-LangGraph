@@ -1,18 +1,38 @@
-from datetime import timedelta
+from datetime import date as CalendarDate, timedelta
 from time import perf_counter
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.logging import get_logger
 from app.graph.prompts.itinerary import itinerary_prompt
 from app.graph.state import TravelState
 from app.llm import get_gemini_llm
-from app.models import Trip, TripPlan
+from app.models import BudgetBreakdown, ItineraryDay, Trip, TripPlan
 from app.services.message_content import message_content_to_text
 from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
+
+
+class ItineraryGenerationOutput(BaseModel):
+    """LLM-owned itinerary fields, excluding all commercial recommendations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    origin: str | None = None
+    destination: str = Field(min_length=1)
+    start_date: CalendarDate | None = None
+    end_date: CalendarDate | None = None
+    duration_days: int = Field(ge=1)
+    travelers: int = Field(ge=1)
+    summary: str | None = None
+    preferences: list[str]
+    days: list[ItineraryDay] = Field(min_length=1)
+    budget: BudgetBreakdown
+    practical_notes: list[str]
 
 
 def itinerary_generator_node(
@@ -32,7 +52,7 @@ def itinerary_generator_node(
     try:
         complete_trip = _require_complete_trip(trip)
         structured_llm = get_gemini_llm().with_structured_output(
-            TripPlan,
+            ItineraryGenerationOutput,
             method="json_schema",
         )
         chain = itinerary_prompt | structured_llm
@@ -107,6 +127,8 @@ def _coerce_trip_plan(raw_plan: object) -> TripPlan:
 
     if isinstance(raw_plan, TripPlan):
         return raw_plan
+    if isinstance(raw_plan, ItineraryGenerationOutput):
+        return TripPlan.model_validate(raw_plan.model_dump())
     return TripPlan.model_validate(raw_plan)
 
 
@@ -114,6 +136,7 @@ def _clear_untrusted_place_enrichment(plan: TripPlan) -> TripPlan:
     """Remove provider metadata that may have been invented by the LLM."""
 
     plan_data = plan.model_dump()
+    plan_data["recommendations"] = None
     for day in plan_data["days"]:
         day["weather"] = None
         day["weather_status"] = "skipped"

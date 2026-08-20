@@ -47,6 +47,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
+- Provider-neutral, budget-aware travel recommendation foundation
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -431,6 +432,32 @@ outages produce graceful unavailable legs without blocking itinerary delivery.
 Only typed distance and duration values are retained; provider responses and
 route geometry are not stored.
 
+### Budget-aware travel recommendation foundation
+
+Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
+models, separate provider protocols, per-domain search statuses, and pure budget
+evaluation/ranking helpers. The intended future providers are:
+
+```text
+Flights     -> Duffel
+Hotels      -> LiteAPI
+Restaurants -> Geoapify
+```
+
+Those provider integrations, searches, booking actions, recommendation graph
+nodes, and recommendation cards are not implemented in Phase 7.5. The LLM is
+not trusted to populate recommendation facts, prices, provider IDs, ratings,
+availability, or external URLs; generated recommendation data is cleared at the
+itinerary trust boundary.
+
+Projected totals deterministically separate the existing itinerary estimate
+into flight, hotel/accommodation, and other trip costs. A future real flight or
+hotel total replaces its matching estimate before total-budget validation; it
+is never added on top of that estimate. Combined flight-and-hotel feasibility
+is evaluated independently, non-USD prices remain unknown until a future
+trusted normalization step, and rejected provider payloads are not serialized
+as traveler-facing recommendations.
+
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
 visibility, practical notes, readable Wikimedia attribution, and a lazily loaded
@@ -531,5 +558,6 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
+- Flight, hotel, and restaurant provider integrations are not implemented; Phase 7.5 contains only provider-neutral models and deterministic budget helpers.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

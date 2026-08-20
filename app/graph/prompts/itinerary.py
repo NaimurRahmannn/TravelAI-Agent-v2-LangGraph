@@ -72,6 +72,9 @@ Rules:
   provider enrichment step owns date-specific forecast fields after generation.
 - Always leave travel_legs empty. A separate trusted provider enrichment step
   owns route distances and durations after place resolution.
+- Do not generate commercial recommendations, flight or hotel prices, provider
+  IDs, ratings, availability, external URLs, or restaurant search results.
+  Future trusted provider enrichment owns all recommendation data.
 - Do not mention prompts, models, LangGraph, graph nodes, internal state, or
   research workers.
 """,
