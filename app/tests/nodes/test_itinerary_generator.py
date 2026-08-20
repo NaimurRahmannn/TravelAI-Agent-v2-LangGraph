@@ -70,7 +70,6 @@ def _plan() -> TripPlan:
             ],
             estimated_total_usd=800,
             user_budget_usd=9999,
-            international_travel_included=True,
         ),
         practical_notes=[
             "Visa: Travelers from Bangladesh may use eVisa or Visa on Arrival."
@@ -141,7 +140,6 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert plan.travelers == 2
     assert plan.preferences == ["culture"]
     assert plan.budget.user_budget_usd == 1000
-    assert plan.budget.international_travel_included is False
     assert all("flight" not in item.category.casefold() for item in plan.budget.items)
     assert any(
         item.category == "Contingency reserve"
@@ -260,7 +258,6 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
             ],
             estimated_total_usd=1850,
             user_budget_usd=1950,
-            international_travel_included=True,
         ),
         practical_notes=["The budget includes a contingency for incidental expenses."],
     )
@@ -274,8 +271,6 @@ def test_normalization_reconciles_categories_and_flags_cross_city_logistics():
     assert "International Transportation" not in categories
     assert "Accommodation" not in categories
     assert normalized.budget.estimated_total_usd == 680
-    assert normalized.budget.within_budget is True
-    assert normalized.budget.international_travel_included is False
     assert any(
         "Day 1 includes stops outside Bangkok" in note
         and "Floating Market" in note

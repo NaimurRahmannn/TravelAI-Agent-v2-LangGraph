@@ -1,3 +1,4 @@
+import re
 from datetime import date as CalendarDate, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -166,8 +167,8 @@ class Activity(BaseModel):
     image: PlaceImage | None = None
 
     @model_validator(mode="after")
-    def validate_place_status(self) -> "Activity":
-        """Keep the activity status consistent with its resolved place."""
+    def normalize_trusted_fields(self) -> "Activity":
+        """Keep provider state consistent and remove explicit room charges."""
 
         if self.place is None and self.place_resolution_status != "unresolved":
             raise ValueError("A resolved status requires provider-backed place data")
@@ -180,6 +181,11 @@ class Activity(BaseModel):
             self.place is None or self.place.resolution_status != "resolved"
         ):
             raise ValueError("An image requires a fully resolved provider-backed place")
+        if self.estimated_cost_usd is not None and _is_lodging_room_activity(
+            self.name,
+            self.category,
+        ):
+            self.estimated_cost_usd = None
         return self
 
 
@@ -230,35 +236,53 @@ class BudgetItem(BaseModel):
 
 
 class BudgetBreakdown(BaseModel):
-    """Structured budget whose total and status are normalized deterministically."""
+    """Authoritative base-trip estimate, excluding airfare and lodging rooms."""
 
     model_config = ConfigDict(extra="forbid")
 
     items: list[BudgetItem] = Field(min_length=1)
     estimated_total_usd: float = Field(ge=0)
     user_budget_usd: float | None = Field(default=None, ge=0)
-    within_budget: bool | None = None
-    international_travel_included: bool | None = Field(
-        default=None,
-        description="Whether travel between the origin and destination is included",
-    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_excluded_costs(cls, value: object) -> object:
+        """Enforce the base-budget scope before accepting any generated data."""
+
+        if not isinstance(value, dict):
+            return value
+        normalized = dict(value)
+        raw_items = normalized.get("items")
+        if not isinstance(raw_items, list):
+            return normalized
+
+        included_items = [
+            item for item in raw_items if not _is_excluded_budget_item(item)
+        ]
+        if not included_items:
+            included_items = [
+                {
+                    "category": "Local trip costs",
+                    "amount_usd": 0,
+                    "note": "No local cost estimate was available for this plan.",
+                }
+            ]
+        normalized["items"] = included_items
+        return normalized
 
     @model_validator(mode="after")
-    def calculate_total_and_status(self) -> "BudgetBreakdown":
-        """Replace model-provided arithmetic with deterministic values."""
+    def calculate_total(self) -> "BudgetBreakdown":
+        """Replace model-provided arithmetic with the surviving item total."""
 
-        total = round(sum(item.amount_usd for item in self.items), 2)
-        self.estimated_total_usd = total
-        self.within_budget = (
-            total <= self.user_budget_usd
-            if self.user_budget_usd is not None
-            else None
+        self.estimated_total_usd = round(
+            sum(item.amount_usd for item in self.items),
+            2,
         )
         return self
 
 
 class TripPlan(BaseModel):
-    """Authoritative structured representation of a generated itinerary."""
+    """Itinerary whose budget is the authoritative trip-local base estimate."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -275,3 +299,100 @@ class TripPlan(BaseModel):
     budget: BudgetBreakdown
     recommendations: TravelRecommendations | None = None
     practical_notes: list[str]
+
+
+def _normalized_cost_label(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", value.casefold()).split())
+
+
+_AIRFARE_LABEL = re.compile(
+    r"(?:(?:international|domestic|round trip|return|one way) )*"
+    r"(?:flight|flights|airfare|air fare|air ticket|air tickets|"
+    r"airline ticket|airline tickets|flight ticket|flight tickets)"
+    r"(?: (?:cost|costs|fare|fares))?"
+    r"(?: for \d+ (?:adult|adults|traveler|travelers|passenger|passengers))?"
+)
+_LODGING_CORE_LABELS = {
+    "accommodation",
+    "accommodations",
+    "airbnb",
+    "hotel",
+    "hotel accommodation",
+    "hotel lodging",
+    "hotel room",
+    "hotel rooms",
+    "hotel stay",
+    "hotels",
+    "hostel",
+    "hostel accommodation",
+    "hostel lodging",
+    "hostel room",
+    "hostel rooms",
+    "hostel stay",
+    "hostels",
+    "lodging",
+    "rental accommodation",
+    "resort",
+    "resort accommodation",
+    "resort lodging",
+    "resort room",
+    "resort rooms",
+    "resort stay",
+    "resorts",
+    "vacation rental",
+}
+_GROUND_AMBIGUOUS_AIR_LABELS = {
+    "international air transport",
+    "international air transportation",
+    "international transport",
+    "international transportation",
+}
+
+
+def _is_excluded_budget_item(item: object) -> bool:
+    if isinstance(item, BudgetItem):
+        category = item.category
+    elif isinstance(item, dict):
+        category = item.get("category")
+    else:
+        return False
+    return isinstance(category, str) and _is_excluded_base_budget_category(category)
+
+
+def _is_excluded_base_budget_category(category: str) -> bool:
+    """Match only controlled airfare and room-cost category labels."""
+
+    normalized = _normalized_cost_label(category)
+    if normalized in _GROUND_AMBIGUOUS_AIR_LABELS:
+        return True
+    if _AIRFARE_LABEL.fullmatch(normalized):
+        return True
+
+    without_prefix = re.sub(r"^(?:estimated|total) ", "", normalized)
+    without_nights = re.sub(r" (?:for )?\d+ nights?$", "", without_prefix)
+    without_suffix = re.sub(
+        r" (?:rate|rates|cost|costs|expense|expenses)$",
+        "",
+        without_nights,
+    )
+    return without_suffix in _LODGING_CORE_LABELS
+
+
+def _is_lodging_room_activity(name: str, category: str) -> bool:
+    """Classify explicit room/stay logistics without matching nearby expenses."""
+
+    normalized_category = _normalized_cost_label(category)
+    if normalized_category in _LODGING_CORE_LABELS:
+        return True
+
+    normalized_name = _normalized_cost_label(name)
+    return bool(
+        re.fullmatch(
+            r"(?:hotel|hostel|resort|airbnb) check in|"
+            r"check in (?:at|to) (?:the )?(?:hotel|hostel|resort|airbnb)|"
+            r"stay at (?:the )?(?:hotel|hostel|resort|airbnb)|"
+            r"overnight (?:accommodation|lodging)|"
+            r"(?:hotel|hostel|resort|airbnb) (?:room|stay|lodging|accommodation)",
+            normalized_name,
+        )
+    )

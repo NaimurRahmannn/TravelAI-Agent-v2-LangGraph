@@ -5,7 +5,7 @@ from app.services.recommendations.base import (
     HotelProvider,
     RestaurantProvider,
 )
-from app.services.recommendations.budget import (
+from app.services.recommendations.ranking import (
     build_recommendation_status,
     rank_flights,
     rank_hotels,

@@ -111,8 +111,6 @@ export type BudgetBreakdown = {
   items: BudgetItem[];
   estimated_total_usd: number;
   user_budget_usd?: number | null;
-  within_budget?: boolean | null;
-  international_travel_included?: boolean | null;
 };
 
 export type RecommendationStatus =

@@ -47,8 +47,8 @@ The repository contains both the Python API and a browser client for chat, threa
 - Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
-- Provider-neutral, budget-aware travel recommendation foundation
-- Budget-aware Swoop flight shopping using exact selected trip dates
+- Provider-neutral travel recommendation foundation with independent search statuses
+- Automatic Swoop flight shopping using exact selected trip dates
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -485,16 +485,40 @@ makes the complete trip affordable. Flight search results are never filtered or
 classified by that target. The project does not currently provide booking,
 order creation, or payment.
 
+Every structured budget crosses a deterministic validation boundary: controlled
+airfare and room-cost categories are removed, explicit lodging-stay activity
+charges are cleared, and the base total is recomputed from the surviving items.
+Airport transfers, ground travel to hotels, and meals near hotels remain valid
+base costs.
+
 ```text
 TripPlan
-   -> FlightSearchRequest
+|-- Itinerary Days
+|-- Base Trip Estimate
+|   `-- excludes airfare and accommodation
+`-- TravelRecommendations
+    `-- Flight Recommendations
+        `-- Swoop
+```
+
+Flight recommendations are generated automatically and displayed with the
+itinerary using current Swoop shopping data. They are ranked deterministically
+by price, duration, stops, and stable provider ID; they are not filtered by the
+traveler's target and are not included in the base estimate.
+
+Hotel recommendations, flight/hotel selection, and the calculation that will
+add selected flight and hotel prices to the base estimate are future behavior
+and are not implemented yet.
+
+```text
+FlightSearchRequest
    -> Geoapify airport resolver
    -> trusted IATA codes
    -> SwoopFlightProvider
    -> Google Flights-derived shopping results
    -> FlightOption[]
    -> deterministic price/duration/stops ranking
-   -> top five FlightRecommendations
+   -> top five Flight Recommendations
 ```
 
 Completed plans use the structured itinerary UI, including rich image cards,

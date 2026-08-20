@@ -27,30 +27,27 @@ Rules:
 - Respect all stated traveler preferences and constraints.
 - Preserve the stated budget as the traveler's overall target for all travelers,
   not as a spending target and not as a per-person amount unless explicitly
-  stated. The structured budget in this itinerary is only the base trip/local
-  estimate; it is not a complete-trip affordability calculation.
-- Budget values are estimates in USD. Include food, activities, admission fees,
-  local transportation, airport ground transfers, local or intercity ground
-  trains and buses, shopping, and contingency. Exclude all international and
-  domestic airfare, flight tickets, hotels, accommodation, lodging, hostels,
-  resorts, Airbnb, and other room costs. Flight and accommodation recommendations
-  are separate trusted systems and must never be allocated inside this budget.
+  stated. The structured budget is not a complete-trip affordability calculation.
+- The base trip budget covers trip-local expenses only. Exclude all
+  airfare/flight-ticket costs and all hotel/accommodation/lodging room costs.
+  These are handled separately by recommendation and selection systems.
+- Budget values are estimates in USD. Appropriate base-budget categories include
+  food, activities, admission fees, local transportation, airport ground
+  transfers, local or intercity ground trains and buses, shopping, and
+  contingency.
 - Estimate reasonable costs for the actual plan; never inflate dining, shopping,
   local transportation, or experiences merely to make the base estimate equal
   the traveler's overall target. It is normal and desirable to leave part of a
   generous target unallocated. Include a 5-10% contingency category when the
-  budget is sufficient. Set within_budget by comparing only this base estimate
-  with the preserved overall target.
+  budget is sufficient.
 - Every priced local activity must be covered by the matching budget category.
   Food, shopping, local transfers, and activities must not be hidden
   inside an unrelated category. Include a distinct local transportation item
   whenever the itinerary uses airport transfers, private cars, trains, taxis,
   or travel between cities. Budget category amounts may exceed their listed
   activity costs because they can also include unlisted daily allowances.
-- Always set international_travel_included to false because airfare is outside
-  the base trip estimate. State in practical notes that flights and accommodation
-  are excluded and handled separately. Do not generate any flight-class or room
-  price assumption.
+- State in practical notes that flights and accommodation are excluded and
+  handled separately. Do not generate any flight-class or room-price assumption.
 - Account for arrival from the stated origin and the return journey. Day 1 and
   the final day should contain clear arrival/departure logistics when relevant.
 - When a day visits a city or region different from its day heading, explicitly

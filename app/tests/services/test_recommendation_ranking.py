@@ -1,11 +1,6 @@
 from datetime import UTC, date, datetime, timedelta
 
-from app.models import (
-    FlightOption,
-    FlightSegment,
-    FlightSlice,
-    HotelOption,
-)
+from app.models import FlightOption, FlightSegment, FlightSlice, HotelOption
 from app.services.recommendations import (
     build_recommendation_status,
     rank_flights,
@@ -100,7 +95,7 @@ def test_ranking_is_deterministic_with_stable_tie_breakers():
     ]
 
 
-def test_status_distinguishes_search_outcomes_without_budget_evaluation():
+def test_status_distinguishes_all_search_outcomes():
     assert build_recommendation_status(searched=False).status == "not_searched"
     assert build_recommendation_status(provider_available=False).status == "unavailable"
     assert build_recommendation_status(provider_result_count=0).status == "no_results"

@@ -145,20 +145,24 @@ def test_search_request_uses_first_last_cities_selected_dates_and_adults():
 def test_results_are_ranked_and_available_regardless_of_user_budget():
     provider = Provider(
         [
-            _flight("lower", 800),
-            _flight("higher", 5000),
+            _flight("middle", 800),
+            _flight("over-target", 1200),
+            _flight("lowest", 500),
         ]
     )
 
-    enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
+    enriched = asyncio.run(
+        enrich_flight_recommendations(_plan(user_budget=1000), provider)
+    )
 
     assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
-        "lower",
-        "higher",
+        "lowest",
+        "middle",
+        "over-target",
     ]
     assert "budget_evaluation" not in enriched.recommendations.flights[0].model_dump()
     assert enriched.recommendations.flight_status.status == "available"
-    assert enriched.recommendations.flight_status.provider_result_count == 2
+    assert enriched.recommendations.flight_status.provider_result_count == 3
 
 
 def test_expensive_options_still_have_available_status():

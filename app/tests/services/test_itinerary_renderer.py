@@ -45,7 +45,6 @@ def test_renderer_outputs_structured_plan_deterministically():
             ],
             estimated_total_usd=0,
             user_budget_usd=200,
-            international_travel_included=False,
         ),
         practical_notes=["Carry some Thai baht."],
     )

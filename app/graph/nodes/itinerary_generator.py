@@ -186,12 +186,10 @@ def _normalize_plan_details(plan: TripPlan) -> TripPlan:
 
     plan_data = plan.model_dump()
     _fill_location_hints(plan_data)
-    _clear_lodging_activity_costs(plan_data)
-    _normalize_base_trip_budget_scope(plan_data)
+    _normalize_base_trip_budget_note(plan_data)
     _normalize_visa_guidance(plan_data)
     _reconcile_activity_budget_categories(plan_data)
     _ensure_contingency_reserve(plan_data)
-    _ensure_base_budget_has_item(plan_data)
     _normalize_contingency_guidance(plan_data)
     _add_cross_city_logistics_notes(plan_data)
     normalized = TripPlan.model_validate(plan_data)
@@ -210,16 +208,8 @@ def _fill_location_hints(plan_data: dict) -> None:
                 )
 
 
-def _normalize_base_trip_budget_scope(plan_data: dict) -> None:
-    """Strip airfare and room costs from the deterministic base-trip estimate."""
-
-    budget = plan_data["budget"]
-    budget["items"] = [
-        item
-        for item in budget["items"]
-        if not _is_excluded_base_budget_category(item["category"])
-    ]
-    budget["international_travel_included"] = False
+def _normalize_base_trip_budget_note(plan_data: dict) -> None:
+    """Keep traveler-facing notes aligned with the model-level budget scope."""
 
     plan_data["practical_notes"][:] = [
         item
@@ -248,66 +238,6 @@ def _is_obsolete_cost_scope_note(note: str) -> bool:
     mentions_estimate = "budget" in normalized or "estimate" in normalized
     mentions_scope = "included" in normalized or "excluded" in normalized
     return mentions_excluded_cost and mentions_estimate and mentions_scope
-
-
-def _is_excluded_base_budget_category(category: str) -> bool:
-    """Identify explicit airfare and lodging labels without broad substrings."""
-
-    normalized = " ".join(
-        re.sub(r"[^a-z0-9]+", " ", category.casefold()).split()
-    )
-    if re.search(
-        r"\b(?:flight|flights|airfare|air fare|air ticket|air tickets|"
-        r"airline ticket|airline tickets)\b",
-        normalized,
-    ):
-        return True
-    if normalized in {"international transport", "international transportation"}:
-        return True
-    return bool(
-        re.fullmatch(
-            r"(?:hotel|hotels|hostel|hostels|resort|resorts|accommodation|"
-            r"accommodations|lodging|airbnb|vacation rental|rental lodging|"
-            r"hotel accommodation|hostel accommodation|resort accommodation)"
-            r"(?: (?:room|rooms|stay|stays|rate|rates|cost|costs|"
-            r"accommodation|lodging))?(?: (?:for )?\d+ nights?)?",
-            normalized,
-        )
-    )
-
-
-def _clear_lodging_activity_costs(plan_data: dict) -> None:
-    """Keep lodging itinerary events while removing room-price estimates."""
-
-    for day in plan_data["days"]:
-        for activity in day["activities"]:
-            if _is_lodging_stay_activity(activity):
-                activity["estimated_cost_usd"] = None
-
-
-def _is_lodging_stay_activity(activity: dict) -> bool:
-    category = " ".join(
-        re.sub(r"[^a-z0-9]+", " ", activity.get("category", "").casefold()).split()
-    )
-    name = " ".join(
-        re.sub(r"[^a-z0-9]+", " ", activity.get("name", "").casefold()).split()
-    )
-    if re.search(r"\bcheck in\b", name) and re.search(
-        r"\b(?:hotel|hostel|resort|airbnb|accommodation|lodging)\b", name
-    ):
-        return True
-    if category in {
-        "accommodation",
-        "hotel",
-        "hotel stay",
-        "hostel",
-        "lodging",
-        "resort stay",
-    }:
-        return True
-    if re.search(r"\b(?:hotel|hostel|resort|airbnb) (?:room|stay|lodging)\b", name):
-        return True
-    return False
 
 
 def _normalize_visa_guidance(plan_data: dict) -> None:
@@ -371,20 +301,6 @@ def _is_contingency_category(category: str) -> bool:
 
     reserve_terms = ("contingency", "emergency", "reserve")
     return any(term in category.casefold() for term in reserve_terms)
-
-
-def _ensure_base_budget_has_item(plan_data: dict) -> None:
-    """Keep the structured budget valid when every generated item was excluded."""
-
-    if plan_data["budget"]["items"]:
-        return
-    plan_data["budget"]["items"].append(
-        {
-            "category": "Local trip costs",
-            "amount_usd": 0,
-            "note": "No local cost estimate was available for this plan.",
-        }
-    )
 
 
 def _normalize_contingency_guidance(plan_data: dict) -> None:
