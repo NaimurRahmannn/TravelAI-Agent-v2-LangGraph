@@ -5,6 +5,8 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     FlightOption,
+    FlightSegment,
+    FlightSlice,
     HotelOption,
     ItineraryDay,
     RecommendationBudgetContext,
@@ -70,17 +72,40 @@ def _flight(
     duration: int = 240,
     stops: int = 0,
 ) -> FlightOption:
+    departure = datetime(2026, 9, 10, 2, tzinfo=UTC)
+    arrival = departure.replace(hour=6)
     return FlightOption(
-        provider="future-flight-provider",
+        provider="swoop",
         provider_offer_id=offer_id,
         origin_code="DAC",
         destination_code="BKK",
-        departure_at=datetime(2026, 9, 10, 2, tzinfo=UTC),
-        arrival_at=datetime(2026, 9, 10, 8, tzinfo=UTC),
+        adults=2,
         total_duration_minutes=duration,
         stops=stops,
         total_price=price,
         currency=currency,
+        price_type="shopping_total",
+        airline_names=["Example Airways"],
+        slices=[
+            FlightSlice(
+                origin_code="DAC",
+                destination_code="BKK",
+                departure_at=departure,
+                arrival_at=arrival,
+                duration_minutes=duration,
+                stops=stops,
+                segments=[
+                    FlightSegment(
+                        origin_code="DAC",
+                        destination_code="BKK",
+                        departure_at=departure,
+                        arrival_at=arrival,
+                        duration_minutes=duration,
+                        airline_name="Example Airways",
+                    )
+                ],
+            )
+        ],
         fetched_at=FETCHED_AT,
     )
 
@@ -125,6 +150,22 @@ def test_real_flight_and_hotel_replace_estimates_without_double_counting():
     assert hotel_result.projected_trip_total_usd == 1350
     assert flight_result.status == "within_budget"
     assert hotel_result.status == "within_budget"
+
+
+def test_swoop_shopping_total_replaces_existing_airfare_estimate_once():
+    context = derive_recommendation_budget_context(
+        _plan(
+            flight_estimate=800,
+            hotel_estimate=500,
+            other_estimate=600,
+            user_budget=2000,
+        )
+    )
+
+    result = evaluate_flight_option(context, _flight(price=714))
+
+    assert result.projected_trip_total_usd == 1814
+    assert result.status == "within_budget"
 
 
 def test_individual_flight_and_hotel_over_total_budget_are_rejected():

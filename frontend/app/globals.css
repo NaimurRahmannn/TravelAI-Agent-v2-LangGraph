@@ -1132,64 +1132,63 @@ textarea:disabled {
 }
 
 .flightAirline,
-.flightOperators {
+.flightMarketRoute {
   margin: 0;
 }
 
 .flightAirline {
+  margin-top: 5px;
   color: #173d33;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 900;
 }
 
-.flightOperators {
-  margin-top: 4px;
-  color: #52675e;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.testFlightBadge {
+.fareEstimateTag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  flex: 0 0 auto;
-  border: 1px solid #ebc988;
+  border: 1px solid #cbdad2;
   border-radius: 999px;
-  background: #fff7e6;
-  padding: 6px 8px;
-  color: #80500c;
+  background: #eef6f1;
+  padding: 5px 8px;
+  color: #315f4e;
   font-size: 10px;
   font-weight: 900;
-  white-space: nowrap;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.flightSlices {
+.flightMarketRoute {
+  color: #64766d;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.fareLegs {
   display: flex;
   flex-direction: column;
 }
 
-.flightSlice {
+.fareLeg + .fareLeg {
+  border-top: 1px dashed #d8e0db;
+}
+
+.fareLeg {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 58px;
+  grid-template-columns: 78px minmax(170px, auto) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 15px 17px;
 }
 
-.flightSlice + .flightSlice {
-  border-top: 1px dashed #d8e0db;
-}
-
-.flightSliceLabel {
+.fareLegIdentity {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
 
-.flightSliceLabel span {
+.fareLegIdentity span {
   color: #1c4438;
   font-size: 11px;
   font-weight: 900;
@@ -1197,61 +1196,59 @@ textarea:disabled {
   text-transform: uppercase;
 }
 
-.flightSliceLabel small {
+.fareLegIdentity small {
   color: #718078;
   font-size: 10px;
   font-weight: 700;
 }
 
-.flightRouteTimes {
-  display: grid;
-  grid-template-columns: auto minmax(52px, 1fr) auto;
+.fareLegRoute {
+  display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.flightRouteTimes > div:not(.flightDurationLine) {
+.fareLegRoute div {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.flightRouteTimes strong {
+.fareLegRoute strong {
   color: #172e27;
   font-size: 18px;
   letter-spacing: 0.04em;
 }
 
-.flightRouteTimes span {
-  color: #5d6f66;
-  font-size: 10px;
+.fareLegRoute small {
+  color: #718078;
+  font-size: 9px;
   font-weight: 700;
-  white-space: nowrap;
 }
 
-.flightDurationLine {
-  position: relative;
+.fareLegRoute > span {
+  color: #9aab9f;
+  font-weight: 900;
+}
+
+.fareLegFacts {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fareLegFacts span {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  color: #697b72;
-}
-
-.flightDurationLine::after,
-.flightDurationLine::before {
-  height: 1px;
-  flex: 1;
-  background: #c9d4ce;
-  content: "";
-}
-
-.flightStops {
-  margin: 0;
-  color: #326452;
+  border-radius: 999px;
+  background: #f1f5f2;
+  padding: 5px 7px;
+  color: #53675d;
   font-size: 10px;
-  font-weight: 900;
-  text-align: right;
+  font-weight: 800;
 }
 
 .flightPricePanel {
@@ -1295,6 +1292,29 @@ textarea:disabled {
   font-weight: 900;
 }
 
+.flightBudgetOver,
+.flightBudgetUnknown {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 7px;
+  margin: 2px 0 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.flightBudgetOver {
+  background: #fde8e2;
+  color: #9a321f;
+}
+
+.flightBudgetUnknown {
+  background: #fff3d6;
+  color: #77530b;
+}
+
 .flightEmptyState {
   display: flex;
   align-items: center;
@@ -1307,7 +1327,7 @@ textarea:disabled {
 }
 
 .flightEmptyState p,
-.flightDisclaimer {
+.flightDisclaimer p {
   margin: 0;
 }
 
@@ -1317,6 +1337,9 @@ textarea:disabled {
 }
 
 .flightDisclaimer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin-top: 14px;
   color: #6d7c74;
   font-size: 10px;
@@ -2159,13 +2182,13 @@ textarea:disabled {
     flex-direction: column;
   }
 
-  .flightSlice {
+  .fareLeg {
     grid-template-columns: 1fr;
     gap: 9px;
   }
 
-  .flightStops {
-    text-align: left;
+  .fareLegFacts {
+    justify-content: flex-start;
   }
 
   .flightPricePanel {

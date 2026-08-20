@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.models import (
     FlightOption,
     FlightSegment,
+    FlightSlice,
     FlightSearchRequest,
     HotelOption,
     HotelSearchRequest,
@@ -19,18 +20,42 @@ FETCHED_AT = datetime(2026, 8, 20, 8, tzinfo=UTC)
 
 
 def _flight(**updates) -> FlightOption:
+    departure = datetime(2026, 9, 10, 2, tzinfo=UTC)
+    arrival = datetime(2026, 9, 10, 6, tzinfo=UTC)
     data = {
-        "provider": "future-flight-provider",
+        "provider": "swoop",
         "provider_offer_id": "offer-1",
         "origin_code": "DAC",
         "destination_code": "BKK",
-        "departure_at": datetime(2026, 9, 10, 2, tzinfo=UTC),
-        "arrival_at": datetime(2026, 9, 10, 6, tzinfo=UTC),
+        "adults": 2,
         "total_duration_minutes": 240,
         "stops": 0,
         "total_price": 550,
         "currency": "usd",
-        "external_url": "https://provider.example/offers/1",
+        "price_type": "shopping_total",
+        "airline_names": ["Biman Bangladesh Airlines"],
+        "slices": [
+            FlightSlice(
+                origin_code="DAC",
+                destination_code="BKK",
+                departure_at=departure,
+                arrival_at=arrival,
+                duration_minutes=240,
+                stops=0,
+                segments=[
+                    FlightSegment(
+                        origin_code="DAC",
+                        destination_code="BKK",
+                        departure_at=departure,
+                        arrival_at=arrival,
+                        duration_minutes=240,
+                        airline_code="BG",
+                        airline_name="Biman Bangladesh Airlines",
+                        flight_number="88",
+                    )
+                ],
+            )
+        ],
         "fetched_at": FETCHED_AT,
     }
     data.update(updates)
@@ -63,23 +88,11 @@ def _hotel(**updates) -> HotelOption:
 
 
 def test_valid_flight_option_normalizes_provider_codes_and_currency():
-    flight = _flight(provider=" Future-Flight-Provider ", origin_code="dac")
+    flight = _flight(provider=" Swoop ", origin_code="dac")
 
-    assert flight.provider == "future-flight-provider"
+    assert flight.provider == "swoop"
     assert flight.origin_code == "DAC"
     assert flight.currency == "USD"
-
-
-def test_naive_provider_local_times_allow_cross_timezone_clock_order():
-    segment = FlightSegment(
-        origin_code="NRT",
-        destination_code="LAX",
-        departure_at=datetime(2026, 9, 10, 17),
-        arrival_at=datetime(2026, 9, 10, 11),
-        operating_carrier_name="Japan Airlines",
-    )
-
-    assert segment.arrival_at.hour == 11
 
 
 def test_valid_hotel_option_preserves_total_stay_price():
@@ -114,7 +127,7 @@ def test_valid_restaurant_has_no_exact_price_field():
         (_flight, {"total_price": -1}),
         (_flight, {"total_duration_minutes": 0}),
         (_flight, {"stops": -1}),
-        (_flight, {"arrival_at": datetime(2026, 9, 10, 1, tzinfo=UTC)}),
+        (_flight, {"adults": 0}),
         (_hotel, {"total_price": -1}),
         (_hotel, {"nights": 3}),
         (_hotel, {"check_out": date(2026, 9, 10)}),

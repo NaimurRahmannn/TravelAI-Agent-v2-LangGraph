@@ -130,23 +130,19 @@ export type RecommendationDomainState = {
 };
 
 export type FlightOption = {
-  provider: string;
+  provider: "swoop";
   provider_offer_id: string;
   origin_code: string;
   destination_code: string;
-  departure_at: string;
-  arrival_at: string;
+  adults: number;
   total_duration_minutes: number;
   stops: number;
   total_price: number;
   currency: string;
-  airline_name?: string | null;
-  airline_code?: string | null;
+  price_type: "shopping_total";
+  airline_names: string[];
   slices: FlightSlice[];
-  expires_at?: string | null;
-  live_data?: boolean | null;
   budget_evaluation?: BudgetEvaluation | null;
-  external_url?: string | null;
   fetched_at: string;
 };
 
@@ -155,17 +151,31 @@ export type FlightSegment = {
   destination_code: string;
   departure_at: string;
   arrival_at: string;
-  operating_carrier_name: string;
-  operating_carrier_code?: string | null;
+  duration_minutes: number;
+  airline_code?: string | null;
+  airline_name?: string | null;
+  operator_name?: string | null;
   flight_number?: string | null;
+  aircraft?: string | null;
+};
+
+export type FlightLayover = {
+  airport_code?: string | null;
+  airport_name?: string | null;
+  city?: string | null;
+  duration_minutes: number;
+  is_overnight: boolean;
 };
 
 export type FlightSlice = {
   origin_code: string;
   destination_code: string;
+  departure_at: string;
+  arrival_at: string;
   duration_minutes: number;
   stops: number;
   segments: FlightSegment[];
+  layovers: FlightLayover[];
 };
 
 export type BudgetEvaluation = {

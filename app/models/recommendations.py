@@ -21,6 +21,7 @@ RecommendationStatus = Literal[
     "unavailable",
 ]
 BudgetEvaluationStatus = Literal["within_budget", "over_budget", "unknown"]
+FlightPriceType = Literal["shopping_total"]
 BudgetEvaluationReason = Literal[
     "within_total_budget",
     "exceeds_total_budget",
@@ -54,7 +55,7 @@ class _ProviderOption(BaseModel):
 
 
 class FlightSegment(BaseModel):
-    """One provider-authoritative operating flight within a journey slice."""
+    """One provider-reported flight segment within a requested journey leg."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -62,14 +63,17 @@ class FlightSegment(BaseModel):
     destination_code: NonEmptyString
     departure_at: datetime
     arrival_at: datetime
-    operating_carrier_name: NonEmptyString
-    operating_carrier_code: str | None = None
+    duration_minutes: int = Field(ge=1)
+    airline_code: str | None = None
+    airline_name: str | None = None
+    operator_name: str | None = None
     flight_number: str | None = None
+    aircraft: str | None = None
 
     @field_validator(
         "origin_code",
         "destination_code",
-        "operating_carrier_code",
+        "airline_code",
         mode="before",
     )
     @classmethod
@@ -78,25 +82,41 @@ class FlightSegment(BaseModel):
 
     @model_validator(mode="after")
     def validate_schedule(self) -> "FlightSegment":
-        if (
-            self.departure_at.utcoffset() is not None
-            and self.arrival_at.utcoffset() is not None
-            and self.arrival_at <= self.departure_at
-        ):
+        if self.arrival_at <= self.departure_at:
             raise ValueError("Flight segment arrival must be after departure")
         return self
 
 
+class FlightLayover(BaseModel):
+    """One provider-reported connection between flight segments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    airport_code: str | None = None
+    airport_name: str | None = None
+    city: str | None = None
+    duration_minutes: int = Field(ge=0)
+    is_overnight: bool = False
+
+    @field_validator("airport_code", mode="before")
+    @classmethod
+    def normalize_airport_code(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+
 class FlightSlice(BaseModel):
-    """One outbound or return journey with slice-level stop information."""
+    """One outbound, return, or multi-city journey leg from the provider."""
 
     model_config = ConfigDict(extra="forbid")
 
     origin_code: NonEmptyString
     destination_code: NonEmptyString
+    departure_at: datetime
+    arrival_at: datetime
     duration_minutes: int = Field(ge=1)
     stops: int = Field(ge=0)
     segments: list[FlightSegment] = Field(min_length=1)
+    layovers: list[FlightLayover] = Field(default_factory=list)
 
     @field_validator("origin_code", "destination_code", mode="before")
     @classmethod
@@ -104,9 +124,9 @@ class FlightSlice(BaseModel):
         return value.strip().upper() if isinstance(value, str) else value
 
     @model_validator(mode="after")
-    def validate_segments(self) -> "FlightSlice":
-        if self.stops != len(self.segments) - 1:
-            raise ValueError("Flight slice stops must match its segment count")
+    def validate_journey(self) -> "FlightSlice":
+        if self.arrival_at <= self.departure_at:
+            raise ValueError("Flight slice arrival must be after departure")
         if self.segments[0].origin_code != self.origin_code:
             raise ValueError("Flight slice origin must match its first segment")
         if self.segments[-1].destination_code != self.destination_code:
@@ -118,24 +138,21 @@ class FlightSlice(BaseModel):
 
 
 class FlightOption(_ProviderOption):
-    """Provider-neutral, provider-authoritative flight offer."""
+    """A provider-neutral flight shopping result for the complete query."""
 
+    provider: Literal["swoop"]
     provider_offer_id: NonEmptyString
     origin_code: NonEmptyString
     destination_code: NonEmptyString
-    departure_at: datetime
-    arrival_at: datetime
+    adults: int = Field(ge=1)
     total_duration_minutes: int = Field(ge=1)
     stops: int = Field(ge=0)
     total_price: float = Field(ge=0)
     currency: str
-    airline_name: str | None = None
-    airline_code: str | None = None
-    slices: list[FlightSlice] = Field(default_factory=list)
-    expires_at: datetime | None = None
-    live_data: bool | None = None
+    price_type: FlightPriceType
+    airline_names: list[str] = Field(default_factory=list)
+    slices: list[FlightSlice] = Field(min_length=1)
     budget_evaluation: BudgetEvaluation | None = None
-    external_url: str | None = None
     fetched_at: datetime
 
     @field_validator("origin_code", "destination_code", mode="before")
@@ -143,29 +160,28 @@ class FlightOption(_ProviderOption):
     def normalize_location_code(cls, value: object) -> object:
         return value.strip().upper() if isinstance(value, str) else value
 
-    @field_validator("airline_code", mode="before")
-    @classmethod
-    def normalize_airline_code(cls, value: object) -> object:
-        return value.strip().upper() if isinstance(value, str) else value
-
     @field_validator("currency", mode="before")
     @classmethod
     def validate_currency(cls, value: object) -> object:
         return _normalize_currency(value)
 
-    @field_validator("external_url", mode="before")
+    @field_validator("airline_names")
     @classmethod
-    def validate_external_url(cls, value: object) -> object:
-        return _validate_optional_http_url(value)
+    def deduplicate_airlines(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(name.strip() for name in value if name.strip()))
 
     @model_validator(mode="after")
-    def validate_schedule(self) -> "FlightOption":
-        if (
-            self.departure_at.utcoffset() is not None
-            and self.arrival_at.utcoffset() is not None
-            and self.arrival_at <= self.departure_at
+    def validate_summary(self) -> "FlightOption":
+        if self.origin_code != self.slices[0].origin_code:
+            raise ValueError("Flight origin must match the first slice")
+        if self.destination_code != self.slices[0].destination_code:
+            raise ValueError("Flight destination must match the first slice")
+        if self.total_duration_minutes != sum(
+            item.duration_minutes for item in self.slices
         ):
-            raise ValueError("Flight arrival must be after departure")
+            raise ValueError("Flight duration must equal its slice durations")
+        if self.stops != sum(item.stops for item in self.slices):
+            raise ValueError("Flight stops must equal its slice stops")
         return self
 
 

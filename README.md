@@ -48,7 +48,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
 - Provider-neutral, budget-aware travel recommendation foundation
-- Budget-aware Duffel flight recommendations using exact selected trip dates
+- Budget-aware Swoop flight shopping using exact selected trip dates
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -83,7 +83,7 @@ flowchart TD
     Q --> R[Image enrichment]
     R --> W[Weather enrichment]
     W --> T[Routing enrichment]
-    T --> U[Duffel flight recommendations]
+    T --> U[Swoop flight recommendations]
     U --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
@@ -107,11 +107,12 @@ and synchronizes markers with their itinerary cards. After image enrichment,
 the backend uses one fully resolved Geoapify place per dated itinerary day to
 request date-specific OpenWeather forecasts. The backend then requests
 pair-by-pair Geoapify route estimates only between adjacent, fully resolved
-same-day activities. After those factual enrichments, Duffel resolves the
-departure and first/last itinerary cities to trusted IATA codes and searches a
-bounded set of round-trip offers. Weather, routing, and flight recommendation
-enrichment never change the itinerary plan or dates. Itinerary validation and
-replanning remain future work.
+same-day activities. After those factual enrichments, a focused Geoapify airport
+resolver maps the departure and first/last itinerary cities to trusted IATA
+codes. Swoop then retrieves current Google Flights-derived shopping results for
+the exact selected dates and adult traveler count.
+Weather, routing, and flight recommendation enrichment never change the
+itinerary plan or dates. Itinerary validation and replanning remain future work.
 
 ```text
 final_response
@@ -134,7 +135,7 @@ final_response
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Duffel, Wikidata, Wikimedia Commons, OpenStreetMap |
+| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Swoop, Wikidata, Wikimedia Commons, OpenStreetMap |
 
 ## Project Layout
 
@@ -200,7 +201,6 @@ GEOAPIFY_API_KEY=your_geoapify_api_key_here
 GEOAPIFY_MAPS_API_KEY=your_browser_restricted_geoapify_maps_key_here
 WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
 OPENWEATHER_API_KEY=your_openweather_api_key_here
-DUFFEL_ACCESS_TOKEN=your_server_side_duffel_token_here
 TEMPERATURE=0.0
 ```
 
@@ -249,7 +249,6 @@ Settings are loaded from environment variables and `app/.env`.
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
 | `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
 | `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
-| `DUFFEL_ACCESS_TOKEN` | No | None | Private backend Duffel token for airport/city resolution and budget-aware flight offer searches; recommendations degrade gracefully when unset |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
 | `CHECKPOINTER_SQLITE_PATH` | No | `app/.data/checkpoints.sqlite` | Disk path for the LangGraph SQLite checkpointer |
 | `MEM0_VECTOR_STORE_PROVIDER` | No | `qdrant` | Mem0 vector store backend |
@@ -443,22 +442,34 @@ route geometry are not stored.
 
 Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
 models, separate provider protocols, per-domain search statuses, and pure budget
-evaluation/ranking helpers. Phase 7.6 implements only the flight provider:
+evaluation/ranking helpers. Phase 7.6C implements only the flight provider:
 
 ```text
-Flights     -> Duffel
+Flights     -> Swoop
 Hotels      -> LiteAPI
 Restaurants -> Geoapify
 ```
 
-Duffel Places resolves the outbound origin, first itinerary city, last itinerary
-city, and return destination to trusted airport or metropolitan-city IATA codes.
-Duffel Offer Requests then searches the exact picker-selected dates for the
-authoritative adult traveler count in economy class. Offer retrieval is bounded,
-and the resulting slices, segments, operating carriers, schedules, totals,
-currency, expiry, and live/test mode are normalized into provider-neutral
-models. Test-token results are visibly labeled as sandbox data. No flight order,
-booking, payment, affiliate redirect, baggage, or ancillary flow is implemented.
+The Geoapify airport resolver forward-geocodes each endpoint, searches a bounded
+set of nearby airports, and validates the selected IATA code through Place
+Details. Clean three-letter IATA input bypasses lookup. Selection prefers a
+same-country international airport that matches the requested city, followed by
+distance and stable IATA tie-breaks. Resolution is request-locally deduplicated.
+
+Swoop performs passenger-aware economy shopping with a US point of sale because
+TravelAI's deterministic budget model is USD-based. Fares and availability may
+differ by point of sale. A normal return trip uses one round-trip `search()`;
+an open-jaw trip such as Dhaka to Tokyo followed by Osaka to Dhaka uses one
+explicit multi-leg `search_legs()` call. Swoop's returned price is already the
+shopping total for the complete query and adult count, so TravelAI does not
+multiply it by traveler count or add the leg prices again.
+
+Swoop is an unofficial open-source integration that uses undocumented Google
+Flights internal RPC endpoints; it is not an official Google Flights API. It is
+appropriate for this prototype/demo, but upstream changes, rate limits, or
+blocking can temporarily make only flight recommendations unavailable. No Swoop
+API key is required. The integration uses shopping data only and does not call
+booking, seller-selection, reservation, or payment APIs.
 
 Hotel and restaurant provider integrations remain unimplemented. The LLM is
 not trusted to populate recommendation facts, prices, provider IDs, ratings,
@@ -471,9 +482,22 @@ hotel total replaces its matching estimate before total-budget validation; it
 is never added on top of that estimate. Combined flight-and-hotel feasibility
 is evaluated independently, non-USD prices remain unknown until a future
 trusted normalization step, and rejected provider payloads are not serialized
-as traveler-facing recommendations. When a user budget exists, only Duffel
-offers whose projected total is within budget are shown. Test-mode prices are
-sandbox data and should not be treated as live or bookable.
+as traveler-facing recommendations. Flight results remain visible even when
+their projected trip total exceeds the user budget; each result is labeled as
+within budget, over budget, or unverifiable. The project does not currently
+provide booking, order creation, or payment.
+
+```text
+TripPlan
+   -> FlightSearchRequest
+   -> Geoapify airport resolver
+   -> trusted IATA codes
+   -> SwoopFlightProvider
+   -> Google Flights-derived shopping results
+   -> FlightOption[]
+   -> Phase 7.5 budget evaluator
+   -> ranked FlightRecommendations with budget guidance
+```
 
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
@@ -526,8 +550,8 @@ With `app/.env` configured and the virtual environment active, run:
 python -m pytest -q app/tests
 ```
 
-Provider tests use mocked HTTP transports and do not call Geoapify, OpenWeather,
-Duffel, Wikidata, or Wikimedia Commons.
+Provider tests use mocked transports and do not call Geoapify, OpenWeather,
+Swoop's upstream Google Flights RPCs, Wikidata, or Wikimedia Commons.
 
 ### Frontend checks
 
@@ -575,7 +599,8 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
-- Duffel flight recommendations are search-only: prices can expire, optional extras may cost more, and no booking, order, payment, seat, or baggage flow is implemented.
+- Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
+- Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.
 - Hotel and restaurant provider integrations are not implemented; LiteAPI and Geoapify recommendation calls remain future work.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

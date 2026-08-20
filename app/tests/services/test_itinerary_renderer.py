@@ -1,9 +1,16 @@
+from datetime import UTC, datetime
+
 from app.models import (
     Activity,
+    BudgetEvaluation,
     BudgetBreakdown,
     BudgetItem,
+    FlightOption,
+    FlightSegment,
+    FlightSlice,
     ItineraryDay,
     ResolvedPlace,
+    TravelRecommendations,
     TripPlan,
 )
 from app.services.itinerary_renderer import render_itinerary
@@ -133,3 +140,110 @@ def test_renderer_keeps_unresolved_activity_usable():
 
     assert "**Hidden Market**" in rendered
     assert "Location: Bangkok, Thailand" in rendered
+
+
+def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
+    outbound_departure = datetime(2026, 9, 10, 9, 30)
+    outbound_arrival = datetime(2026, 9, 11, 7, 20)
+    return_departure = datetime(2026, 9, 15, 18, 10)
+    return_arrival = datetime(2026, 9, 16, 3, 20)
+
+    def flight_slice(origin, destination, departure, arrival, duration, stops):
+        return FlightSlice(
+            origin_code=origin,
+            destination_code=destination,
+            departure_at=departure,
+            arrival_at=arrival,
+            duration_minutes=duration,
+            stops=stops,
+            segments=[
+                FlightSegment(
+                    origin_code=origin,
+                    destination_code=destination,
+                    departure_at=departure,
+                    arrival_at=arrival,
+                    duration_minutes=duration,
+                    airline_code="QR",
+                    airline_name="Qatar Airways",
+                    flight_number="641",
+                )
+            ],
+        )
+
+    plan = TripPlan(
+        title="Japan plan",
+        origin="Dhaka",
+        destination="Japan",
+        duration_days=1,
+        travelers=2,
+        preferences=[],
+        days=[
+            ItineraryDay(
+                day_number=1,
+                city="Tokyo",
+                activities=[Activity(name="Temple", category="culture")],
+            )
+        ],
+        budget=BudgetBreakdown(
+            items=[BudgetItem(category="Flights", amount_usd=800)],
+            estimated_total_usd=800,
+            user_budget_usd=2000,
+        ),
+        recommendations=TravelRecommendations(
+            flights=[
+                FlightOption(
+                    provider="swoop",
+                    provider_offer_id="swoop-renderer",
+                    origin_code="DAC",
+                    destination_code="HND",
+                    adults=2,
+                    total_duration_minutes=1870,
+                    stops=1,
+                    total_price=714.20,
+                    currency="USD",
+                    price_type="shopping_total",
+                    airline_names=["Qatar Airways"],
+                    slices=[
+                        flight_slice(
+                            "DAC",
+                            "HND",
+                            outbound_departure,
+                            outbound_arrival,
+                            1010,
+                            1,
+                        ),
+                        flight_slice(
+                            "HND",
+                            "DAC",
+                            return_departure,
+                            return_arrival,
+                            860,
+                            0,
+                        ),
+                    ],
+                    budget_evaluation=BudgetEvaluation(
+                        status="within_budget",
+                        reason="within_total_budget",
+                        projected_trip_total_usd=1814,
+                        remaining_budget_usd=186,
+                    ),
+                    fetched_at=datetime(2026, 8, 20, tzinfo=UTC),
+                )
+            ],
+            flight_status={
+                "status": "available",
+                "provider_result_count": 1,
+                "affordable_result_count": 1,
+            },
+        ),
+        practical_notes=[],
+    )
+
+    rendered = render_itinerary(plan)
+
+    assert "**Flight recommendation: Qatar Airways**" in rendered
+    assert "Outbound: DAC → HND" in rendered
+    assert "Return: HND → DAC" in rendered
+    assert "Total for 2 adults: $714.20" in rendered
+    assert "Projected trip total: $1,814" in rendered
+    assert "Google Flights via Swoop" in rendered

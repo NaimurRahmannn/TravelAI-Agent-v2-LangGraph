@@ -6,6 +6,8 @@ from app.models import (
     BudgetBreakdown,
     BudgetItem,
     FlightOption,
+    FlightSegment,
+    FlightSlice,
     HotelOption,
     ItineraryDay,
     RecommendationDomainState,
@@ -79,18 +81,40 @@ def _flight(
     duration: int = 600,
     stops: int = 0,
 ) -> FlightOption:
+    departure = datetime(2026, 9, 10, 2)
+    arrival = departure + timedelta(minutes=duration)
     return FlightOption(
-        provider="duffel",
+        provider="swoop",
         provider_offer_id=offer_id,
         origin_code="DAC",
-        destination_code="TYO",
-        departure_at=datetime(2026, 9, 10, 2),
-        arrival_at=datetime(2026, 9, 15, 23),
+        destination_code="HND",
+        adults=2,
         total_duration_minutes=duration,
         stops=stops,
         total_price=price,
         currency=currency,
-        live_data=False,
+        price_type="shopping_total",
+        airline_names=["Example Airways"],
+        slices=[
+            FlightSlice(
+                origin_code="DAC",
+                destination_code="HND",
+                departure_at=departure,
+                arrival_at=arrival,
+                duration_minutes=duration,
+                stops=stops,
+                segments=[
+                    FlightSegment(
+                        origin_code="DAC",
+                        destination_code="HND",
+                        departure_at=departure,
+                        arrival_at=arrival,
+                        duration_minutes=duration,
+                        airline_name="Example Airways",
+                    )
+                ],
+            )
+        ],
         fetched_at=FETCHED_AT,
     )
 
@@ -120,7 +144,7 @@ def test_search_request_uses_first_last_cities_selected_dates_and_adults():
     assert request.adults == 2
 
 
-def test_real_fare_replaces_estimate_and_only_affordable_offers_survive():
+def test_real_fare_replaces_estimate_and_over_budget_options_remain_visible():
     provider = Provider(
         [
             _flight("fits", 800),
@@ -131,23 +155,28 @@ def test_real_fare_replaces_estimate_and_only_affordable_offers_survive():
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
 
     assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
-        "fits"
+        "fits",
+        "over",
     ]
     evaluation = enriched.recommendations.flights[0].budget_evaluation
     assert evaluation is not None
     assert evaluation.projected_trip_total_usd == 1900
     assert evaluation.status == "within_budget"
+    assert enriched.recommendations.flights[1].budget_evaluation.status == "over_budget"
     assert enriched.recommendations.flight_status.status == "available"
     assert enriched.recommendations.flight_status.provider_result_count == 2
     assert enriched.recommendations.flight_status.affordable_result_count == 1
 
 
-def test_all_comparable_offers_over_budget_returns_no_affordable_results():
+def test_all_over_budget_options_are_shown_with_no_affordable_status():
     provider = Provider([_flight("over-1", 901), _flight("over-2", 1000)])
 
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
 
-    assert enriched.recommendations.flights == []
+    assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
+        "over-1",
+        "over-2",
+    ]
     assert enriched.recommendations.flight_status.status == "no_affordable_results"
 
 
@@ -156,7 +185,9 @@ def test_currency_mismatch_is_budget_unverified_not_no_affordable_results():
 
     enriched = asyncio.run(enrich_flight_recommendations(_plan(), provider))
 
-    assert enriched.recommendations.flights == []
+    assert [item.provider_offer_id for item in enriched.recommendations.flights] == [
+        "eur"
+    ]
     assert enriched.recommendations.flight_status.status == "budget_unverified"
 
 

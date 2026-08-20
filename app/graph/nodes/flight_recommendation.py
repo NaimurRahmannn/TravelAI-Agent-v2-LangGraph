@@ -12,7 +12,10 @@ from app.services.flight_recommendation import (
     mark_flight_recommendations_unavailable,
 )
 from app.services.recommendations.base import FlightProvider
-from app.services.recommendations.flights import DuffelFlightProvider
+from app.services.recommendations.flights import (
+    GeoapifyAirportResolver,
+    SwoopFlightProvider,
+)
 
 logger = get_logger(__name__)
 
@@ -21,7 +24,7 @@ async def flight_recommendation_node(
     state: TravelState,
     config: RunnableConfig,
 ) -> dict[str, TripPlan | None]:
-    """Add optional budget-valid Duffel offers without blocking the itinerary."""
+    """Add optional budget-valid flight results without blocking the itinerary."""
 
     del config
     started_at = perf_counter()
@@ -29,14 +32,14 @@ async def flight_recommendation_node(
     if itinerary is None:
         return {"itinerary": None}
 
-    access_token = get_settings().DUFFEL_ACCESS_TOKEN
-    if not access_token or not access_token.strip():
-        logger.warning("flight_recommendation_skipped reason=missing_access_token")
+    geoapify_api_key = get_settings().GEOAPIFY_API_KEY
+    if not geoapify_api_key or not geoapify_api_key.strip():
+        logger.warning("flight_recommendation_skipped reason=missing_geoapify_key")
         return {"itinerary": mark_flight_recommendations_unavailable(itinerary)}
 
     provider: FlightProvider | None = None
     try:
-        provider = build_flight_provider(access_token)
+        provider = build_flight_provider(geoapify_api_key)
         enriched = await enrich_flight_recommendations(itinerary, provider)
     except Exception as exc:
         logger.warning(
@@ -61,10 +64,10 @@ async def flight_recommendation_node(
     return {"itinerary": enriched}
 
 
-def build_flight_provider(access_token: str) -> FlightProvider:
-    """Construct the private server-side Duffel provider."""
+def build_flight_provider(geoapify_api_key: str) -> FlightProvider:
+    """Construct Swoop with Geoapify-backed airport resolution."""
 
-    return DuffelFlightProvider(access_token)
+    return SwoopFlightProvider(GeoapifyAirportResolver(geoapify_api_key))
 
 
 async def _close_provider(provider: FlightProvider) -> None:

@@ -16,6 +16,8 @@ from app.models import (
     BudgetItem,
     DailyWeather,
     FlightOption,
+    FlightSegment,
+    FlightSlice,
     ItineraryDay,
     PlaceImage,
     ResolvedPlace,
@@ -356,20 +358,42 @@ def test_generator_clears_llm_invented_place_enrichment():
 
 def test_generator_clears_llm_invented_commercial_recommendations():
     plan_data = _plan().model_dump()
+    departure = datetime(2026, 9, 10, 2, tzinfo=timezone.utc)
+    arrival = datetime(2026, 9, 10, 6, tzinfo=timezone.utc)
     plan_data["recommendations"] = TravelRecommendations(
         flights=[
             FlightOption(
-                provider="invented-provider",
+                provider="swoop",
                 provider_offer_id="fake-offer",
                 origin_code="DAC",
                 destination_code="BKK",
-                departure_at=datetime(2026, 9, 10, 2, tzinfo=timezone.utc),
-                arrival_at=datetime(2026, 9, 10, 6, tzinfo=timezone.utc),
+                adults=2,
                 total_duration_minutes=240,
                 stops=0,
                 total_price=1,
                 currency="USD",
-                external_url="https://fake.example/book",
+                price_type="shopping_total",
+                airline_names=["Invented Airways"],
+                slices=[
+                    FlightSlice(
+                        origin_code="DAC",
+                        destination_code="BKK",
+                        departure_at=departure,
+                        arrival_at=arrival,
+                        duration_minutes=240,
+                        stops=0,
+                        segments=[
+                            FlightSegment(
+                                origin_code="DAC",
+                                destination_code="BKK",
+                                departure_at=departure,
+                                arrival_at=arrival,
+                                duration_minutes=240,
+                                airline_name="Invented Airways",
+                            )
+                        ],
+                    )
+                ],
                 fetched_at=datetime.now(timezone.utc),
             )
         ],

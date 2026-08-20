@@ -32,11 +32,13 @@ def _plan() -> TripPlan:
     )
 
 
-def test_missing_token_marks_flights_unavailable_without_dropping_plan(monkeypatch):
+def test_missing_geoapify_key_marks_flights_unavailable_without_dropping_plan(
+    monkeypatch,
+):
     monkeypatch.setattr(
         flight_recommendation,
         "get_settings",
-        lambda: SimpleNamespace(DUFFEL_ACCESS_TOKEN=" "),
+        lambda: SimpleNamespace(GEOAPIFY_API_KEY=" "),
     )
 
     result = asyncio.run(
@@ -64,12 +66,12 @@ def test_provider_failure_is_graceful_and_provider_is_closed(monkeypatch):
     monkeypatch.setattr(
         flight_recommendation,
         "get_settings",
-        lambda: SimpleNamespace(DUFFEL_ACCESS_TOKEN="duffel_test_secret"),
+        lambda: SimpleNamespace(GEOAPIFY_API_KEY="private-geoapify-key"),
     )
     monkeypatch.setattr(
         flight_recommendation,
         "build_flight_provider",
-        lambda token: provider,
+        lambda api_key: provider,
     )
 
     result = asyncio.run(
@@ -81,4 +83,39 @@ def test_provider_failure_is_graceful_and_provider_is_closed(monkeypatch):
 
     assert result["itinerary"].title == "Plan"
     assert result["itinerary"].recommendations.flight_status.status == "unavailable"
+    assert provider.closed is True
+
+
+def test_successful_empty_swoop_search_is_no_results_and_provider_is_closed(
+    monkeypatch,
+):
+    class Provider:
+        closed = False
+
+        async def search_flights(self, request):
+            return []
+
+        async def aclose(self):
+            self.closed = True
+
+    provider = Provider()
+    monkeypatch.setattr(
+        flight_recommendation,
+        "get_settings",
+        lambda: SimpleNamespace(GEOAPIFY_API_KEY="private-geoapify-key"),
+    )
+    monkeypatch.setattr(
+        flight_recommendation,
+        "build_flight_provider",
+        lambda api_key: provider,
+    )
+
+    result = asyncio.run(
+        flight_recommendation.flight_recommendation_node(
+            {"itinerary": _plan()},
+            config={},
+        )
+    )
+
+    assert result["itinerary"].recommendations.flight_status.status == "no_results"
     assert provider.closed is True

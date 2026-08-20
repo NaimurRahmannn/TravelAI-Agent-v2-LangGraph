@@ -23,7 +23,7 @@ async def enrich_flight_recommendations(
     trip_plan: TripPlan,
     provider: FlightProvider,
 ) -> TripPlan:
-    """Search, budget-filter, and rank flights without changing other domains."""
+    """Search and rank flights while retaining deterministic budget guidance."""
 
     request = build_flight_search_request(trip_plan)
     if request is None:
@@ -49,20 +49,18 @@ async def enrich_flight_recommendations(
         for option in provider_options
     ]
 
+    ranked_options = rank_flights(evaluated_options)
     if context.user_budget_usd is None:
-        recommendable = rank_flights(evaluated_options)
+        affordable_count = len(provider_options)
         status = build_recommendation_status(
             provider_result_count=len(provider_options),
-            affordable_result_count=len(provider_options),
+            affordable_result_count=affordable_count,
         )
     else:
-        recommendable = rank_flights(
-            [
-                option
-                for option in evaluated_options
-                if option.budget_evaluation is not None
-                and option.budget_evaluation.status == "within_budget"
-            ]
+        affordable_count = sum(
+            option.budget_evaluation is not None
+            and option.budget_evaluation.status == "within_budget"
+            for option in evaluated_options
         )
         has_unverified_budget = any(
             option.budget_evaluation is not None
@@ -71,15 +69,15 @@ async def enrich_flight_recommendations(
         )
         status = build_recommendation_status(
             provider_result_count=len(provider_options),
-            affordable_result_count=len(recommendable),
+            affordable_result_count=affordable_count,
             budget_verified=not has_unverified_budget,
         )
 
-    selected = recommendable[:MAX_FLIGHT_RECOMMENDATIONS]
+    selected = ranked_options[:MAX_FLIGHT_RECOMMENDATIONS]
     logger.info(
         "flight_recommendations_evaluated provider_count=%s affordable_count=%s selected_count=%s status=%s",
         len(provider_options),
-        len(recommendable),
+        affordable_count,
         len(selected),
         status.status,
     )

@@ -1,10 +1,4 @@
-import {
-  BadgeCheck,
-  CircleAlert,
-  Clock3,
-  FlaskConical,
-  Plane,
-} from "lucide-react";
+import { BadgeCheck, CircleAlert, Clock3, Plane } from "lucide-react";
 import type {
   FlightOption,
   FlightSlice,
@@ -40,7 +34,7 @@ export function FlightRecommendations({
           <Plane aria-hidden="true" size={20} />
         </span>
         <div>
-          <p>Provider-backed options</p>
+          <p>Current flight search</p>
           <h3 id={headingId}>Flight recommendations</h3>
         </div>
       </header>
@@ -51,64 +45,49 @@ export function FlightRecommendations({
             <FlightCard
               flight={flight}
               key={flight.provider_offer_id}
-              travelers={itinerary.travelers}
               userBudget={itinerary.budget.user_budget_usd}
             />
           ))}
         </div>
       ) : (
-        <FlightEmptyState
-          status={recommendations.flight_status.status}
-        />
+        <FlightEmptyState status={recommendations.flight_status.status} />
       )}
 
-      <p className="flightDisclaimer">
-        Flight prices can change. Optional extras may cost more.
-      </p>
+      <div className="flightDisclaimer">
+        <p>
+          Current flight-search price. Prices and availability can change
+          before booking.
+        </p>
+        <p>Flight search data from Google Flights via Swoop.</p>
+      </div>
     </section>
   );
 }
 
 function FlightCard({
   flight,
-  travelers,
   userBudget,
 }: {
   flight: FlightOption;
-  travelers: number;
   userBudget?: number | null;
 }) {
-  const carrierNames = Array.from(
-    new Set(
-      flight.slices.flatMap((slice) =>
-        slice.segments.map((segment) => segment.operating_carrier_name),
-      ),
-    ),
-  );
   const projectedTotal = flight.budget_evaluation?.projected_trip_total_usd;
+  const airlines = flight.airline_names.join(" + ") || "Airline unavailable";
+  const route = flight.slices
+    .map((slice) => `${slice.origin_code} → ${slice.destination_code}`)
+    .join(" · ");
 
   return (
     <article className="flightCard">
       <header className="flightCardHeader">
         <div>
-          <p className="flightAirline">
-            {flight.airline_name || carrierNames[0] || "Flight option"}
-          </p>
-          {carrierNames.length > 0 ? (
-            <p className="flightOperators">
-              Operated by {carrierNames.join(", ")}
-            </p>
-          ) : null}
+          <span className="fareEstimateTag">Flight recommendation</span>
+          <p className="flightAirline">{airlines}</p>
         </div>
-        {flight.live_data === false ? (
-          <span className="testFlightBadge">
-            <FlaskConical aria-hidden="true" size={14} />
-            Test flight data
-          </span>
-        ) : null}
+        <p className="flightMarketRoute">{route}</p>
       </header>
 
-      <div className="flightSlices">
+      <div className="fareLegs">
         {flight.slices.map((slice, index) => (
           <FlightSliceRow
             index={index}
@@ -122,7 +101,7 @@ function FlightCard({
       <footer className="flightPricePanel">
         <div>
           <span>
-            Total for {travelers} {travelers === 1 ? "adult" : "adults"}
+            Total for {flight.adults} {flight.adults === 1 ? "adult" : "adults"}
           </span>
           <strong>{formatMoney(flight.total_price, flight.currency)}</strong>
         </div>
@@ -139,6 +118,22 @@ function FlightCard({
             Within your {formatUsd(userBudget)} trip budget
           </p>
         ) : null}
+        {flight.budget_evaluation?.status === "over_budget" &&
+        userBudget != null ? (
+          <p className="flightBudgetOver">
+            <CircleAlert aria-hidden="true" size={17} />
+            Over your {formatUsd(userBudget)} trip budget
+            {flight.budget_evaluation.remaining_budget_usd != null
+              ? ` by ${formatUsd(Math.abs(flight.budget_evaluation.remaining_budget_usd))}`
+              : ""}
+          </p>
+        ) : null}
+        {flight.budget_evaluation?.status === "unknown" ? (
+          <p className="flightBudgetUnknown">
+            <CircleAlert aria-hidden="true" size={17} />
+            Budget fit could not be verified for this currency
+          </p>
+        ) : null}
       </footer>
     </article>
   );
@@ -153,36 +148,49 @@ function FlightSliceRow({
   slice: FlightSlice;
   totalSlices: number;
 }) {
-  const firstSegment = slice.segments[0];
-  const lastSegment = slice.segments[slice.segments.length - 1];
   const label =
     totalSlices === 2 ? (index === 0 ? "Outbound" : "Return") : `Leg ${index + 1}`;
+  const segmentAirlines = Array.from(
+    new Set(
+      slice.segments
+        .map((segment) => segment.airline_name || segment.operator_name)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  );
+  const flightNumbers = slice.segments
+    .map((segment) =>
+      segment.flight_number
+        ? `${segment.airline_code ? `${segment.airline_code} ` : ""}${segment.flight_number}`
+        : null,
+    )
+    .filter((number): number is string => Boolean(number));
 
   return (
-    <div className="flightSlice">
-      <div className="flightSliceLabel">
+    <div className="fareLeg">
+      <div className="fareLegIdentity">
         <span>{label}</span>
-        <small>{formatFlightDate(firstSegment?.departure_at)}</small>
+        <small>{formatFlightDate(slice.departure_at)}</small>
       </div>
-      <div className="flightRouteTimes">
+      <div className="fareLegRoute">
         <div>
           <strong>{slice.origin_code}</strong>
-          <span>{formatFlightTime(firstSegment?.departure_at)}</span>
+          <small>{formatFlightTime(slice.departure_at)}</small>
         </div>
-        <div className="flightDurationLine">
-          <Clock3 aria-hidden="true" size={13} />
-          <span>{formatDuration(slice.duration_minutes)}</span>
-        </div>
+        <span>→</span>
         <div>
           <strong>{slice.destination_code}</strong>
-          <span>{formatFlightTime(lastSegment?.arrival_at)}</span>
+          <small>{formatFlightTime(slice.arrival_at)}</small>
         </div>
       </div>
-      <p className="flightStops">
-        {slice.stops === 0
-          ? "Nonstop"
-          : `${slice.stops} ${slice.stops === 1 ? "stop" : "stops"}`}
-      </p>
+      <div className="fareLegFacts">
+        <span>
+          <Clock3 aria-hidden="true" size={13} />
+          {formatDuration(slice.duration_minutes)}
+        </span>
+        <span>{formatStops(slice.stops)}</span>
+        {segmentAirlines.length > 0 ? <span>{segmentAirlines.join(" + ")}</span> : null}
+        {flightNumbers.length > 0 ? <span>{flightNumbers.join(" / ")}</span> : null}
+      </div>
     </div>
   );
 }
@@ -191,12 +199,13 @@ function FlightEmptyState({ status }: { status: RecommendationStatus }) {
   const copy: Record<RecommendationStatus, string> = {
     not_searched: "Flight search was not requested.",
     available: "Flight recommendations are available.",
-    no_results: "No flight offers were found for these dates and cities.",
+    no_results:
+      "No matching flight results were found for these dates and route.",
     no_affordable_results:
-      "No returned flight offers fit within the current trip budget.",
+      "No matching flight results fit within the current trip budget.",
     budget_unverified:
-      "Flight offers were found, but their budget fit could not be verified without currency conversion.",
-    unavailable: "Flight recommendations are unavailable right now.",
+      "Flight results were found, but their budget fit could not be verified without currency conversion.",
+    unavailable: "Flight search is temporarily unavailable.",
   };
 
   return (
@@ -219,11 +228,8 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-function formatFlightDate(value: string | undefined): string {
-  const datePart = value?.slice(0, 10);
-  if (!datePart) {
-    return "Date unavailable";
-  }
+function formatFlightDate(value: string): string {
+  const datePart = value.slice(0, 10);
   const date = new Date(`${datePart}T00:00:00`);
   if (Number.isNaN(date.getTime())) {
     return datePart;
@@ -234,8 +240,8 @@ function formatFlightDate(value: string | undefined): string {
   }).format(date);
 }
 
-function formatFlightTime(value: string | undefined): string {
-  const match = value?.match(/T(\d{2}):(\d{2})/);
+function formatFlightTime(value: string): string {
+  const match = value.match(/T(\d{2}):(\d{2})/);
   if (!match) {
     return "--:--";
   }
@@ -251,4 +257,11 @@ function formatDuration(minutes: number): string {
     return `${remainder}m`;
   }
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+}
+
+function formatStops(stops: number): string {
+  if (stops === 0) {
+    return "Nonstop";
+  }
+  return `${stops} ${stops === 1 ? "stop" : "stops"}`;
 }
