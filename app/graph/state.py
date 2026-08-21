@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated, TypedDict
 
 from langgraph.graph import MessagesState
-from app.models import Trip, TripPlan
+from app.models import TravelSelections, Trip, TripCostSummary, TripPlan
 
 
 def merge_research_results(
@@ -33,8 +33,9 @@ class TravelState(MessagesState):
     trip: Trip | None
     selected_start_date: date | None
     selected_end_date: date | None
-    guest_nationality_country_code: str | None
     itinerary: TripPlan | None
+    travel_selections: TravelSelections | None
+    trip_cost_summary: TripCostSummary | None
     missing_fields: list[str]
     needs_clarification: bool
     research_results: Annotated[dict[str, str], merge_research_results]

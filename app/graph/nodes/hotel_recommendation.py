@@ -77,12 +77,13 @@ async def _infer_guest_nationality(
     itinerary: TripPlan,
     provider: PlacesProvider | None,
 ) -> TripPlan:
-    """Infer LiteAPI nationality from the traveler's origin when available."""
+    """Derive hotel-search nationality exclusively from the trip origin."""
 
-    if itinerary.guest_nationality_country_code or provider is None:
-        return itinerary
-    if not itinerary.origin or not itinerary.origin.strip():
-        return itinerary
+    origin_based = itinerary.model_copy(
+        update={"guest_nationality_country_code": None}
+    )
+    if provider is None or not itinerary.origin or not itinerary.origin.strip():
+        return origin_based
 
     try:
         resolution = await provider.resolve_place(
@@ -96,12 +97,12 @@ async def _infer_guest_nationality(
             "guest_nationality_inference_failed error_type=%s",
             type(exc).__name__,
         )
-        return itinerary
+        return origin_based
 
     country_code = resolution.place.country_code if resolution.place else None
     if not country_code or len(country_code) != 2 or not country_code.isalpha():
         logger.info("guest_nationality_inference_unavailable origin=%s", itinerary.origin)
-        return itinerary
+        return origin_based
 
     normalized = country_code.upper()
     logger.info(
@@ -109,7 +110,7 @@ async def _infer_guest_nationality(
         itinerary.origin,
         normalized,
     )
-    return itinerary.model_copy(
+    return origin_based.model_copy(
         update={"guest_nationality_country_code": normalized}
     )
 

@@ -14,6 +14,7 @@ from app.models import (
     ResolvedPlace,
     TravelRecommendations,
     TripPlan,
+    build_hotel_stay_key,
 )
 from app.services.flight_recommendation import (
     MAX_FLIGHT_RECOMMENDATIONS,
@@ -221,6 +222,11 @@ def test_flight_update_preserves_existing_hotel_and_restaurant_state():
         provider="future-hotel",
         provider_hotel_id="hotel-1",
         provider_offer_id="offer-1",
+        stay_key=build_hotel_stay_key(
+            None,
+            date(2026, 9, 10),
+            date(2026, 9, 15),
+        ),
         name="Hotel",
         check_in=date(2026, 9, 10),
         check_out=date(2026, 9, 15),

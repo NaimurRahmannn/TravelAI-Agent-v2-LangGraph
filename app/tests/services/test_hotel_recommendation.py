@@ -14,6 +14,7 @@ from app.models import (
     ResolvedPlace,
     TravelRecommendations,
     TripPlan,
+    build_hotel_stay_key,
 )
 from app.services.hotel_recommendation import (
     derive_hotel_stays,
@@ -78,6 +79,11 @@ def _hotel(request, hotel_id: str, price: float, rating: float = 4.0) -> HotelOp
         provider="liteapi",
         provider_hotel_id=hotel_id,
         provider_offer_id=f"offer-{hotel_id}",
+        stay_key=build_hotel_stay_key(
+            request.city,
+            request.check_in,
+            request.check_out,
+        ),
         name=f"Hotel {hotel_id}",
         city=request.city,
         check_in=request.check_in,

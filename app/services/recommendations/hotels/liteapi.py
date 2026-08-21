@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.models import HotelOption, HotelSearchRequest
+from app.models import HotelOption, HotelSearchRequest, build_hotel_stay_key
 from app.services.recommendations.base import HotelProviderUnavailableError
 
 LITEAPI_RATES_URL = "https://api.liteapi.travel/v3.0/hotels/rates"
@@ -218,6 +218,11 @@ def _parse_hotel_option(
             provider="liteapi",
             provider_hotel_id=hotel_id,
             provider_offer_id=offer_id,
+            stay_key=build_hotel_stay_key(
+                request.city,
+                request.check_in,
+                request.check_out,
+            ),
             name=name,
             # Keep the deterministic stay label even when provider metadata
             # names a neighborhood or municipality differently.

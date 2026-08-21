@@ -46,11 +46,6 @@ the caller will merge them with existing ones for you.
 
 Do not guess values the user did not state.
 
-Only extract `guest_nationality_country_code` when the traveler explicitly
-states their passport nationality, nationality, citizenship, or passport
-country. Normalize it to an uppercase ISO-2 code. Never infer nationality from
-trip origin, residence, destination, language, name, locale, or location.
-
 Return every key defined by the structured-output schema. Use null for scalar
 fields the latest message does not mention and an empty list for preferences
 when none are mentioned. Never return an empty object.

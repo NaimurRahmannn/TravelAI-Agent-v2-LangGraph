@@ -9,9 +9,13 @@ import type {
 type HotelRecommendationsProps = {
   idPrefix: string;
   itinerary: TripPlan;
+  onSelectHotel?: (stayKey: string, hotelOptionId: string) => void;
+  selectedHotelIds?: Record<string, string>;
+  selectionMode?: boolean;
 };
 
 type HotelGroup = {
+  stayKey: string;
   city: string;
   checkIn: string;
   checkOut: string;
@@ -22,6 +26,9 @@ type HotelGroup = {
 export function HotelRecommendations({
   idPrefix,
   itinerary,
+  onSelectHotel,
+  selectedHotelIds = {},
+  selectionMode = false,
 }: HotelRecommendationsProps) {
   const recommendations = itinerary.recommendations;
   if (
@@ -60,11 +67,27 @@ export function HotelRecommendations({
                   {group.nights === 1 ? "night" : "nights"}
                 </p>
               </header>
-              <div className="hotelCardGrid">
-                {group.hotels.map((hotel) => (
-                  <HotelCard hotel={hotel} key={hotel.provider_offer_id} />
-                ))}
-              </div>
+              <fieldset className="recommendationChoiceGroup">
+                <legend className="visuallyHidden">
+                  Choose one hotel for {group.city}, {group.checkIn} to{" "}
+                  {group.checkOut}
+                </legend>
+                <div className="hotelCardGrid">
+                  {group.hotels.map((hotel) => (
+                    <HotelCard
+                      hotel={hotel}
+                      idPrefix={idPrefix}
+                      isSelected={
+                        selectedHotelIds[group.stayKey] === hotel.provider_offer_id
+                      }
+                      key={hotel.provider_offer_id}
+                      onSelect={onSelectHotel}
+                      selectionMode={selectionMode}
+                      stayKey={group.stayKey}
+                    />
+                  ))}
+                </div>
+              </fieldset>
             </section>
           ))}
         </div>
@@ -83,11 +106,37 @@ export function HotelRecommendations({
   );
 }
 
-function HotelCard({ hotel }: { hotel: HotelOption }) {
+function HotelCard({
+  hotel,
+  idPrefix,
+  isSelected,
+  onSelect,
+  selectionMode,
+  stayKey,
+}: {
+  hotel: HotelOption;
+  idPrefix: string;
+  isSelected: boolean;
+  onSelect?: (stayKey: string, hotelOptionId: string) => void;
+  selectionMode: boolean;
+  stayKey: string;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
-    <article className="hotelCard">
+    <article className={`hotelCard ${isSelected ? "recommendationSelected" : ""}`}>
+      {selectionMode ? (
+        <label className="recommendationRadio">
+          <input
+            checked={isSelected}
+            name={`${idPrefix}-hotel-${stayKey}`}
+            onChange={() => onSelect?.(stayKey, hotel.provider_offer_id)}
+            type="radio"
+            value={hotel.provider_offer_id}
+          />
+          <span>Select this hotel</span>
+        </label>
+      ) : null}
       {hotel.image_url && !imageFailed ? (
         <div className="hotelImageFrame">
           <img
@@ -163,6 +212,7 @@ function groupHotels(hotels: HotelOption[]): HotelGroup[] {
       return;
     }
     groups.set(key, {
+      stayKey: hotel.stay_key,
       city,
       checkIn: hotel.check_in,
       checkOut: hotel.check_out,

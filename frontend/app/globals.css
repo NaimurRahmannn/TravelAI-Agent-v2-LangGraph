@@ -1551,6 +1551,267 @@ textarea:disabled {
   line-height: 1.5;
 }
 
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.recommendationChoiceGroup {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.recommendationSelected {
+  border-color: #167f69;
+  box-shadow: 0 0 0 3px rgba(22, 127, 105, 0.15);
+}
+
+.recommendationRadio {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid #dbe7e1;
+  background: #eaf5f0;
+  padding: 11px 15px;
+  color: #174c3e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.recommendationRadio input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #167f69;
+}
+
+.recommendationRadio:focus-within {
+  outline: 3px solid rgba(22, 127, 105, 0.25);
+  outline-offset: -3px;
+}
+
+.travelSelectionPrompt,
+.travelSelectionPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(18px, 4vw, 38px);
+  overflow: hidden;
+  border: 1px solid #c9dbd3;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(214, 169, 93, 0.28), transparent 30%),
+    linear-gradient(135deg, #eaf5f0 0%, #fffaf0 100%);
+  padding: clamp(21px, 4vw, 31px);
+  box-shadow: 0 14px 34px rgba(18, 75, 60, 0.08);
+}
+
+.travelSelectionPrompt h3,
+.travelSelectionPrompt p,
+.travelSelectionPanel h3,
+.travelSelectionPanel p {
+  margin: 0;
+}
+
+.travelSelectionPrompt h3,
+.travelSelectionPanel h3 {
+  max-width: 760px;
+  margin-top: 4px;
+  color: #173d33;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(20px, 3vw, 27px);
+  line-height: 1.18;
+}
+
+.travelSelectionPrompt > div > p:last-child,
+.travelSelectionPanel > div > p:last-child {
+  margin-top: 7px;
+  color: #64756c;
+  font-size: 12px;
+}
+
+.selectionEyebrow {
+  color: #39725f;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.travelSelectionActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 9px;
+}
+
+.travelSelectionActions button,
+.changeSelectionsButton {
+  border: 1px solid #174c3e;
+  border-radius: 10px;
+  background: #174c3e;
+  padding: 11px 15px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.travelSelectionActions button + button,
+.changeSelectionsButton {
+  background: transparent;
+  color: #174c3e;
+}
+
+.travelSelectionActions button:hover,
+.travelSelectionActions button:focus-visible,
+.changeSelectionsButton:hover,
+.changeSelectionsButton:focus-visible {
+  outline: 3px solid rgba(22, 127, 105, 0.2);
+  outline-offset: 2px;
+}
+
+.travelSelectionActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.travelSelectionPanel {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.travelSelectionError {
+  display: flex;
+  align-items: center;
+  flex-basis: 100%;
+  gap: 8px;
+  border-radius: 9px;
+  background: #fff0eb;
+  padding: 10px 12px;
+  color: #9b3528;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.confirmedTravelSelection {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.confirmedTravelSelection > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #167f69;
+}
+
+.selectedTravelChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.selectedTravelChoices article {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgba(23, 76, 62, 0.14);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 13px;
+  color: #174c3e;
+}
+
+.selectedTravelChoices article div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.selectedTravelChoices strong {
+  color: #203c34;
+  font-size: 13px;
+}
+
+.selectedTravelChoices span {
+  color: #64756c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tripCostRows {
+  margin: 0;
+  border: 1px solid rgba(23, 76, 62, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 10px 16px;
+}
+
+.tripCostRows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px dashed #d5dfda;
+  padding: 9px 0;
+}
+
+.tripCostRows > div:last-child {
+  border-bottom: 0;
+}
+
+.tripCostRows dt,
+.tripCostRows dd {
+  margin: 0;
+  color: #52675e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tripCostRows dd {
+  color: #203c34;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.tripCostRows .updatedTripTotalRow {
+  margin-top: 3px;
+  border-top: 2px solid #174c3e;
+  padding-top: 12px;
+}
+
+.tripCostRows .updatedTripTotalRow dt,
+.tripCostRows .updatedTripTotalRow dd {
+  color: #174c3e;
+  font-size: 17px;
+}
+
+.tripCostComparison {
+  border-left: 3px solid #d6a95d;
+  background: rgba(255, 250, 240, 0.82);
+  padding: 10px 12px;
+  color: #69502b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.selectionBookingNote {
+  color: #64756c;
+  font-size: 11px;
+}
+
+.changeSelectionsButton {
+  align-self: flex-start;
+}
+
 .itineraryDays {
   display: flex;
   flex-direction: column;
@@ -2387,6 +2648,26 @@ textarea:disabled {
   }
 
   .flightPricePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .travelSelectionPrompt,
+  .travelSelectionPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .travelSelectionActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .travelSelectionActions button,
+  .changeSelectionsButton {
+    width: 100%;
+  }
+
+  .selectedTravelChoices {
     grid-template-columns: 1fr;
   }
 

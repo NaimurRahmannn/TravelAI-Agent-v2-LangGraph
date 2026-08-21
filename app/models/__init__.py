@@ -1,3 +1,4 @@
+from .hotel_stays import build_hotel_stay_key
 from .itinerary import (
     Activity,
     BudgetBreakdown,
@@ -28,12 +29,14 @@ from .recommendations import (
     RestaurantSearchRequest,
     TravelRecommendations,
 )
+from .selections import SelectedHotelStay, TravelSelections, TripCostSummary
 from .trip import Trip, TripExtraction
 
 __all__ = [
     "Activity",
     "BudgetBreakdown",
     "BudgetItem",
+    "build_hotel_stay_key",
     "DailyWeather",
     "ItineraryDay",
     "FlightLayover",
@@ -51,6 +54,7 @@ __all__ = [
     "RecommendationStatus",
     "RestaurantRecommendation",
     "RestaurantSearchRequest",
+    "SelectedHotelStay",
     "TravelLeg",
     "TravelLegStatus",
     "TravelMode",
@@ -58,5 +62,7 @@ __all__ = [
     "TripExtraction",
     "TripPlan",
     "TravelRecommendations",
+    "TravelSelections",
+    "TripCostSummary",
     "WeatherStatus",
 ]

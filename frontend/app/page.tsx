@@ -19,6 +19,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveAction,
   sendChat,
+  type TravelSelections,
+  type TripCostSummary,
   type TripPlan,
 } from "@/lib/api";
 import { AssistantMessage } from "@/components/AssistantMessage";
@@ -29,6 +31,8 @@ type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
   itinerary?: TripPlan | null;
+  travelSelections?: TravelSelections | null;
+  tripCostSummary?: TripCostSummary | null;
   missingFields?: string[];
 };
 
@@ -72,6 +76,12 @@ export default function Home() {
         ?.itinerary ?? null,
     [editableItineraryMessageId, messages],
   );
+  const selectableItineraryMessageId = useMemo(() => {
+    const latestMessage = messages[messages.length - 1];
+    return latestMessage?.role === "assistant" && latestMessage.itinerary
+      ? latestMessage.id
+      : null;
+  }, [messages]);
   const latestItineraryHasMapPoints = useMemo(
     () =>
       latestItinerary
@@ -145,6 +155,8 @@ export default function Home() {
         role: "assistant",
         content: response.response,
         itinerary: response.itinerary,
+        travelSelections: response.travel_selections,
+        tripCostSummary: response.trip_cost_summary,
         missingFields: response.missing_fields,
       },
     ]);
@@ -196,6 +208,8 @@ export default function Home() {
           role: "assistant",
           content: response.response,
           itinerary: response.itinerary,
+          travelSelections: response.travel_selections,
+          tripCostSummary: response.trip_cost_summary,
           missingFields: response.missing_fields,
         },
       ]);
@@ -258,6 +272,8 @@ export default function Home() {
                 ...item,
                 content: response.response,
                 itinerary: response.itinerary,
+                travelSelections: response.travel_selections,
+                tripCostSummary: response.trip_cost_summary,
                 missingFields: response.missing_fields,
               }
             : item,
@@ -301,6 +317,24 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleTravelSelectionConfirmed(
+    sourceMessageId: string,
+    selections: TravelSelections,
+    costSummary: TripCostSummary,
+  ) {
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === sourceMessageId
+          ? {
+              ...item,
+              travelSelections: selections,
+              tripCostSummary: costSummary,
+            }
+          : item,
+      ),
+    );
   }
 
   function resetThread() {
@@ -446,6 +480,13 @@ export default function Home() {
                       isLoading={isLoading}
                       mapPortalTarget={mapRailTarget}
                       missingFields={message.missingFields}
+                      onTravelSelectionConfirmed={(selections, costSummary) =>
+                        handleTravelSelectionConfirmed(
+                          message.id,
+                          selections,
+                          costSummary,
+                        )
+                      }
                       onDateContinue={(startDate, endDate) =>
                         handleDateSelection(message.id, startDate, endDate)
                       }
@@ -460,6 +501,13 @@ export default function Home() {
                           : undefined
                       }
                       showMap={message.id === editableItineraryMessageId}
+                      threadId={
+                        message.id === selectableItineraryMessageId && !isLoading
+                          ? threadId
+                          : null
+                      }
+                      travelSelections={message.travelSelections}
+                      tripCostSummary={message.tripCostSummary}
                     />
                   ) : (
                     <p>{message.content}</p>

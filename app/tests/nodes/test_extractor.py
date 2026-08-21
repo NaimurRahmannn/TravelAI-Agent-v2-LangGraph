@@ -7,11 +7,9 @@ from langchain_core.runnables import RunnableLambda
 from app.graph.nodes import extractor
 from app.graph.nodes.extractor import (
     _apply_deterministic_fallback,
-    _apply_authoritative_guest_nationality,
     _apply_selected_dates,
     _get_missing_required_fields,
     _merge_trip,
-    _protect_guest_nationality,
 )
 from app.models import (
     Activity,
@@ -34,37 +32,8 @@ def _empty_extraction() -> TripExtraction:
         budget=None,
         currency=None,
         travelers=None,
-        guest_nationality_country_code=None,
         preferences=[],
     )
-
-
-def test_guest_nationality_is_normalized_but_never_inferred_from_origin():
-    extracted = _empty_extraction().model_copy(
-        update={"origin": "Bangladesh", "guest_nationality_country_code": "BD"}
-    )
-
-    protected = _protect_guest_nationality(
-        extracted,
-        "I am traveling from Bangladesh.",
-    )
-    authoritative = _apply_authoritative_guest_nationality(Trip(), " bd ")
-
-    assert protected.guest_nationality_country_code is None
-    assert authoritative.guest_nationality_country_code == "BD"
-
-
-def test_explicit_nationality_may_be_retained_from_existing_extraction_call():
-    extracted = _empty_extraction().model_copy(
-        update={"guest_nationality_country_code": "JP"}
-    )
-
-    protected = _protect_guest_nationality(
-        extracted,
-        "My passport nationality is Japanese.",
-    )
-
-    assert protected.guest_nationality_country_code == "JP"
 
 
 def test_thailand_request_recovers_destination_and_duration():
@@ -333,6 +302,8 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
     assert result["missing_fields"] == ["budget", "dates", "origin", "travelers"]
     assert result["needs_clarification"] is True
     assert result["itinerary"] is None
+    assert result["travel_selections"] is None
+    assert result["trip_cost_summary"] is None
 
 
 def test_missing_detail_reply_cannot_replace_confirmed_destination(monkeypatch):
@@ -521,9 +492,13 @@ def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
         {
             "messages": [HumanMessage(content="Plan another trip")],
             "itinerary": stale_plan,
+            "travel_selections": {"selected_flight_id": "old"},
+            "trip_cost_summary": {"updated_trip_total_usd": 9999},
         },
         config={},
     )
 
     assert result["itinerary"] is None
+    assert result["travel_selections"] is None
+    assert result["trip_cost_summary"] is None
     assert result["needs_clarification"] is True

@@ -50,6 +50,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Provider-neutral travel recommendation foundation with independent search statuses
 - Automatic Swoop flight shopping using exact selected trip dates
 - Automatic LiteAPI / Nuitee Connect hotel rate recommendations for each stay
+- Opt-in saved flight/hotel selection with deterministic updated trip cost
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -90,6 +91,7 @@ flowchart TD
     D --> M[Response]
     L --> O[Write durable traveler facts]
     O --> M
+    M -->|Optional saved recommendation selection| X[Trip cost summary]
 ```
 
 Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's SQLite checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
@@ -127,6 +129,7 @@ final_response
       |                         +-- flight and hotel recommendations
       |                         +-- day/activity cards
       |                         +-- budget and practical notes
+      |                         +-- optional selection and updated trip cost
       |
       +-- no itinerary -------> MarkdownContent
 ```
@@ -320,8 +323,7 @@ Content-Type: application/json
 ```json
 {
   "message": "Plan a 7-day Japan trip from Bangladesh with a $2000 budget",
-  "user_id": "traveler-123",
-  "guest_nationality_country_code": "BD"
+  "user_id": "traveler-123"
 }
 ```
 
@@ -351,6 +353,33 @@ Send the same `thread_id` with follow-up messages to preserve context:
 ```
 
 `thread_id` restores the current conversation. `user_id` enables long-term traveler memory across conversations. If `user_id` is omitted, memory recall and writes are skipped and the chat still works normally.
+
+### Confirm saved travel recommendations
+
+```http
+POST /trip/select-travel
+Content-Type: application/json
+```
+
+```json
+{
+  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162",
+  "selected_flight_id": "stored-swoop-offer-id",
+  "selected_hotels": [
+    {
+      "stay_key": "stay_0123456789abcdef",
+      "hotel_option_id": "stored-liteapi-offer-id"
+    }
+  ]
+}
+```
+
+The request accepts IDs only. The backend loads the current LangGraph
+checkpoint, validates one flight and one hotel for every required stay against
+that thread's stored recommendation snapshot, and atomically saves
+`TravelSelections` with a Python-calculated `TripCostSummary`. Unknown, stale,
+incomplete, duplicate, or wrong-stay IDs are rejected without partial state
+updates. Browser-provided prices and totals are forbidden.
 
 ### Resume an approval
 
@@ -481,11 +510,12 @@ booking, seller-selection, reservation, or payment APIs.
 
 LiteAPI searches `POST /v3.0/hotels/rates` once per bounded stay segment using
 the exact dates, one occupancy containing the authoritative adult traveler
-count, USD currency, and an explicit guest-nationality ISO-2 code. Nationality
-is never inferred from origin, residence, IP address, device location, locale,
-language, or name. If it is missing, only hotel enrichment is unavailable. The
-current MVP models all travelers as adults in one requested occupancy; child
-ages, room allocation, and room preferences require future authoritative input.
+count, USD currency, and a guest-nationality ISO-2 code derived from the
+Geoapify country code for the trip origin. The API does not accept a separate
+user-supplied nationality. This origin-based assumption can be inaccurate when
+origin and citizenship differ. The current MVP models all travelers as adults
+in one requested occupancy; child ages, room allocation, and room preferences
+require future authoritative input.
 
 Python groups consecutive itinerary days by normalized city, calculates nights
 as checkout minus check-in, derives display-only price per night with decimal
@@ -499,7 +529,7 @@ does not claim that sandbox inventory is production-bookable.
 The itinerary budget is a base trip estimate for food, activities, admission,
 local and intercity ground transport, shopping, and contingency. Flights and
 accommodation are deliberately excluded and remain separate recommendation and
-future selection systems. The user's USD budget is preserved as an overall
+selection systems. The user's USD budget is preserved as an overall
 target, but the UI does not claim that the base estimate or any flight result
 makes the complete trip affordable. Flight search results are never filtered or
 classified by that target. The project does not currently provide booking,
@@ -521,6 +551,20 @@ TripPlan
     |   `-- Swoop
     `-- Hotel Recommendations
         `-- LiteAPI / Nuitee Connect
+
+Stored Recommendation Snapshot
+             |
+             | user opts in and submits IDs only
+             v
+TravelSelections
+|-- one selected flight ID
+`-- one selected hotel ID per deterministic stay key
+             |
+             v
+Decimal-safe Python calculator
+             |
+             v
+TripCostSummary --> Updated Trip Total
 ```
 
 Flight recommendations are generated automatically and displayed with the
@@ -529,14 +573,58 @@ by price, duration, stops, and stable provider ID; they are not filtered by the
 traveler's target and are not included in the base estimate.
 
 Hotel recommendations are also generated automatically when the LiteAPI key,
-authoritative nationality, dates, and a trusted search anchor are available.
+an origin-derived nationality, dates, and a trusted search anchor are available.
 Multi-city results use separate, non-overlapping date windows and are grouped by
 city and stay dates in the UI. LiteAPI's returned `retailRate.total` is kept as
 the total for the requested stay and occupancy; it is not multiplied again by
 nights or travelers. Hotel rates are stored only in
 `TravelRecommendations.hotels`, are never filtered by the user's target budget,
-and are not added to the Base Trip Estimate. Flight/hotel selection, updated
-trip totals, prebooking, booking, and payment remain future behavior.
+and are not added to the Base Trip Estimate.
+
+After both recommendation domains are complete, the structured frontend asks
+whether the traveler wants to include one saved flight and one hotel per stay
+in an updated trip estimate. Opening or changing selection mode uses the exact
+recommendations already stored with the current thread: it performs no new
+Swoop, LiteAPI, Geoapify, or LLM call and does not refresh prices. The primary
+Phase 7.8 interaction is button-based; typed natural-language yes/no selection
+intent is not separately classified.
+
+The browser submits provider offer IDs and opaque deterministic stay keys, not
+money or provider facts. Python resolves those IDs against the current snapshot
+and calculates with `Decimal`:
+
+```text
+Base Trip Estimate
++ Selected Flight shopping total
++ Selected Hotel total-stay prices
+= Updated Trip Total
+```
+
+The original base budget and recommendation arrays remain unchanged. Swoop's
+complete shopping total is not multiplied by traveler count; LiteAPI's total
+stay rates are not multiplied by nights or travelers. The original user budget
+is used only for an informational over/under comparison and never blocks a
+selection. Mixed-currency selections are rejected rather than converted. New
+trip generation or date-driven recommendation regeneration clears stale
+selections and cost summaries.
+
+Selection is for trip-cost planning only. It does not prebook, reserve,
+purchase, or pay for travel. Price refresh, prebooking, booking, and payment
+remain future work.
+
+```mermaid
+flowchart TD
+    S[Swoop] --> F[Flight Recommendations]
+    L[LiteAPI] --> H[Hotel Recommendations]
+    F --> R[Stored Recommendation Snapshot]
+    H --> R
+    R --> O[User opts to select]
+    O --> T[TravelSelections]
+    T --> C[Deterministic Decimal calculator]
+    B[Base Trip Estimate] --> C
+    C --> U[TripCostSummary / Updated Trip Total]
+    O -. no provider calls .-> T
+```
 
 ```text
 FlightSearchRequest
@@ -658,7 +746,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
 - Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
 - Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.
-- LiteAPI hotel search currently uses one adults-only occupancy and requires an explicit guest-nationality ISO-2 code; child ages, multiple-room allocation, selection, and booking are not implemented.
+- LiteAPI hotel search currently uses one adults-only occupancy and an origin-derived guest-nationality ISO-2 code; child ages, multiple-room allocation, and booking are not implemented.
 - Restaurant recommendation provider integration remains future work.
 - Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.

@@ -1,8 +1,13 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TripPlan } from "@/lib/api";
+import {
+  confirmTravelSelection,
+  type TravelSelections,
+  type TripCostSummary,
+  type TripPlan,
+} from "@/lib/api";
 import { buildItineraryMapPoints } from "@/lib/itineraryMap";
 import { BudgetSummary } from "./BudgetSummary";
 import { FlightRecommendations } from "./FlightRecommendations";
@@ -11,13 +16,24 @@ import { ItineraryDay } from "./ItineraryDay";
 import { PracticalNotes } from "./PracticalNotes";
 import { TripMap, type TripMapStatus } from "./TripMap";
 import { TripOverview } from "./TripOverview";
+import {
+  getSelectableHotelStayKeys,
+  TravelSelectionWorkflow,
+} from "./TravelSelectionWorkflow";
 
 type TripItineraryProps = {
   isUpdatingDates?: boolean;
   itinerary: TripPlan;
   mapPortalTarget?: HTMLElement | null;
   onDateUpdate?: (startDate: string, endDate: string) => Promise<void> | void;
+  onTravelSelectionConfirmed?: (
+    selections: TravelSelections,
+    costSummary: TripCostSummary,
+  ) => void;
   showMap?: boolean;
+  threadId?: string | null;
+  travelSelections?: TravelSelections | null;
+  tripCostSummary?: TripCostSummary | null;
 };
 
 export function TripItinerary({
@@ -25,18 +41,45 @@ export function TripItinerary({
   itinerary,
   mapPortalTarget,
   onDateUpdate,
+  onTravelSelectionConfirmed,
   showMap = true,
+  threadId,
+  travelSelections,
+  tripCostSummary,
 }: TripItineraryProps) {
   const idPrefix = useId();
   const [mapStatus, setMapStatus] = useState<TripMapStatus>("loading");
   const [selectedMapPointId, setSelectedMapPointId] = useState<string | null>(
     null,
   );
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionDismissed, setSelectionDismissed] = useState(false);
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
+  const [selectedHotelIds, setSelectedHotelIds] = useState<Record<string, string>>(
+    {},
+  );
+  const [selectionUpdating, setSelectionUpdating] = useState(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const mapPoints = useMemo(
     () => buildItineraryMapPoints(itinerary, idPrefix),
     [idPrefix, itinerary],
   );
   const mapSectionId = `${idPrefix}-trip-map`;
+  const recommendationKey = `${itinerary.destination}|${itinerary.start_date}|${itinerary.end_date}|${
+    itinerary.recommendations?.flights.map((flight) => flight.provider_offer_id).join(",")
+  }|${itinerary.recommendations?.hotels.map((hotel) => hotel.provider_offer_id).join(",")}`;
+  const requiredHotelStayKeys = getSelectableHotelStayKeys(itinerary);
+  const selectionComplete = Boolean(
+    selectedFlightId &&
+      requiredHotelStayKeys.length > 0 &&
+      requiredHotelStayKeys.every((stayKey) => selectedHotelIds[stayKey]),
+  );
+
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectionDismissed(false);
+    setSelectionError(null);
+  }, [recommendationKey]);
 
   function handleMarkerSelect(pointId: string) {
     setSelectedMapPointId(pointId);
@@ -55,6 +98,57 @@ export function TripItinerary({
       behavior: "smooth",
       block: "center",
     });
+  }
+
+  function beginSelection() {
+    setSelectedFlightId(travelSelections?.selected_flight_id ?? null);
+    setSelectedHotelIds(
+      Object.fromEntries(
+        (travelSelections?.selected_hotels ?? []).map((selection) => [
+          selection.stay_key,
+          selection.hotel_option_id,
+        ]),
+      ),
+    );
+    setSelectionError(null);
+    setSelectionMode(true);
+    requestAnimationFrame(() => {
+      document.getElementById(`${idPrefix}-flights-heading`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  async function confirmSelections() {
+    if (!threadId || !selectedFlightId || !selectionComplete || selectionUpdating) {
+      return;
+    }
+    setSelectionUpdating(true);
+    setSelectionError(null);
+    try {
+      const response = await confirmTravelSelection({
+        thread_id: threadId,
+        selected_flight_id: selectedFlightId,
+        selected_hotels: requiredHotelStayKeys.map((stayKey) => ({
+          stay_key: stayKey,
+          hotel_option_id: selectedHotelIds[stayKey],
+        })),
+      });
+      onTravelSelectionConfirmed?.(
+        response.travel_selections,
+        response.trip_cost_summary,
+      );
+      setSelectionMode(false);
+    } catch (caughtError) {
+      setSelectionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to update the trip cost.",
+      );
+    } finally {
+      setSelectionUpdating(false);
+    }
   }
 
   return (
@@ -76,8 +170,44 @@ export function TripItinerary({
             mapPortalTarget,
           )
         : null}
-      <FlightRecommendations idPrefix={idPrefix} itinerary={itinerary} />
-      <HotelRecommendations idPrefix={idPrefix} itinerary={itinerary} />
+      <FlightRecommendations
+        idPrefix={idPrefix}
+        itinerary={itinerary}
+        onSelectFlight={setSelectedFlightId}
+        selectedFlightId={selectedFlightId}
+        selectionMode={selectionMode}
+      />
+      <HotelRecommendations
+        idPrefix={idPrefix}
+        itinerary={itinerary}
+        onSelectHotel={(stayKey, hotelOptionId) =>
+          setSelectedHotelIds((current) => ({
+            ...current,
+            [stayKey]: hotelOptionId,
+          }))
+        }
+        selectedHotelIds={selectedHotelIds}
+        selectionMode={selectionMode}
+      />
+      {threadId && selectionMode ? (
+        <TravelSelectionWorkflow
+          complete={selectionComplete}
+          costSummary={tripCostSummary}
+          dismissed={selectionDismissed}
+          error={selectionError}
+          itinerary={itinerary}
+          onBegin={beginSelection}
+          onCancel={() => {
+            setSelectionMode(false);
+            setSelectionError(null);
+          }}
+          onConfirm={confirmSelections}
+          onDismiss={() => setSelectionDismissed(true)}
+          selections={travelSelections}
+          selectionMode
+          updating={selectionUpdating}
+        />
+      ) : null}
       <div className="itineraryDays">
         {itinerary.days.map((day) => {
           const dayMapPoints = mapPoints.filter(
@@ -100,6 +230,25 @@ export function TripItinerary({
         <BudgetSummary budget={itinerary.budget} idPrefix={idPrefix} />
         <PracticalNotes idPrefix={idPrefix} notes={itinerary.practical_notes} />
       </div>
+      {threadId && !selectionMode ? (
+        <TravelSelectionWorkflow
+          complete={selectionComplete}
+          costSummary={tripCostSummary}
+          dismissed={selectionDismissed}
+          error={selectionError}
+          itinerary={itinerary}
+          onBegin={beginSelection}
+          onCancel={() => {
+            setSelectionMode(false);
+            setSelectionError(null);
+          }}
+          onConfirm={confirmSelections}
+          onDismiss={() => setSelectionDismissed(true)}
+          selections={travelSelections}
+          selectionMode={false}
+          updating={selectionUpdating}
+        />
+      ) : null}
     </div>
   );
 }

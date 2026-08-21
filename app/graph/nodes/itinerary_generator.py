@@ -161,9 +161,7 @@ def _apply_authoritative_trip(plan: TripPlan, trip: Trip) -> TripPlan:
             "end_date": trip.end_date,
             "duration_days": trip.duration,
             "travelers": trip.travelers,
-            "guest_nationality_country_code": (
-                trip.guest_nationality_country_code
-            ),
+            "guest_nationality_country_code": None,
             "preferences": trip.preferences,
         }
     )

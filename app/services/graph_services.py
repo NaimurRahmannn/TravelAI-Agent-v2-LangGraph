@@ -80,6 +80,8 @@ class GraphService:
                 response=result.get("response", ""),
                 thread_id=thread_id,
                 itinerary=result.get("itinerary"),
+                travel_selections=result.get("travel_selections"),
+                trip_cost_summary=result.get("trip_cost_summary"),
                 missing_fields=result.get("missing_fields", []),
             )
         except Exception as exc:
@@ -164,7 +166,4 @@ class GraphService:
             "user_id": request.user_id,
             "selected_start_date": request.start_date,
             "selected_end_date": request.end_date,
-            "guest_nationality_country_code": (
-                request.guest_nationality_country_code
-            ),
         }

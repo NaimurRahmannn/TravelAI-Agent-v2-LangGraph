@@ -9,11 +9,17 @@ import type {
 type FlightRecommendationsProps = {
   idPrefix: string;
   itinerary: TripPlan;
+  onSelectFlight?: (flightId: string) => void;
+  selectedFlightId?: string | null;
+  selectionMode?: boolean;
 };
 
 export function FlightRecommendations({
   idPrefix,
   itinerary,
+  onSelectFlight,
+  selectedFlightId,
+  selectionMode = false,
 }: FlightRecommendationsProps) {
   const recommendations = itinerary.recommendations;
   if (
@@ -39,11 +45,21 @@ export function FlightRecommendations({
       </header>
 
       {flights.length > 0 ? (
-        <div className="flightCardGrid">
-          {flights.map((flight) => (
-            <FlightCard flight={flight} key={flight.provider_offer_id} />
-          ))}
-        </div>
+        <fieldset className="recommendationChoiceGroup">
+          <legend className="visuallyHidden">Choose one flight</legend>
+          <div className="flightCardGrid">
+            {flights.map((flight) => (
+              <FlightCard
+                flight={flight}
+                idPrefix={idPrefix}
+                isSelected={selectedFlightId === flight.provider_offer_id}
+                key={flight.provider_offer_id}
+                onSelect={onSelectFlight}
+                selectionMode={selectionMode}
+              />
+            ))}
+          </div>
+        </fieldset>
       ) : (
         <FlightEmptyState status={recommendations.flight_status.status} />
       )}
@@ -59,14 +75,38 @@ export function FlightRecommendations({
   );
 }
 
-function FlightCard({ flight }: { flight: FlightOption }) {
+function FlightCard({
+  flight,
+  idPrefix,
+  isSelected,
+  onSelect,
+  selectionMode,
+}: {
+  flight: FlightOption;
+  idPrefix: string;
+  isSelected: boolean;
+  onSelect?: (flightId: string) => void;
+  selectionMode: boolean;
+}) {
   const airlines = flight.airline_names.join(" + ") || "Airline unavailable";
   const route = flight.slices
     .map((slice) => `${slice.origin_code} → ${slice.destination_code}`)
     .join(" · ");
 
   return (
-    <article className="flightCard">
+    <article className={`flightCard ${isSelected ? "recommendationSelected" : ""}`}>
+      {selectionMode ? (
+        <label className="recommendationRadio">
+          <input
+            checked={isSelected}
+            name={`${idPrefix}-flight-selection`}
+            onChange={() => onSelect?.(flight.provider_offer_id)}
+            type="radio"
+            value={flight.provider_offer_id}
+          />
+          <span>Select this flight</span>
+        </label>
+      ) : null}
       <header className="flightCardHeader">
         <div>
           <span className="fareEstimateTag">Flight recommendation</span>

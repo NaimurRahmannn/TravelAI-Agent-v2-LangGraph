@@ -1,7 +1,12 @@
-from app.models import TripPlan
+from app.models import TravelSelections, TripCostSummary, TripPlan
 
 
-def render_itinerary(plan: TripPlan) -> str:
+def render_itinerary(
+    plan: TripPlan,
+    *,
+    travel_selections: TravelSelections | None = None,
+    trip_cost_summary: TripCostSummary | None = None,
+) -> str:
     """Render a structured trip plan as stable Markdown without an LLM."""
 
     lines = [f"# {plan.title}"]
@@ -161,7 +166,109 @@ def render_itinerary(plan: TripPlan) -> str:
         lines.extend(["", "## Practical Notes", ""])
         lines.extend(f"- {note}" for note in plan.practical_notes)
 
+    if travel_selections is not None and trip_cost_summary is not None:
+        _append_selected_travel(
+            lines,
+            plan,
+            travel_selections,
+            trip_cost_summary,
+        )
+
     return "\n".join(lines).strip()
+
+
+def _append_selected_travel(
+    lines: list[str],
+    plan: TripPlan,
+    selections: TravelSelections,
+    summary: TripCostSummary,
+) -> None:
+    recommendations = plan.recommendations
+    if recommendations is None:
+        return
+    selected_flight = next(
+        (
+            option
+            for option in recommendations.flights
+            if option.provider_offer_id == selections.selected_flight_id
+        ),
+        None,
+    )
+    selected_hotels = []
+    for selection in selections.selected_hotels:
+        option = next(
+            (
+                hotel
+                for hotel in recommendations.hotels
+                if hotel.provider_offer_id == selection.hotel_option_id
+                and hotel.stay_key == selection.stay_key
+            ),
+            None,
+        )
+        if option is not None:
+            selected_hotels.append(option)
+    if selected_flight is None or len(selected_hotels) != len(
+        selections.selected_hotels
+    ):
+        return
+
+    airline = " + ".join(selected_flight.airline_names) or "Airline unavailable"
+    route = " / ".join(
+        f"{flight_slice.origin_code} → {flight_slice.destination_code}"
+        for flight_slice in selected_flight.slices
+    )
+    lines.extend(
+        [
+            "",
+            "## Selected Travel",
+            "",
+            f"- **Selected flight: {airline}**",
+            f"  - Route: {route}",
+            f"  - Total: {_format_usd(summary.selected_flight_usd)}",
+        ]
+    )
+    for hotel in selected_hotels:
+        lines.extend(
+            [
+                f"- **Selected hotel · {hotel.city or 'This stay'}: {hotel.name}**",
+                f"  - {hotel.check_in} to {hotel.check_out}",
+                f"  - Total stay: {_format_money(hotel.total_price, hotel.currency)}",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Updated Trip Cost",
+            "",
+            f"- Base Trip Estimate: {_format_usd(summary.base_trip_total_usd)}",
+            f"- Selected Flight: {_format_usd(summary.selected_flight_usd)}",
+            f"- Selected Hotels: {_format_usd(summary.selected_hotels_usd)}",
+            f"- Travel Additions: {_format_usd(summary.additions_total_usd)}",
+            "",
+            f"**Updated Trip Total:** {_format_usd(summary.updated_trip_total_usd)}",
+        ]
+    )
+    if summary.user_budget_usd is not None:
+        lines.append(f"- Original Target Budget: {_format_usd(summary.user_budget_usd)}")
+    if summary.difference_from_budget_usd is not None:
+        difference = summary.difference_from_budget_usd
+        if difference > 0:
+            comparison = f"{_format_usd(difference)} over your original target budget"
+        elif difference < 0:
+            comparison = (
+                f"{_format_usd(abs(difference))} under your original target budget"
+            )
+        else:
+            comparison = "Matches your original target budget"
+        lines.append(f"- {comparison}")
+    lines.extend(
+        [
+            "",
+            "Selected for trip-cost planning only. No reservation or purchase "
+            "has been made.",
+        ]
+    )
 
 
 def _format_usd(amount: float) -> str:

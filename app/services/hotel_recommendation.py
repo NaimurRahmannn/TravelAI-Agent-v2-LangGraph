@@ -10,6 +10,7 @@ from app.models import (
     RecommendationDomainState,
     TravelRecommendations,
     TripPlan,
+    build_hotel_stay_key,
 )
 from app.services.places.base import PlacesProvider, normalize_place_text
 from app.services.recommendations import build_recommendation_status, rank_hotels
@@ -35,6 +36,10 @@ class HotelStay:
     @property
     def nights(self) -> int:
         return (self.check_out - self.check_in).days
+
+    @property
+    def stay_key(self) -> str:
+        return build_hotel_stay_key(self.city, self.check_in, self.check_out)
 
 
 @dataclass(frozen=True)

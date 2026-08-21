@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.hotel_stays import build_hotel_stay_key
+
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 RecommendationStatus = Literal[
     "not_searched",
@@ -169,6 +171,7 @@ class HotelOption(_ProviderOption):
 
     provider_hotel_id: NonEmptyString
     provider_offer_id: NonEmptyString
+    stay_key: NonEmptyString
     name: NonEmptyString
     city: str | None = None
     country: str | None = None
@@ -209,6 +212,12 @@ class HotelOption(_ProviderOption):
             raise ValueError("Hotel check-out must be after check-in")
         if self.nights != expected_nights:
             raise ValueError("Hotel nights must match check-in and check-out")
+        if self.stay_key != build_hotel_stay_key(
+            self.city,
+            self.check_in,
+            self.check_out,
+        ):
+            raise ValueError("Hotel stay key must match city and stay dates")
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("Hotel latitude and longitude must be supplied together")
         return self

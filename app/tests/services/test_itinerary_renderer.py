@@ -12,6 +12,7 @@ from app.models import (
     ResolvedPlace,
     TravelRecommendations,
     TripPlan,
+    build_hotel_stay_key,
 )
 from app.services.itinerary_renderer import render_itinerary
 
@@ -269,6 +270,11 @@ def test_renderer_groups_hotel_rate_as_recommendation_outside_base_estimate():
                     provider="liteapi",
                     provider_hotel_id="hotel-1",
                     provider_offer_id="offer-1",
+                    stay_key=build_hotel_stay_key(
+                        "Tokyo",
+                        datetime(2026, 9, 10).date(),
+                        datetime(2026, 9, 13).date(),
+                    ),
                     name="Hotel Sakura",
                     city="Tokyo",
                     check_in=datetime(2026, 9, 10).date(),

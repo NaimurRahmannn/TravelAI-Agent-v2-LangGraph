@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
 from app.llm import get_groq_llm
-from app.models import Trip, TripExtraction, TripPlan
+from app.models import TravelSelections, Trip, TripCostSummary, TripExtraction, TripPlan
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
@@ -20,7 +20,10 @@ logger = get_logger(__name__)
 def extractor_node(
     state: TravelState,
     config: RunnableConfig,
-) -> dict[str, Trip | TripPlan | list[str] | bool | None]:
+) -> dict[
+    str,
+    Trip | TripPlan | TravelSelections | TripCostSummary | list[str] | bool | None,
+]:
     """Extract structured trip details from the latest user message."""
 
     started_at = perf_counter()
@@ -71,8 +74,6 @@ def extractor_node(
         missing_fields=missing_fields,
         is_clarification_reply=existing_trip is not None,
     )
-    extracted_trip = _protect_guest_nationality(extracted_trip, message_text)
-
     trip = _merge_trip(
         existing_trip=existing_trip,
         extracted_trip=extracted_trip,
@@ -82,19 +83,19 @@ def extractor_node(
         state.get("selected_start_date"),
         state.get("selected_end_date"),
     )
-    trip = _apply_authoritative_guest_nationality(
-        trip,
-        state.get("guest_nationality_country_code"),
-    )
     trip = _normalize_budget_to_usd(trip)
 
     missing_fields = _get_missing_required_fields(trip)
+    if state.get("travel_selections") is not None:
+        logger.info("travel_selection_reset reason=trip_regenerated")
     result = {
         "trip": trip,
         # Every new user turn must replace, clarify, or regenerate the plan.
         # Explicitly clearing this checkpointed field prevents a prior turn's
         # itinerary from leaking into a fallback or approval-rejection path.
         "itinerary": None,
+        "travel_selections": None,
+        "trip_cost_summary": None,
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }
@@ -236,23 +237,7 @@ def _empty_trip_extraction() -> TripExtraction:
         budget=None,
         currency=None,
         travelers=None,
-        guest_nationality_country_code=None,
         preferences=[],
-    )
-
-
-def _protect_guest_nationality(
-    extracted_trip: TripExtraction,
-    message: str,
-) -> TripExtraction:
-    """Reject nationality output unless the traveler stated passport context."""
-
-    if extracted_trip.guest_nationality_country_code is None:
-        return extracted_trip
-    if re.search(r"\b(?:nationality|passport|citizen|citizenship)\b", message, re.I):
-        return extracted_trip
-    return extracted_trip.model_copy(
-        update={"guest_nationality_country_code": None}
     )
 
 
@@ -275,24 +260,6 @@ def _apply_selected_dates(
             "end_date": end_date,
             "duration": duration,
         }
-    )
-
-
-def _apply_authoritative_guest_nationality(
-    trip: Trip,
-    country_code: object,
-) -> Trip:
-    """Apply only an already validated API-supplied nationality code."""
-
-    if country_code is None:
-        return trip
-    if not isinstance(country_code, str):
-        raise ValueError("Guest nationality must be an ISO-2 country code")
-    normalized = country_code.strip().upper()
-    if len(normalized) != 2 or not normalized.isalpha():
-        raise ValueError("Guest nationality must be an ISO-2 country code")
-    return trip.model_copy(
-        update={"guest_nationality_country_code": normalized}
     )
 
 

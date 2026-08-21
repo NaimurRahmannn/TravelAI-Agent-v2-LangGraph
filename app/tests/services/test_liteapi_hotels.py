@@ -108,6 +108,7 @@ def test_rates_request_and_response_normalization_preserve_total_stay_semantics(
     assert hotel.provider == "liteapi"
     assert hotel.provider_hotel_id == "hotel-1"
     assert hotel.provider_offer_id == "offer-480"
+    assert hotel.stay_key.startswith("stay_")
     assert hotel.name == "Hotel Sakura"
     assert hotel.formatted_address == "1-2-3 Shinjuku, Tokyo"
     assert hotel.latitude == 35.69

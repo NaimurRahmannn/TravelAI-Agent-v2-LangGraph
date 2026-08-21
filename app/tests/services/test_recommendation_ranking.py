@@ -1,6 +1,12 @@
 from datetime import UTC, date, datetime, timedelta
 
-from app.models import FlightOption, FlightSegment, FlightSlice, HotelOption
+from app.models import (
+    FlightOption,
+    FlightSegment,
+    FlightSlice,
+    HotelOption,
+    build_hotel_stay_key,
+)
 from app.services.recommendations import (
     build_recommendation_status,
     rank_flights,
@@ -59,6 +65,11 @@ def _hotel(hotel_id: str, *, price: float, rating: float | None) -> HotelOption:
         provider="future-hotel-provider",
         provider_hotel_id=hotel_id,
         provider_offer_id=f"offer-{hotel_id}",
+        stay_key=build_hotel_stay_key(
+            None,
+            date(2026, 9, 10),
+            date(2026, 9, 14),
+        ),
         name=f"Hotel {hotel_id}",
         check_in=date(2026, 9, 10),
         check_out=date(2026, 9, 14),

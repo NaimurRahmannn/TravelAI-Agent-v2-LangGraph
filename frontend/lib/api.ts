@@ -4,7 +4,6 @@ export type ChatRequest = {
   user_id?: string | null;
   start_date?: string;
   end_date?: string;
-  guest_nationality_country_code?: string | null;
 };
 
 export type ResolvedPlace = {
@@ -177,6 +176,7 @@ export type HotelOption = {
   provider: string;
   provider_hotel_id: string;
   provider_offer_id: string;
+  stay_key: string;
   name: string;
   city?: string | null;
   country?: string | null;
@@ -199,6 +199,36 @@ export type HotelOption = {
   external_url?: string | null;
   is_sandbox: boolean;
   fetched_at: string;
+};
+
+export type SelectedHotelStay = {
+  stay_key: string;
+  hotel_option_id: string;
+};
+
+export type TravelSelections = {
+  selected_flight_id: string;
+  selected_hotels: SelectedHotelStay[];
+};
+
+export type TripCostSummary = {
+  base_trip_total_usd: number;
+  selected_flight_usd: number;
+  selected_hotels_usd: number;
+  additions_total_usd: number;
+  updated_trip_total_usd: number;
+  user_budget_usd?: number | null;
+  difference_from_budget_usd?: number | null;
+};
+
+export type TravelSelectionRequest = TravelSelections & {
+  thread_id: string;
+};
+
+export type TravelSelectionResponse = {
+  thread_id: string;
+  travel_selections: TravelSelections;
+  trip_cost_summary: TripCostSummary;
 };
 
 export type RestaurantRecommendation = {
@@ -245,6 +275,8 @@ export type ChatResponse = {
   response: string;
   thread_id: string;
   itinerary?: TripPlan | null;
+  travel_selections?: TravelSelections | null;
+  trip_cost_summary?: TripCostSummary | null;
   missing_fields: string[];
 };
 
@@ -313,6 +345,24 @@ export async function approveAction(
       thread_id: threadId,
       approved,
     }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return response.json();
+}
+
+export async function confirmTravelSelection(
+  request: TravelSelectionRequest,
+): Promise<TravelSelectionResponse> {
+  const response = await fetch(`${API_BASE_URL}/trip/select-travel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {

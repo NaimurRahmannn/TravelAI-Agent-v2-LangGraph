@@ -14,6 +14,7 @@ from app.models import (
     RestaurantRecommendation,
     RestaurantSearchRequest,
     TravelRecommendations,
+    build_hotel_stay_key,
 )
 
 FETCHED_AT = datetime(2026, 8, 20, 8, tzinfo=UTC)
@@ -67,6 +68,11 @@ def _hotel(**updates) -> HotelOption:
         "provider": "future-hotel-provider",
         "provider_hotel_id": "hotel-1",
         "provider_offer_id": "offer-1",
+        "stay_key": build_hotel_stay_key(
+            "Bangkok",
+            date(2026, 9, 10),
+            date(2026, 9, 14),
+        ),
         "name": "Riverside Hotel",
         "city": "Bangkok",
         "country": "Thailand",

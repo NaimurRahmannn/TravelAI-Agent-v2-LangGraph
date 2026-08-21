@@ -13,6 +13,9 @@ from app.models import (
     PlaceImage,
     ResolvedPlace,
     TravelLeg,
+    SelectedHotelStay,
+    TravelSelections,
+    TripCostSummary,
     TripPlan,
 )
 from app.schemas.api import ChatRequest, ChatResponse
@@ -50,6 +53,8 @@ def test_chat_response_schema_supports_optional_itinerary():
     assert response.itinerary is None
     assert response.model_dump(mode="json")["itinerary"] is None
     assert response.missing_fields == []
+    assert response.travel_selections is None
+    assert response.trip_cost_summary is None
 
 
 def test_chat_request_rejects_end_date_before_start_date():
@@ -100,6 +105,24 @@ def test_chat_request_rejects_unreasonably_long_trip():
 
 def test_graph_service_returns_structured_itinerary(monkeypatch):
     plan = _plan()
+    selections = TravelSelections(
+        selected_flight_id="flight-a",
+        selected_hotels=[
+            SelectedHotelStay(
+                stay_key="stay_0123456789abcdef",
+                hotel_option_id="hotel-a",
+            )
+        ],
+    )
+    summary = TripCostSummary(
+        base_trip_total_usd=50,
+        selected_flight_usd=100,
+        selected_hotels_usd=150,
+        additions_total_usd=250,
+        updated_trip_total_usd=300,
+        user_budget_usd=100,
+        difference_from_budget_usd=200,
+    )
 
     class FakeGraph:
         async def aget_state(self, config):
@@ -109,6 +132,8 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
             return {
                 "response": "# Thailand Plan",
                 "itinerary": plan,
+                "travel_selections": selections,
+                "trip_cost_summary": summary,
                 "missing_fields": [],
             }
 
@@ -124,6 +149,8 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
     assert response.response == "# Thailand Plan"
     assert response.thread_id == "t-1"
     assert response.itinerary == plan
+    assert response.travel_selections == selections
+    assert response.trip_cost_summary == summary
 
 
 def test_date_update_keeps_thread_and_uses_structured_date_fields(monkeypatch):

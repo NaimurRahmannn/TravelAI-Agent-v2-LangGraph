@@ -82,19 +82,11 @@ def test_build_input_includes_structured_date_selection():
     assert result["selected_end_date"] == end_date
 
 
-def test_build_input_carries_only_valid_authoritative_guest_nationality():
-    request = ChatRequest(
-        message="Plan a trip.",
-        guest_nationality_country_code="bd",
-    )
-
-    result = GraphService.build_input(request)
-
-    assert result["guest_nationality_country_code"] == "BD"
+def test_chat_request_rejects_user_supplied_guest_nationality():
     with pytest.raises(ValidationError):
         ChatRequest(
             message="Plan a trip.",
-            guest_nationality_country_code="Bangladesh",
+            guest_nationality_country_code="BD",
         )
 
 
