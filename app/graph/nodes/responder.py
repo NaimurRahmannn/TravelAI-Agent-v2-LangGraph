@@ -7,7 +7,12 @@ from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from app.graph.state import TravelState
-from app.models import TravelSelections, TripCostSummary, TripPlan
+from app.models import (
+    DetailedRoutingPlan,
+    TravelSelections,
+    TripCostSummary,
+    TripPlan,
+)
 from app.services.itinerary_renderer import render_itinerary
 from app.services.message_content import message_content_to_text
 
@@ -18,7 +23,10 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 def responder_node(
     state: TravelState,
     config: RunnableConfig,
-) -> dict[str, str | TripPlan | TravelSelections | TripCostSummary]:
+) -> dict[
+    str,
+    str | TripPlan | TravelSelections | TripCostSummary | DetailedRoutingPlan,
+]:
     """Convert the final AI message into the graph response."""
 
     started_at = perf_counter()
@@ -52,6 +60,10 @@ def responder_node(
     if (travel_selections is None) != (trip_cost_summary is None):
         travel_selections = None
         trip_cost_summary = None
+    detailed_routing_plan = _validated_optional_model(
+        state.get("detailed_routing_plan"),
+        DetailedRoutingPlan,
+    )
 
     final_message = messages[-1] if messages else None
     stored_response = state.get("response", "")
@@ -60,6 +72,7 @@ def responder_node(
             itinerary,
             travel_selections=travel_selections,
             trip_cost_summary=trip_cost_summary,
+            detailed_routing_plan=detailed_routing_plan,
         )
     elif isinstance(final_message, AIMessage):
         message_response = message_content_to_text(final_message.content)
@@ -72,7 +85,10 @@ def responder_node(
         # to whatever was last stored, instead of caching it as truth.
         response = stored_response
 
-    result: dict[str, str | TripPlan | TravelSelections | TripCostSummary] = {
+    result: dict[
+        str,
+        str | TripPlan | TravelSelections | TripCostSummary | DetailedRoutingPlan,
+    ] = {
         "response": response
     }
     if itinerary is not None:
@@ -80,6 +96,8 @@ def responder_node(
     if travel_selections is not None and trip_cost_summary is not None:
         result["travel_selections"] = travel_selections
         result["trip_cost_summary"] = trip_cost_summary
+    if detailed_routing_plan is not None:
+        result["detailed_routing_plan"] = detailed_routing_plan
     duration = perf_counter() - started_at
     logger.info(
         "responder_node exited tool_count=%s tool_names=%s duration=%.4fs",

@@ -1,4 +1,13 @@
-from app.models import TravelSelections, TripCostSummary, TripPlan
+from datetime import datetime
+
+from app.models import (
+    DetailedRouteLeg,
+    DetailedRoutingPlan,
+    TimetableStop,
+    TravelSelections,
+    TripCostSummary,
+    TripPlan,
+)
 
 
 def render_itinerary(
@@ -6,6 +15,7 @@ def render_itinerary(
     *,
     travel_selections: TravelSelections | None = None,
     trip_cost_summary: TripCostSummary | None = None,
+    detailed_routing_plan: DetailedRoutingPlan | None = None,
 ) -> str:
     """Render a structured trip plan as stable Markdown without an LLM."""
 
@@ -173,6 +183,8 @@ def render_itinerary(
             travel_selections,
             trip_cost_summary,
         )
+    if detailed_routing_plan is not None:
+        _append_detailed_routing(lines, detailed_routing_plan)
 
     return "\n".join(lines).strip()
 
@@ -270,6 +282,104 @@ def _append_selected_travel(
             "has been made.",
         ]
     )
+
+
+def _append_detailed_routing(
+    lines: list[str],
+    plan: DetailedRoutingPlan,
+) -> None:
+    lines.extend(["", "## Detailed Routing & Timetable"])
+    if plan.has_ai_estimates:
+        lines.extend(
+            [
+                "",
+                "AI planning estimates are planning ranges, not a live transit schedule.",
+            ]
+        )
+    for day in plan.days:
+        lines.extend(["", f"### Day {day.day_number} — {day.city or 'Trip day'}", ""])
+        events: list[tuple[datetime | None, int, str]] = []
+        for index, stop in enumerate(day.stops):
+            events.append((stop.arrival_time, index * 2, _render_timetable_stop(stop)))
+        offset = len(day.stops) * 2
+        for index, leg in enumerate(day.route_legs):
+            events.append(
+                (leg.departure_time, offset + index * 2 + 1, _render_route_leg(leg))
+            )
+        events.sort(
+            key=lambda item: (
+                item[0] is None,
+                item[0] or datetime.max,
+                item[1],
+            )
+        )
+        lines.extend(f"- {event}" for _, _, event in events)
+        lines.extend(f"- Warning: {warning}" for warning in day.warnings)
+    if plan.warnings:
+        lines.extend(["", "Planning warnings:"])
+        lines.extend(f"- {warning}" for warning in plan.warnings)
+
+
+def _render_timetable_stop(stop: TimetableStop) -> str:
+    if not stop.scheduled:
+        return f"Not scheduled — {stop.name}: {stop.note or 'Timing unavailable'}"
+    timing = _format_datetime_range(stop.arrival_time, stop.departure_time)
+    source = {
+        "planning_policy": "Planning buffer",
+        "llm_estimate": "AI planning estimate",
+        "selected_flight": "Selected flight fact",
+        "selected_hotel": "Selected hotel",
+        "itinerary": "Existing itinerary time",
+    }[stop.source]
+    visit = ""
+    if stop.stop_type == "activity" and stop.planned_visit_minutes is not None:
+        visit = f" · timetable allocation {stop.planned_visit_minutes} min"
+        if (
+            stop.visit_duration_min_minutes != stop.visit_duration_max_minutes
+            and stop.visit_duration_min_minutes is not None
+            and stop.visit_duration_max_minutes is not None
+        ):
+            visit += (
+                f" from {stop.visit_duration_min_minutes}–"
+                f"{stop.visit_duration_max_minutes} min range"
+            )
+    return f"{timing} — {stop.name} · {source}{visit}"
+
+
+def _render_route_leg(leg: DetailedRouteLeg) -> str:
+    timing = _format_datetime_range(leg.departure_time, leg.arrival_time)
+    mode = leg.requested_mode.title()
+    duration = leg.duration
+    if duration.source == "geoapify":
+        source = "Geoapify route estimate"
+        metrics = f"{duration.planning_minutes} min"
+        if leg.distance_km is not None:
+            metrics += f" · {leg.distance_km:g} km"
+    elif duration.source == "llm_estimate":
+        source = "AI planning estimate"
+        metrics = f"~{duration.min_minutes}–{duration.max_minutes} min"
+    elif duration.source == "planning_policy":
+        source = "Planning buffer"
+        metrics = f"{duration.planning_minutes} min"
+    else:
+        source = "Routing unavailable"
+        metrics = "duration unavailable"
+    return (
+        f"{timing} — {leg.origin_name} → {leg.destination_name} · "
+        f"{mode} · {metrics} · {source}"
+    )
+
+
+def _format_datetime_range(
+    start: datetime | None,
+    end: datetime | None,
+) -> str:
+    if start is None:
+        return "Time unavailable"
+    start_text = start.strftime("%H:%M")
+    if end is None or end == start:
+        return start_text
+    return f"{start_text}–{end.strftime('%H:%M')}"
 
 
 def _format_usd(amount: float) -> str:

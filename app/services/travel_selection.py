@@ -76,6 +76,7 @@ class TravelSelectionService:
             {
                 "travel_selections": selections,
                 "trip_cost_summary": summary,
+                "detailed_routing_plan": None,
             },
             as_node="memory_write",
         )

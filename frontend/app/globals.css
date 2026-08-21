@@ -1813,6 +1813,324 @@ textarea:disabled {
   align-self: flex-start;
 }
 
+.detailedRoutingPrompt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 15px;
+  border: 1px solid #c9dbd3;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(214, 169, 93, 0.24), transparent 34%),
+    linear-gradient(135deg, #eaf5f0, #fffaf0);
+  padding: clamp(21px, 4vw, 31px);
+  box-shadow: 0 14px 34px rgba(18, 75, 60, 0.08);
+}
+
+.detailedRoutingPrompt h3,
+.detailedRoutingPrompt p {
+  margin: 0;
+}
+
+.detailedRoutingPrompt h3 {
+  max-width: 760px;
+  margin-top: 4px;
+  color: #173d33;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(20px, 3vw, 27px);
+  line-height: 1.18;
+}
+
+.detailedRoutingPrompt > div:last-child > p:not(.selectionEyebrow, .travelSelectionError) {
+  margin-top: 7px;
+  color: #64756c;
+  font-size: 12px;
+}
+
+.detailedRoutingPrompt .travelSelectionActions {
+  margin-top: 18px;
+}
+
+.detailedRoutingPromptIcon,
+.detailedRoutingIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: #174c3e;
+  color: #fffaf0;
+  box-shadow: 0 8px 20px rgba(23, 76, 62, 0.18);
+}
+
+.detailedRoutingPlan {
+  overflow: hidden;
+  border: 1px solid #c9dbd3;
+  border-radius: 18px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.94), rgba(248, 245, 235, 0.96)),
+    repeating-linear-gradient(90deg, #174c3e 0 1px, transparent 1px 32px);
+  box-shadow: 0 18px 48px rgba(18, 75, 60, 0.1);
+}
+
+.detailedRoutingHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: clamp(22px, 5vw, 38px);
+}
+
+.detailedRoutingHeader h2,
+.detailedRoutingHeader p {
+  margin: 0;
+}
+
+.detailedRoutingHeader h2 {
+  margin-top: 4px;
+  color: #173d33;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(25px, 4vw, 36px);
+  line-height: 1.08;
+}
+
+.detailedRoutingHeader > div:last-child > p:last-child {
+  max-width: 700px;
+  margin-top: 8px;
+  color: #64756c;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.routingEstimateNotice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 clamp(22px, 5vw, 38px) 25px;
+  border-left: 3px solid #d6a95d;
+  background: #fff6df;
+  padding: 10px 13px;
+  color: #69502b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.detailedRoutingDays {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #dce6e1;
+}
+
+.detailedRoutingDay {
+  background: rgba(255, 255, 255, 0.95);
+  padding: clamp(22px, 5vw, 38px);
+}
+
+.detailedRoutingDay > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #dce6e1;
+}
+
+.detailedRoutingDay > header span {
+  color: #39725f;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.detailedRoutingDay > header h3 {
+  margin: 2px 0 0;
+  color: #173d33;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(22px, 3vw, 29px);
+}
+
+.detailedRoutingDay > header time {
+  color: #64756c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.routingHotelBase {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 0;
+  color: #52675e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.airportDeadline {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 15px;
+  border: 1px solid #ecd4ab;
+  border-radius: 10px;
+  background: #fff8e9;
+  padding: 11px 13px;
+  color: #69502b;
+}
+
+.airportDeadline div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  gap: 5px 14px;
+}
+
+.airportDeadline span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.airportDeadline strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.routingTimeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routingTimeline::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 116px;
+  width: 1px;
+  background: #b9cdc4;
+  content: "";
+}
+
+.routingTimeline > li {
+  position: relative;
+}
+
+.routingTimeline > li::before {
+  position: absolute;
+  z-index: 1;
+  top: 18px;
+  left: 112px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #167f69;
+  box-shadow: 0 0 0 1px #91b3a5;
+  content: "";
+}
+
+.routingTimeline > li:has(.routeEvent)::before {
+  background: #d6a95d;
+}
+
+.routingTimeline > li:has(.unscheduled)::before {
+  background: #b84a3a;
+}
+
+.timelineEvent {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 38px;
+  padding: 10px 0;
+}
+
+.timelineTime {
+  padding-top: 5px;
+  color: #52675e;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.timelineEventBody {
+  min-width: 0;
+  border: 1px solid #dce6e1;
+  border-radius: 11px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.routeEvent .timelineEventBody {
+  border-style: dashed;
+  background: #f5f9f7;
+}
+
+.timelineEvent.unscheduled .timelineEventBody {
+  border-color: #e7b9b1;
+  background: #fff3f0;
+}
+
+.timelineEventBody h4,
+.timelineEventBody p {
+  margin: 0;
+}
+
+.timelineEventBody h4 {
+  color: #203c34;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.timelineEventBody p {
+  margin-top: 5px;
+  color: #64756c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.routeSourceLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: #eaf5f0;
+  padding: 4px 8px;
+  color: #39725f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.routingWarnings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.routingWarnings p {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  border-left: 3px solid #b84a3a;
+  background: #fff3f0;
+  padding: 9px 11px;
+  color: #87372c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .itineraryDays {
   display: flex;
   flex-direction: column;
@@ -2672,6 +2990,44 @@ textarea:disabled {
     grid-template-columns: 1fr;
   }
 
+  .detailedRoutingPrompt {
+    grid-template-columns: 1fr;
+  }
+
+  .detailedRoutingPromptIcon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .detailedRoutingHeader {
+    flex-direction: column;
+  }
+
+  .detailedRoutingDay > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .routingTimeline::before {
+    left: 6px;
+  }
+
+  .routingTimeline > li::before {
+    left: 2px;
+  }
+
+  .timelineEvent {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding-left: 25px;
+  }
+
+  .timelineTime {
+    padding-top: 0;
+    text-align: left;
+  }
+
   .dayHeader,
   .activityHeader {
     align-items: flex-start;
@@ -2710,6 +3066,9 @@ textarea:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
   .itineraryDay,
   .activityCard,
   .activityImageFrame img,

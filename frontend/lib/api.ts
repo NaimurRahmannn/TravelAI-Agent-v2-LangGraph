@@ -223,6 +223,78 @@ export type TripCostSummary = {
   difference_from_budget_usd?: number | null;
 };
 
+export type EstimateSource =
+  | "geoapify"
+  | "llm_estimate"
+  | "planning_policy"
+  | "unavailable";
+
+export type RouteTimeEstimate = {
+  min_minutes?: number | null;
+  max_minutes?: number | null;
+  planning_minutes?: number | null;
+  source: EstimateSource;
+  approximate: boolean;
+};
+
+export type DetailedRouteLeg = {
+  leg_id: string;
+  origin_stop_id: string;
+  destination_stop_id: string;
+  origin_name: string;
+  destination_name: string;
+  requested_mode: TravelMode;
+  resolved_mode?: TravelMode | null;
+  distance_km?: number | null;
+  duration: RouteTimeEstimate;
+  provider?: "geoapify" | null;
+  departure_time?: string | null;
+  arrival_time?: string | null;
+  note?: string | null;
+};
+
+export type TimetableStop = {
+  stop_id: string;
+  name: string;
+  stop_type: "airport" | "hotel" | "activity" | "planning_buffer";
+  arrival_time?: string | null;
+  departure_time?: string | null;
+  planned_visit_minutes?: number | null;
+  visit_duration_min_minutes?: number | null;
+  visit_duration_max_minutes?: number | null;
+  source:
+    | "selected_flight"
+    | "selected_hotel"
+    | "itinerary"
+    | "llm_estimate"
+    | "planning_policy";
+  scheduled: boolean;
+  note?: string | null;
+};
+
+export type DetailedRoutingDay = {
+  day_number: number;
+  date: string;
+  city?: string | null;
+  hotel_name?: string | null;
+  stops: TimetableStop[];
+  route_legs: DetailedRouteLeg[];
+  latest_departure_for_airport?: string | null;
+  warnings: string[];
+};
+
+export type DetailedRoutingPlan = {
+  days: DetailedRoutingDay[];
+  generated_at: string;
+  has_ai_estimates: boolean;
+  warnings: string[];
+};
+
+export type DetailedRoutingResponse = {
+  thread_id: string;
+  detailed_routing_plan: DetailedRoutingPlan;
+};
+
 export type TravelSelectionRequest = TravelSelections & {
   thread_id: string;
 };
@@ -279,6 +351,7 @@ export type ChatResponse = {
   itinerary?: TripPlan | null;
   travel_selections?: TravelSelections | null;
   trip_cost_summary?: TripCostSummary | null;
+  detailed_routing_plan?: DetailedRoutingPlan | null;
   missing_fields: string[];
 };
 
@@ -365,6 +438,24 @@ export async function confirmTravelSelection(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return response.json();
+}
+
+export async function createDetailedRoutingPlan(
+  threadId: string,
+): Promise<DetailedRoutingResponse> {
+  const response = await fetch(`${API_BASE_URL}/trip/detailed-routing`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ thread_id: threadId }),
   });
 
   if (!response.ok) {

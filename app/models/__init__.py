@@ -1,3 +1,10 @@
+from .detailed_routing import (
+    DetailedRouteLeg,
+    DetailedRoutingDay,
+    DetailedRoutingPlan,
+    RouteTimeEstimate,
+    TimetableStop,
+)
 from .hotel_stays import build_hotel_stay_key
 from .itinerary import (
     Activity,
@@ -38,6 +45,9 @@ __all__ = [
     "BudgetItem",
     "build_hotel_stay_key",
     "DailyWeather",
+    "DetailedRouteLeg",
+    "DetailedRoutingDay",
+    "DetailedRoutingPlan",
     "ItineraryDay",
     "FlightLayover",
     "FlightOption",
@@ -54,6 +64,7 @@ __all__ = [
     "RecommendationStatus",
     "RestaurantRecommendation",
     "RestaurantSearchRequest",
+    "RouteTimeEstimate",
     "SelectedHotelStay",
     "TravelLeg",
     "TravelLegStatus",
@@ -64,5 +75,6 @@ __all__ = [
     "TravelRecommendations",
     "TravelSelections",
     "TripCostSummary",
+    "TimetableStop",
     "WeatherStatus",
 ]

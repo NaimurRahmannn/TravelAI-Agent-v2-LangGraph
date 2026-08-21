@@ -304,6 +304,7 @@ def test_extractor_node_recovers_when_structured_model_returns_nulls(monkeypatch
     assert result["itinerary"] is None
     assert result["travel_selections"] is None
     assert result["trip_cost_summary"] is None
+    assert result["detailed_routing_plan"] is None
 
 
 def test_missing_detail_reply_cannot_replace_confirmed_destination(monkeypatch):
@@ -494,6 +495,7 @@ def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
             "itinerary": stale_plan,
             "travel_selections": {"selected_flight_id": "old"},
             "trip_cost_summary": {"updated_trip_total_usd": 9999},
+            "detailed_routing_plan": {"days": ["stale"]},
         },
         config={},
     )
@@ -501,4 +503,5 @@ def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
     assert result["itinerary"] is None
     assert result["travel_selections"] is None
     assert result["trip_cost_summary"] is None
+    assert result["detailed_routing_plan"] is None
     assert result["needs_clarification"] is True

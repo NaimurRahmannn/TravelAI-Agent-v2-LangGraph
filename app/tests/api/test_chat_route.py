@@ -15,3 +15,12 @@ def test_travel_selection_route_is_registered():
     from app.main import app
 
     assert str(app.url_path_for("select_travel")) == "/trip/select-travel"
+
+
+def test_detailed_routing_route_is_registered():
+    from app.main import app
+
+    assert (
+        str(app.url_path_for("create_detailed_routing_plan"))
+        == "/trip/detailed-routing"
+    )

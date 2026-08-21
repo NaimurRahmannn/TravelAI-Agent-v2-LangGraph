@@ -4,12 +4,15 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   confirmTravelSelection,
+  createDetailedRoutingPlan,
+  type DetailedRoutingPlan,
   type TravelSelections,
   type TripCostSummary,
   type TripPlan,
 } from "@/lib/api";
 import { buildItineraryMapPoints } from "@/lib/itineraryMap";
 import { BudgetSummary } from "./BudgetSummary";
+import { DetailedRoutingWorkflow } from "./DetailedRoutingWorkflow";
 import { FlightRecommendations } from "./FlightRecommendations";
 import { HotelRecommendations } from "./HotelRecommendations";
 import { ItineraryDay } from "./ItineraryDay";
@@ -30,17 +33,21 @@ type TripItineraryProps = {
     selections: TravelSelections,
     costSummary: TripCostSummary,
   ) => void;
+  onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
   showMap?: boolean;
   threadId?: string | null;
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
+  detailedRoutingPlan?: DetailedRoutingPlan | null;
 };
 
 export function TripItinerary({
+  detailedRoutingPlan,
   isUpdatingDates = false,
   itinerary,
   mapPortalTarget,
   onDateUpdate,
+  onDetailedRoutingGenerated,
   onTravelSelectionConfirmed,
   showMap = true,
   threadId,
@@ -60,6 +67,9 @@ export function TripItinerary({
   );
   const [selectionUpdating, setSelectionUpdating] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [routingDismissed, setRoutingDismissed] = useState(false);
+  const [routingLoading, setRoutingLoading] = useState(false);
+  const [routingError, setRoutingError] = useState<string | null>(null);
   const shouldScrollToUpdatedCost = useRef(false);
   const mapPoints = useMemo(
     () => buildItineraryMapPoints(itinerary, idPrefix),
@@ -82,6 +92,11 @@ export function TripItinerary({
     setSelectionDismissed(false);
     setSelectionError(null);
   }, [recommendationKey]);
+
+  useEffect(() => {
+    setRoutingDismissed(false);
+    setRoutingError(null);
+  }, [travelSelections]);
 
   useEffect(() => {
     if (
@@ -168,6 +183,8 @@ export function TripItinerary({
         response.travel_selections,
         response.trip_cost_summary,
       );
+      setRoutingDismissed(false);
+      setRoutingError(null);
       setSelectionMode(false);
     } catch (caughtError) {
       setSelectionError(
@@ -177,6 +194,26 @@ export function TripItinerary({
       );
     } finally {
       setSelectionUpdating(false);
+    }
+  }
+
+  async function createRoutingPlan() {
+    if (!threadId || routingLoading) {
+      return;
+    }
+    setRoutingLoading(true);
+    setRoutingError(null);
+    try {
+      const response = await createDetailedRoutingPlan(threadId);
+      onDetailedRoutingGenerated?.(response.detailed_routing_plan);
+    } catch (caughtError) {
+      setRoutingError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to create the detailed routing plan.",
+      );
+    } finally {
+      setRoutingLoading(false);
     }
   }
 
@@ -278,6 +315,16 @@ export function TripItinerary({
           selectionMode={false}
           updatedTripCostSectionId={updatedTripCostSectionId}
           updating={selectionUpdating}
+        />
+      ) : null}
+      {threadId && travelSelections && tripCostSummary && !selectionMode ? (
+        <DetailedRoutingWorkflow
+          dismissed={routingDismissed}
+          error={routingError}
+          loading={routingLoading}
+          onCreate={createRoutingPlan}
+          onDismiss={() => setRoutingDismissed(true)}
+          plan={detailedRoutingPlan}
         />
       ) : null}
     </div>

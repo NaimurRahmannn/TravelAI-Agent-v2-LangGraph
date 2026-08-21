@@ -1,5 +1,6 @@
 import { MarkdownContent } from "@/app/MarkdownContent";
 import type {
+  DetailedRoutingPlan,
   TravelSelections,
   TripCostSummary,
   TripPlan,
@@ -19,20 +20,24 @@ type AssistantMessageProps = {
     selections: TravelSelections,
     costSummary: TripCostSummary,
   ) => void;
+  onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
   showMap?: boolean;
   threadId?: string | null;
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
+  detailedRoutingPlan?: DetailedRoutingPlan | null;
 };
 
 export function AssistantMessage({
   content,
+  detailedRoutingPlan,
   itinerary,
   missingFields = [],
   isLoading = false,
   mapPortalTarget,
   onDateContinue,
   onDateUpdate,
+  onDetailedRoutingGenerated,
   onTravelSelectionConfirmed,
   showMap = true,
   threadId,
@@ -42,10 +47,12 @@ export function AssistantMessage({
   if (itinerary) {
     return (
       <TripItinerary
+        detailedRoutingPlan={detailedRoutingPlan}
         isUpdatingDates={isLoading}
         itinerary={itinerary}
         mapPortalTarget={mapPortalTarget}
         onDateUpdate={onDateUpdate}
+        onDetailedRoutingGenerated={onDetailedRoutingGenerated}
         onTravelSelectionConfirmed={onTravelSelectionConfirmed}
         showMap={showMap}
         threadId={threadId}

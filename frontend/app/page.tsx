@@ -19,6 +19,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveAction,
   sendChat,
+  type DetailedRoutingPlan,
   type TravelSelections,
   type TripCostSummary,
   type TripPlan,
@@ -33,6 +34,7 @@ type ChatMessage = {
   itinerary?: TripPlan | null;
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
+  detailedRoutingPlan?: DetailedRoutingPlan | null;
   missingFields?: string[];
 };
 
@@ -157,6 +159,7 @@ export default function Home() {
         itinerary: response.itinerary,
         travelSelections: response.travel_selections,
         tripCostSummary: response.trip_cost_summary,
+        detailedRoutingPlan: response.detailed_routing_plan,
         missingFields: response.missing_fields,
       },
     ]);
@@ -210,6 +213,7 @@ export default function Home() {
           itinerary: response.itinerary,
           travelSelections: response.travel_selections,
           tripCostSummary: response.trip_cost_summary,
+          detailedRoutingPlan: response.detailed_routing_plan,
           missingFields: response.missing_fields,
         },
       ]);
@@ -274,6 +278,7 @@ export default function Home() {
                 itinerary: response.itinerary,
                 travelSelections: response.travel_selections,
                 tripCostSummary: response.trip_cost_summary,
+                detailedRoutingPlan: response.detailed_routing_plan,
                 missingFields: response.missing_fields,
               }
             : item,
@@ -331,7 +336,21 @@ export default function Home() {
               ...item,
               travelSelections: selections,
               tripCostSummary: costSummary,
+              detailedRoutingPlan: null,
             }
+          : item,
+      ),
+    );
+  }
+
+  function handleDetailedRoutingGenerated(
+    sourceMessageId: string,
+    detailedRoutingPlan: DetailedRoutingPlan,
+  ) {
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === sourceMessageId
+          ? { ...item, detailedRoutingPlan }
           : item,
       ),
     );
@@ -476,6 +495,7 @@ export default function Home() {
                   {message.role === "assistant" ? (
                     <AssistantMessage
                       content={message.content}
+                      detailedRoutingPlan={message.detailedRoutingPlan}
                       itinerary={message.itinerary}
                       isLoading={isLoading}
                       mapPortalTarget={mapRailTarget}
@@ -486,6 +506,9 @@ export default function Home() {
                           selections,
                           costSummary,
                         )
+                      }
+                      onDetailedRoutingGenerated={(plan) =>
+                        handleDetailedRoutingGenerated(message.id, plan)
                       }
                       onDateContinue={(startDate, endDate) =>
                         handleDateSelection(message.id, startDate, endDate)

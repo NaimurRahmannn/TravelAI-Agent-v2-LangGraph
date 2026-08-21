@@ -51,6 +51,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Automatic Swoop flight shopping using exact selected trip dates
 - Automatic LiteAPI / Nuitee Connect hotel rate recommendations for each stay
 - Opt-in saved flight/hotel selection with deterministic updated trip cost
+- Opt-in door-to-door routing and deterministic timetable from saved selections
 - Budget normalization to USD using the Frankfurter exchange-rate API
 - Groq-powered extraction and clarification; Gemini-powered tool reasoning and final answers
 - Human-in-the-loop interruption and resume endpoints for sensitive actions
@@ -92,6 +93,7 @@ flowchart TD
     L --> O[Write durable traveler facts]
     O --> M
     M -->|Optional saved recommendation selection| X[Trip cost summary]
+    X -->|Optional detailed-routing action| Y[Detailed routing timetable]
 ```
 
 Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's SQLite checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
@@ -606,6 +608,59 @@ Selection is for trip-cost planning only. It does not prebook, reserve,
 purchase, or pay for travel. Price refresh, prebooking, booking, and payment
 remain future work.
 
+### Detailed routing and timetable
+
+Phase 7.9 adds a separate, opt-in `POST /trip/detailed-routing` action after a
+complete flight/hotel selection and updated trip cost. The request contains
+only the existing `thread_id`; Python reloads the authoritative itinerary,
+selected flight, selected hotels, and cost summary from the checkpoint. It does
+not call Swoop or LiteAPI again, refresh prices, modify the itinerary, or run
+through `/chat`.
+
+The first stored flight slice supplies the arrival airport and local arrival
+time. The final stored slice supplies the return or open-jaw departure airport
+and local departure time. Selected hotel stays are mapped to itinerary dates,
+including multi-city trips. Existing trusted Geoapify coordinates are reused;
+the existing Geoapify place resolver handles only missing airport or hotel
+coordinates.
+
+Geoapify Routing is the factual source for route duration and distance. Requests
+are bounded to three concurrent calls and deduplicated within the action. If an
+individual route fails, one combined Gemini structured-output call may provide
+a conservative duration range for only the missing route legs and visit ranges
+for activities. AI ranges are visibly labeled, never expose provider distance,
+and must not invent stations, lines, vehicle numbers, departures, live traffic,
+or live availability. If that fallback also fails, the route remains
+unavailable and activity visits use a visible 60-minute planning policy.
+
+All clock arithmetic is deterministic Python. The policy uses a 90-minute
+international-arrival buffer, 20 minutes for hotel arrival, 15 minutes for
+hotel departure, a 09:00 default day start, a 21:30 preferred day end, and
+arrival at the airport 180 minutes before the selected return flight. Final-day
+activities that cannot fit before the airport deadline are shown as not
+scheduled rather than shortened or removed from the source `TripPlan`.
+
+```text
+POST /trip/detailed-routing { thread_id }
+             |
+             v
+Checkpointed TripPlan + TravelSelections + TripCostSummary
+             |
+             +-- selected flight slices --> arrival/departure facts
+             +-- selected hotel stays ---> per-day hotel bases
+             +-- trusted coordinates ----> Geoapify route facts
+             +-- failed route legs ------> one AI range-estimate batch
+             |
+             v
+Deterministic Python timetable --> checkpointed DetailedRoutingPlan
+```
+
+Changing a flight/hotel selection or regenerating the itinerary clears the
+derived detailed plan. The traveler can then explicitly create a new plan from
+the updated authoritative state. The feature is a planning aid, not a live
+transit schedule, directions engine, booking service, or guarantee that a
+connection will be available.
+
 ```mermaid
 flowchart TD
     S[Swoop] --> F[Flight Recommendations]
@@ -690,7 +745,7 @@ python -m pytest -q app/tests
 ```
 
 Provider tests use mocked transports and do not call Geoapify, OpenWeather,
-Swoop's upstream Google Flights RPCs or Pexels.
+Swoop's upstream Google Flights RPCs, LiteAPI, Gemini, or Pexels.
 
 ### Frontend checks
 
@@ -738,6 +793,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Pexels improves broad image coverage, but search relevance cannot guarantee an exact photo for every landmark; activities remain usable when no safe result is returned.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
+- Detailed routing is opt-in planning output, not live transit data; AI fallbacks provide labeled ranges only, and no route geometry, directions, booking, or availability guarantee is added.
 - Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
 - Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.
 - LiteAPI hotel search currently uses one adults-only occupancy and an origin-derived guest-nationality ISO-2 code; child ages, multiple-room allocation, and booking are not implemented.

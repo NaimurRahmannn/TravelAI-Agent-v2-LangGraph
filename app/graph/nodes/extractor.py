@@ -7,7 +7,14 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
 from app.llm import get_groq_llm
-from app.models import TravelSelections, Trip, TripCostSummary, TripExtraction, TripPlan
+from app.models import (
+    DetailedRoutingPlan,
+    TravelSelections,
+    Trip,
+    TripCostSummary,
+    TripExtraction,
+    TripPlan,
+)
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
@@ -22,7 +29,14 @@ def extractor_node(
     config: RunnableConfig,
 ) -> dict[
     str,
-    Trip | TripPlan | TravelSelections | TripCostSummary | list[str] | bool | None,
+    Trip
+    | TripPlan
+    | TravelSelections
+    | TripCostSummary
+    | DetailedRoutingPlan
+    | list[str]
+    | bool
+    | None,
 ]:
     """Extract structured trip details from the latest user message."""
 
@@ -96,6 +110,7 @@ def extractor_node(
         "itinerary": None,
         "travel_selections": None,
         "trip_cost_summary": None,
+        "detailed_routing_plan": None,
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }

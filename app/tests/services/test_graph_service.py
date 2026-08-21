@@ -55,6 +55,7 @@ def test_chat_response_schema_supports_optional_itinerary():
     assert response.missing_fields == []
     assert response.travel_selections is None
     assert response.trip_cost_summary is None
+    assert response.detailed_routing_plan is None
 
 
 def test_chat_request_rejects_end_date_before_start_date():

@@ -2,7 +2,13 @@ from datetime import date
 from typing import Annotated, TypedDict
 
 from langgraph.graph import MessagesState
-from app.models import TravelSelections, Trip, TripCostSummary, TripPlan
+from app.models import (
+    DetailedRoutingPlan,
+    TravelSelections,
+    Trip,
+    TripCostSummary,
+    TripPlan,
+)
 
 
 def merge_research_results(
@@ -25,6 +31,7 @@ class PlannerState(TypedDict):
     current_step: str
     next_action: str
 
+
 class TravelState(MessagesState):
     """Shared state passed between travel graph nodes."""
 
@@ -36,6 +43,7 @@ class TravelState(MessagesState):
     itinerary: TripPlan | None
     travel_selections: TravelSelections | None
     trip_cost_summary: TripCostSummary | None
+    detailed_routing_plan: DetailedRoutingPlan | None
     missing_fields: list[str]
     needs_clarification: bool
     research_results: Annotated[dict[str, str], merge_research_results]

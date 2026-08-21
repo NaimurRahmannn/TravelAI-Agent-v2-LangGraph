@@ -82,6 +82,7 @@ class GraphService:
                 itinerary=result.get("itinerary"),
                 travel_selections=result.get("travel_selections"),
                 trip_cost_summary=result.get("trip_cost_summary"),
+                detailed_routing_plan=result.get("detailed_routing_plan"),
                 missing_fields=result.get("missing_fields", []),
             )
         except Exception as exc:

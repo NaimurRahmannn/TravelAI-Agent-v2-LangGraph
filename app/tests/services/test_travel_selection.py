@@ -322,7 +322,12 @@ def test_confirmation_uses_checkpoint_snapshot_and_makes_zero_provider_calls(
 
     monkeypatch.setattr(SwoopFlightProvider, "search_flights", fail_swoop)
     monkeypatch.setattr(LiteApiHotelProvider, "search_hotels", fail_liteapi)
-    states = {"thread-a": {"itinerary": _plan()}}
+    states = {
+        "thread-a": {
+            "itinerary": _plan(),
+            "detailed_routing_plan": {"stale": True},
+        }
+    }
     graph = FakeGraph(states)
 
     async def get_fake_graph():
@@ -339,10 +344,12 @@ def test_confirmation_uses_checkpoint_snapshot_and_makes_zero_provider_calls(
     assert calls == {"swoop": 0, "liteapi": 0}
     assert response.trip_cost_summary.updated_trip_total_usd == 2520
     assert states["thread-a"]["travel_selections"] == _selections()
+    assert states["thread-a"]["detailed_routing_plan"] is None
     assert graph.updates[0][2] == "memory_write"
     assert set(graph.updates[0][1]) == {
         "travel_selections",
         "trip_cost_summary",
+        "detailed_routing_plan",
     }
 
 

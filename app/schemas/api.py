@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import (
+    DetailedRoutingPlan,
     SelectedHotelStay,
     TravelSelections,
     TripCostSummary,
@@ -52,6 +53,7 @@ class ChatResponse(BaseModel):
     itinerary: TripPlan | None = None
     travel_selections: TravelSelections | None = None
     trip_cost_summary: TripCostSummary | None = None
+    detailed_routing_plan: DetailedRoutingPlan | None = None
     missing_fields: list[str] = Field(default_factory=list)
 
 
@@ -73,6 +75,23 @@ class TravelSelectionResponse(BaseModel):
     thread_id: str
     travel_selections: TravelSelections
     trip_cost_summary: TripCostSummary
+
+
+class DetailedRoutingRequest(BaseModel):
+    """Thread-only action request; routing inputs come from checkpoint state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str = Field(min_length=1)
+
+
+class DetailedRoutingResponse(BaseModel):
+    """A validated detailed plan persisted to the requested travel thread."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str
+    detailed_routing_plan: DetailedRoutingPlan
 
 
 class MapsConfigResponse(BaseModel):
