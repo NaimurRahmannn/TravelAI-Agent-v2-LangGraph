@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   confirmTravelSelection,
@@ -60,6 +60,7 @@ export function TripItinerary({
   );
   const [selectionUpdating, setSelectionUpdating] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const shouldScrollToUpdatedCost = useRef(false);
   const mapPoints = useMemo(
     () => buildItineraryMapPoints(itinerary, idPrefix),
     [idPrefix, itinerary],
@@ -81,6 +82,32 @@ export function TripItinerary({
     setSelectionDismissed(false);
     setSelectionError(null);
   }, [recommendationKey]);
+
+  useEffect(() => {
+    if (
+      !shouldScrollToUpdatedCost.current ||
+      selectionMode ||
+      !travelSelections ||
+      !tripCostSummary
+    ) {
+      return;
+    }
+
+    shouldScrollToUpdatedCost.current = false;
+    const frame = requestAnimationFrame(() => {
+      const section = document.getElementById(updatedTripCostSectionId);
+      section?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById(`${updatedTripCostSectionId}-heading`)
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    selectionMode,
+    travelSelections,
+    tripCostSummary,
+    updatedTripCostSectionId,
+  ]);
 
   function handleMarkerSelect(pointId: string) {
     setSelectedMapPointId(pointId);
@@ -136,18 +163,12 @@ export function TripItinerary({
           hotel_option_id: selectedHotelIds[stayKey],
         })),
       });
+      shouldScrollToUpdatedCost.current = true;
       onTravelSelectionConfirmed?.(
         response.travel_selections,
         response.trip_cost_summary,
       );
       setSelectionMode(false);
-      requestAnimationFrame(() => {
-        const section = document.getElementById(updatedTripCostSectionId);
-        section?.scrollIntoView({ behavior: "smooth", block: "start" });
-        document
-          .getElementById(`${updatedTripCostSectionId}-heading`)
-          ?.focus({ preventScroll: true });
-      });
     } catch (caughtError) {
       setSelectionError(
         caughtError instanceof Error

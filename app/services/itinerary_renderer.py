@@ -249,12 +249,13 @@ def _append_selected_travel(
             f"**Updated Trip Total:** {_format_usd(summary.updated_trip_total_usd)}",
         ]
     )
-    if summary.user_budget_usd is not None:
-        lines.append(f"- Original Target Budget: {_format_usd(summary.user_budget_usd)}")
     if summary.difference_from_budget_usd is not None:
         difference = summary.difference_from_budget_usd
         if difference > 0:
-            comparison = f"{_format_usd(difference)} over your original target budget"
+            comparison = (
+                f"{_format_usd(difference)} is the extra money needed for "
+                "flight and hotel"
+            )
         elif difference < 0:
             comparison = (
                 f"{_format_usd(abs(difference))} under your original target budget"

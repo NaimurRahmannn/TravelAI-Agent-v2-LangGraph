@@ -198,12 +198,6 @@ function ConfirmedTravelSelection({
           <dt>Updated Trip Total</dt>
           <dd>{formatMoney(costSummary.updated_trip_total_usd)}</dd>
         </div>
-        {costSummary.user_budget_usd != null ? (
-          <CostRow
-            label="Original target budget"
-            value={costSummary.user_budget_usd}
-          />
-        ) : null}
       </dl>
 
       {budgetComparison(costSummary) ? (
@@ -304,7 +298,7 @@ function budgetComparison(summary: TripCostSummary): string | null {
     return null;
   }
   if (difference > 0) {
-    return `${formatMoney(difference)} over your original target budget`;
+    return `${formatMoney(difference)} is the extra money needed for flight and hotel`;
   }
   if (difference < 0) {
     return `${formatMoney(Math.abs(difference))} under your original target budget`;

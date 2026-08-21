@@ -214,7 +214,8 @@ def test_markdown_renders_selected_travel_and_updated_cost_separately():
     assert "Selected hotel · Tokyo" in rendered
     assert "## Updated Trip Cost" in rendered
     assert "**Updated Trip Total:** $2,520" in rendered
-    assert "$220 over your original target budget" in rendered
+    assert "$220 is the extra money needed for flight and hotel" in rendered
+    assert "Original Target Budget" not in rendered
     assert "reservation or purchase" in rendered
 
 

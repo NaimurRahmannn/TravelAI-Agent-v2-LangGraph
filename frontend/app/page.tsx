@@ -37,7 +37,7 @@ type ChatMessage = {
 };
 
 const SUGGESTIONS = [
-  "I want to visit Japan from Bangladesh for 7 days with a budget of $2000",
+  "I want to visit Japan from Bangladesh",
   "Plan a Thailand trip for 5 days",
   "I prefer temple,food, culture",
 ];
