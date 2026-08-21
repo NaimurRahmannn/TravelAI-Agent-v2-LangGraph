@@ -1704,6 +1704,7 @@ textarea:disabled {
 .confirmedTravelSelection {
   align-items: stretch;
   flex-direction: column;
+  scroll-margin-top: 24px;
 }
 
 .confirmedTravelSelection > header {

@@ -18,6 +18,7 @@ type TravelSelectionWorkflowProps = {
   onDismiss: () => void;
   selections?: TravelSelections | null;
   selectionMode: boolean;
+  updatedTripCostSectionId: string;
   updating: boolean;
 };
 
@@ -33,6 +34,7 @@ export function TravelSelectionWorkflow({
   onDismiss,
   selections,
   selectionMode,
+  updatedTripCostSectionId,
   updating,
 }: TravelSelectionWorkflowProps) {
   if (!canOfferTravelSelection(itinerary)) {
@@ -82,6 +84,7 @@ export function TravelSelectionWorkflow({
         itinerary={itinerary}
         onChange={onBegin}
         selections={selections}
+        sectionId={updatedTripCostSectionId}
       />
     );
   }
@@ -119,11 +122,13 @@ function ConfirmedTravelSelection({
   costSummary,
   itinerary,
   onChange,
+  sectionId,
   selections,
 }: {
   costSummary: TripCostSummary;
   itinerary: TripPlan;
   onChange: () => void;
+  sectionId: string;
   selections: TravelSelections;
 }) {
   const recommendations = itinerary.recommendations;
@@ -142,14 +147,17 @@ function ConfirmedTravelSelection({
 
   return (
     <section
-      aria-labelledby="updated-trip-cost-heading"
+      aria-labelledby={`${sectionId}-heading`}
       className="travelSelectionPanel confirmedTravelSelection"
+      id={sectionId}
     >
       <header>
         <CheckCircle2 aria-hidden="true" size={22} />
         <div>
           <p className="selectionEyebrow">Selected for trip estimate</p>
-          <h3 id="updated-trip-cost-heading">Updated Trip Cost</h3>
+          <h3 id={`${sectionId}-heading`} tabIndex={-1}>
+            Updated Trip Cost
+          </h3>
         </div>
       </header>
 

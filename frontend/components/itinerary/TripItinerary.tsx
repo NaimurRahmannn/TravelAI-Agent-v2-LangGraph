@@ -65,6 +65,7 @@ export function TripItinerary({
     [idPrefix, itinerary],
   );
   const mapSectionId = `${idPrefix}-trip-map`;
+  const updatedTripCostSectionId = `${idPrefix}-updated-trip-cost`;
   const recommendationKey = `${itinerary.destination}|${itinerary.start_date}|${itinerary.end_date}|${
     itinerary.recommendations?.flights.map((flight) => flight.provider_offer_id).join(",")
   }|${itinerary.recommendations?.hotels.map((hotel) => hotel.provider_offer_id).join(",")}`;
@@ -140,6 +141,13 @@ export function TripItinerary({
         response.trip_cost_summary,
       );
       setSelectionMode(false);
+      requestAnimationFrame(() => {
+        const section = document.getElementById(updatedTripCostSectionId);
+        section?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document
+          .getElementById(`${updatedTripCostSectionId}-heading`)
+          ?.focus({ preventScroll: true });
+      });
     } catch (caughtError) {
       setSelectionError(
         caughtError instanceof Error
@@ -205,6 +213,7 @@ export function TripItinerary({
           onDismiss={() => setSelectionDismissed(true)}
           selections={travelSelections}
           selectionMode
+          updatedTripCostSectionId={updatedTripCostSectionId}
           updating={selectionUpdating}
         />
       ) : null}
@@ -246,6 +255,7 @@ export function TripItinerary({
           onDismiss={() => setSelectionDismissed(true)}
           selections={travelSelections}
           selectionMode={false}
+          updatedTripCostSectionId={updatedTripCostSectionId}
           updating={selectionUpdating}
         />
       ) : null}
