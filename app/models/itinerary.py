@@ -31,19 +31,21 @@ NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_len
 
 
 class PlaceImage(BaseModel):
-    """Attribution-ready image metadata from Wikimedia Commons."""
+    """Attribution-ready image metadata from a trusted image provider."""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["wikimedia_commons"]
+    provider: Literal["wikimedia_commons", "pexels"]
+    provider_image_id: NonEmptyString | None = None
     wikidata_entity_id: str | None = None
-    commons_file_title: NonEmptyString
+    commons_file_title: NonEmptyString | None = None
     original_url: str
     thumbnail_url: str | None = None
     source_page_url: str
     width: int | None = Field(default=None, ge=1)
     height: int | None = Field(default=None, ge=1)
     author: str | None = None
+    author_url: str | None = None
     credit: str | None = None
     license_short_name: NonEmptyString
     license_url: str | None = None
@@ -55,6 +57,7 @@ class PlaceImage(BaseModel):
         "original_url",
         "thumbnail_url",
         "source_page_url",
+        "author_url",
         "license_url",
         mode="before",
     )
@@ -71,6 +74,17 @@ class PlaceImage(BaseModel):
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("Image metadata URLs must use HTTP(S)")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_provider_identity(self) -> "PlaceImage":
+        if self.provider == "wikimedia_commons" and not self.commons_file_title:
+            raise ValueError("Wikimedia images require a Commons file title")
+        if self.provider == "pexels":
+            if not self.provider_image_id:
+                raise ValueError("Pexels images require a provider image ID")
+            if not self.author or not self.author.strip() or not self.author_url:
+                raise ValueError("Pexels images require photographer attribution")
+        return self
 
 
 class ResolvedPlace(BaseModel):

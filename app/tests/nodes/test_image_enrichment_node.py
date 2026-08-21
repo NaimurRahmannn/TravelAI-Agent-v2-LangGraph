@@ -84,12 +84,12 @@ def test_plan_without_eligible_places_is_noop_without_provider(monkeypatch):
     assert result["itinerary"] is original
 
 
-def test_missing_user_agent_preserves_plan(monkeypatch):
+def test_missing_pexels_api_key_preserves_plan(monkeypatch):
     original = _plan()
     monkeypatch.setattr(
         image_enrichment,
         "get_settings",
-        lambda: SimpleNamespace(WIKIMEDIA_USER_AGENT="   "),
+        lambda: SimpleNamespace(PEXELS_API_KEY="   "),
     )
 
     result = asyncio.run(
@@ -113,9 +113,7 @@ def test_eligible_plan_runs_enrichment_and_closes_provider(monkeypatch):
     monkeypatch.setattr(
         image_enrichment,
         "get_settings",
-        lambda: SimpleNamespace(
-            WIKIMEDIA_USER_AGENT="TravelAI/1.0 (https://example.test/support)"
-        ),
+        lambda: SimpleNamespace(PEXELS_API_KEY="pexels-test-key"),
     )
     monkeypatch.setattr(
         image_enrichment,
@@ -143,9 +141,7 @@ def test_service_failure_preserves_original_plan(monkeypatch):
     monkeypatch.setattr(
         image_enrichment,
         "get_settings",
-        lambda: SimpleNamespace(
-            WIKIMEDIA_USER_AGENT="TravelAI/1.0 (https://example.test/support)"
-        ),
+        lambda: SimpleNamespace(PEXELS_API_KEY="pexels-test-key"),
     )
     monkeypatch.setattr(
         image_enrichment,

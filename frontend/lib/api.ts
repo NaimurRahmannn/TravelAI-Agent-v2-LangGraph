@@ -25,15 +25,17 @@ export type ResolvedPlace = {
 };
 
 export type PlaceImage = {
-  provider: "wikimedia_commons";
+  provider: "pexels" | "wikimedia_commons";
+  provider_image_id?: string | null;
   wikidata_entity_id?: string | null;
-  commons_file_title: string;
+  commons_file_title?: string | null;
   original_url: string;
   thumbnail_url?: string | null;
   source_page_url: string;
   width?: number | null;
   height?: number | null;
   author?: string | null;
+  author_url?: string | null;
   credit?: string | null;
   license_short_name: string;
   license_url?: string | null;

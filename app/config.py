@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     GEOAPIFY_API_KEY: str | None = None
     GEOAPIFY_MAPS_API_KEY: str | None = None
-    WIKIMEDIA_USER_AGENT: str | None = None
+    PEXELS_API_KEY: str | None = None
     OPENWEATHER_API_KEY: str | None = None
     LITEAPI_API_KEY: str | None = None
     GROQ_MODEL_NAME: str = Field(

@@ -283,4 +283,5 @@ def test_chat_response_serializes_nested_place_without_backend_secret():
     assert "GEOAPIFY_API_KEY" not in serialized
     assert "OPENWEATHER_API_KEY" not in serialized
     assert "WIKIMEDIA_USER_AGENT" not in serialized
+    assert "PEXELS_API_KEY" not in serialized
     assert "test-geo-key" not in serialized

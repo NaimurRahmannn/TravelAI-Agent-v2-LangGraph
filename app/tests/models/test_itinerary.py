@@ -390,6 +390,47 @@ def test_place_image_validates_and_serializes():
     assert serialized["width"] == 1200
 
 
+def test_pexels_place_image_validates_and_serializes():
+    image = PlaceImage.model_validate(
+        {
+            "provider": "pexels",
+            "provider_image_id": "12345",
+            "original_url": "https://images.pexels.com/photos/12345/photo.jpeg",
+            "thumbnail_url": "https://images.pexels.com/photos/12345/large.jpeg",
+            "source_page_url": "https://www.pexels.com/photo/landmark-12345/",
+            "author": "Jane Doe",
+            "author_url": "https://www.pexels.com/@jane-doe/",
+            "credit": "Pexels",
+            "license_short_name": "Pexels License",
+            "license_url": "https://www.pexels.com/license/",
+            "attribution_text": "Photo by Jane Doe on Pexels",
+        }
+    )
+
+    serialized = image.model_dump(mode="json")
+    assert serialized["provider"] == "pexels"
+    assert serialized["provider_image_id"] == "12345"
+    assert serialized["commons_file_title"] is None
+
+
+@pytest.mark.parametrize("field", ["provider_image_id", "author", "author_url"])
+def test_pexels_place_image_requires_attribution_identity(field):
+    data = {
+        "provider": "pexels",
+        "provider_image_id": "12345",
+        "original_url": "https://images.pexels.com/photos/12345/photo.jpeg",
+        "source_page_url": "https://www.pexels.com/photo/landmark-12345/",
+        "author": "Jane Doe",
+        "author_url": "https://www.pexels.com/@jane-doe/",
+        "license_short_name": "Pexels License",
+        "attribution_text": "Photo by Jane Doe on Pexels",
+    }
+    data[field] = None
+
+    with pytest.raises(ValidationError):
+        PlaceImage.model_validate(data)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

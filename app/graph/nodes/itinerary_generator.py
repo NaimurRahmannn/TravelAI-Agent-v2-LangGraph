@@ -10,7 +10,7 @@ from app.core.logging import get_logger
 from app.graph.prompts.itinerary import itinerary_prompt
 from app.graph.state import TravelState
 from app.llm import get_gemini_llm
-from app.models import BudgetBreakdown, ItineraryDay, Trip, TripPlan
+from app.models import BudgetBreakdown, TravelMode, Trip, TripPlan
 from app.models.itinerary import _is_flight_ticket_activity
 from app.services.message_content import message_content_to_text
 from app.services.trip_dates import validate_and_derive_duration
@@ -18,8 +18,39 @@ from app.services.trip_dates import validate_and_derive_duration
 logger = get_logger(__name__)
 
 
+class ItineraryGenerationActivity(BaseModel):
+    """Activity fields the LLM owns before trusted provider enrichment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    place_search_name: str | None = Field(default=None, min_length=1)
+    category: str = Field(min_length=1)
+    location_hint: str | None = None
+    description: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    estimated_cost_usd: float | None = Field(default=None, ge=0)
+    reason_for_recommendation: str | None = None
+    travel_mode_to_next: TravelMode | None = None
+
+
+class ItineraryGenerationDay(BaseModel):
+    """Day fields the LLM owns before date, weather, and route enrichment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    day_number: int = Field(ge=1)
+    city: str = Field(min_length=1)
+    activities: list[ItineraryGenerationActivity] = Field(
+        min_length=1,
+        max_length=3,
+    )
+    estimated_daily_cost_usd: float | None = Field(default=None, ge=0)
+
+
 class ItineraryGenerationOutput(BaseModel):
-    """LLM-owned itinerary fields, excluding all commercial recommendations."""
+    """LLM-owned planning fields, excluding trusted provider data."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -32,7 +63,7 @@ class ItineraryGenerationOutput(BaseModel):
     travelers: int = Field(ge=1)
     summary: str | None = None
     preferences: list[str]
-    days: list[ItineraryDay] = Field(min_length=1)
+    days: list[ItineraryGenerationDay] = Field(min_length=1)
     budget: BudgetBreakdown
     practical_notes: list[str]
 

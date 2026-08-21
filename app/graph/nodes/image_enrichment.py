@@ -11,7 +11,7 @@ from app.services.image_enrichment import (
     enrich_trip_images,
     has_image_eligible_activities,
 )
-from app.services.images import PlaceImageProvider, WikimediaImageProvider
+from app.services.images import PexelsImageProvider, PlaceImageProvider
 
 logger = get_logger(__name__)
 
@@ -20,7 +20,7 @@ async def image_enrichment_node(
     state: TravelState,
     config: RunnableConfig,
 ) -> dict[str, TripPlan | None]:
-    """Add optional Wikimedia image data while preserving the itinerary."""
+    """Add optional Pexels image data while preserving the itinerary."""
 
     del config
     started_at = perf_counter()
@@ -30,14 +30,14 @@ async def image_enrichment_node(
     if not has_image_eligible_activities(itinerary):
         return {"itinerary": itinerary}
 
-    user_agent = get_settings().WIKIMEDIA_USER_AGENT
-    if not user_agent or not user_agent.strip():
-        logger.warning("image_resolution_skipped reason=missing_user_agent")
+    api_key = get_settings().PEXELS_API_KEY
+    if not api_key or not api_key.strip():
+        logger.warning("image_resolution_skipped reason=missing_pexels_api_key")
         return {"itinerary": itinerary}
 
     provider: PlaceImageProvider | None = None
     try:
-        provider = build_image_provider(user_agent)
+        provider = build_image_provider(api_key)
         enriched = await enrich_trip_images(itinerary, provider)
     except Exception as exc:
         logger.warning(
@@ -62,10 +62,10 @@ async def image_enrichment_node(
     return {"itinerary": enriched}
 
 
-def build_image_provider(user_agent: str) -> PlaceImageProvider:
+def build_image_provider(api_key: str) -> PlaceImageProvider:
     """Construct the configured image provider behind the protocol boundary."""
 
-    return WikimediaImageProvider(user_agent)
+    return PexelsImageProvider(api_key)
 
 
 async def _close_provider(provider: PlaceImageProvider) -> None:

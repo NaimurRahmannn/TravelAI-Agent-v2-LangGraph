@@ -6,7 +6,7 @@ import {
   formatActivityTime,
   formatPlaceAddress,
   formatUsd,
-  trustedWikimediaImageUrl,
+  trustedPlaceImageUrl,
 } from "./formatters";
 
 type ActivityCardProps = {
@@ -28,7 +28,8 @@ export function ActivityCard({
 }: ActivityCardProps) {
   const resolvedPlace = activity.place?.resolution_status === "resolved";
   const trustedImage = activity.image
-    ? trustedWikimediaImageUrl(
+    ? trustedPlaceImageUrl(
+        activity.image.provider,
         activity.image.thumbnail_url,
         activity.image.original_url,
       )

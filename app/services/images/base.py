@@ -19,6 +19,14 @@ class WikimediaAccessError(ImageProviderUnavailableError):
     """Wikimedia rejected access or the configured User-Agent."""
 
 
+class PexelsRateLimitError(ImageProviderUnavailableError):
+    """Pexels rate limiting persisted after bounded retries."""
+
+
+class PexelsAccessError(ImageProviderUnavailableError):
+    """Pexels rejected the configured API key."""
+
+
 class PlaceImageProvider(Protocol):
     """Provider boundary for resolving one verified place image."""
 

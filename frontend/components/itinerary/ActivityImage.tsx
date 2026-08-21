@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { PlaceImage } from "@/lib/api";
 import {
   isSafeExternalUrl,
-  trustedWikimediaImageUrl,
+  trustedPlaceImageUrl,
 } from "./formatters";
 
 type ActivityImageProps = {
@@ -16,12 +16,13 @@ type ActivityImageProps = {
 
 export function ActivityImage({ activityName, image }: ActivityImageProps) {
   const [failed, setFailed] = useState(false);
-  const imageUrl = trustedWikimediaImageUrl(
+  const imageUrl = trustedPlaceImageUrl(
+    image.provider,
     image.thumbnail_url,
     image.original_url,
   );
 
-  if (image.provider !== "wikimedia_commons" || !imageUrl) {
+  if (!imageUrl) {
     return null;
   }
 
@@ -35,12 +36,17 @@ export function ActivityImage({ activityName, image }: ActivityImageProps) {
   }
 
   const creator = image.author?.trim() || image.credit?.trim() || null;
+  const creatorUrl = isSafeExternalUrl(image.author_url)
+    ? image.author_url
+    : null;
   const licenseUrl = isSafeExternalUrl(image.license_url)
     ? image.license_url
     : null;
   const sourceUrl = isSafeExternalUrl(image.source_page_url)
     ? image.source_page_url
     : null;
+  const sourceName =
+    image.provider === "pexels" ? "Pexels" : "Wikimedia Commons";
 
   return (
     <figure className="activityImage">
@@ -57,7 +63,13 @@ export function ActivityImage({ activityName, image }: ActivityImageProps) {
       <figcaption className="imageAttribution">
         {creator ? (
           <>
-            <span>Photo: {creator}</span>
+            {creatorUrl ? (
+              <a href={creatorUrl} rel="noopener noreferrer" target="_blank">
+                Photo: {creator}
+              </a>
+            ) : (
+              <span>Photo: {creator}</span>
+            )}
             <span aria-hidden="true">/</span>
             {licenseUrl ? (
               <a href={licenseUrl} rel="noopener noreferrer" target="_blank">
@@ -69,10 +81,10 @@ export function ActivityImage({ activityName, image }: ActivityImageProps) {
             <span aria-hidden="true">/</span>
             {sourceUrl ? (
               <a href={sourceUrl} rel="noopener noreferrer" target="_blank">
-                Wikimedia Commons
+                {sourceName}
               </a>
             ) : (
-              <span>Wikimedia Commons</span>
+              <span>{sourceName}</span>
             )}
           </>
         ) : (
@@ -90,7 +102,7 @@ export function ActivityImage({ activityName, image }: ActivityImageProps) {
               <>
                 <span aria-hidden="true">/</span>
                 <a href={sourceUrl} rel="noopener noreferrer" target="_blank">
-                  Commons source
+                  {sourceName} source
                 </a>
               </>
             ) : null}

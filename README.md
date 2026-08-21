@@ -43,7 +43,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Parallel climate, currency, and visa research through a LangGraph subgraph
 - Typed `TripPlan` itineraries with deterministic Markdown presentation
 - Geoapify-backed resolution for attraction-like itinerary activities
-- Wikidata and Wikimedia Commons attraction images with reuse metadata
+- Pexels attraction images with photographer and source attribution
 - Leaflet itinerary maps using trusted Geoapify coordinates and map tiles
 - Date-specific OpenWeather forecasts using trusted Geoapify coordinates
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
@@ -102,10 +102,9 @@ backend source of truth. The frontend renders completed plans as structured trip
 overviews, day sections, attraction cards, budgets, and practical notes, while
 clarification and general chat messages retain Markdown presentation. Geoapify enriches attraction-like
 activities with provider-backed identity, addresses, and coordinates. Eligible,
-fully resolved places are then matched conservatively to Wikidata entities;
-their P18 claims are resolved through Wikimedia Commons into image URLs and
-attribution-ready licensing metadata. Trusted attraction images render with
-visible author, license, and Commons source attribution. The frontend plots only
+fully resolved places are searched on Pexels using their landmark, city, and
+country context. Trusted attraction images render with visible photographer,
+license, and Pexels source attribution. The frontend plots only
 fully resolved Geoapify coordinates on a Leaflet map backed by Geoapify tiles
 and synchronizes markers with their itinerary cards. After image enrichment,
 the backend uses one fully resolved Geoapify place per dated itinerary day to
@@ -143,7 +142,7 @@ final_response
 | LLM providers | Groq for extraction/clarification; Gemini for agent reasoning/final answers |
 | Frontend | Next.js 16, React 19, TypeScript, Leaflet |
 | State | LangGraph `AsyncSqliteSaver` (SQLite-backed checkpointer) |
-| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Swoop, LiteAPI / Nuitee Connect, Wikidata, Wikimedia Commons, OpenStreetMap |
+| External data | Frankfurter currency-rate API, Geoapify, OpenWeather, Swoop, LiteAPI / Nuitee Connect, Pexels, OpenStreetMap |
 
 ## Project Layout
 
@@ -207,7 +206,7 @@ GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL_NAME=openai/gpt-oss-20b
 GEOAPIFY_API_KEY=your_geoapify_api_key_here
 GEOAPIFY_MAPS_API_KEY=your_browser_restricted_geoapify_maps_key_here
-WIKIMEDIA_USER_AGENT=TravelAI/1.0 (your product URL or support contact)
+PEXELS_API_KEY=your_pexels_api_key_here
 OPENWEATHER_API_KEY=your_openweather_api_key_here
 LITEAPI_API_KEY=your_liteapi_api_key_here
 TEMPERATURE=0.0
@@ -256,7 +255,7 @@ Settings are loaded from environment variables and `app/.env`.
 | `GROQ_MODEL_NAME` | No | `openai/gpt-oss-20b` | Groq model used for extraction, clarification, and memory fact extraction |
 | `GEOAPIFY_API_KEY` | No | None | Private backend key for place resolution and adjacent-activity routing estimates; both enrichments degrade gracefully when unset |
 | `GEOAPIFY_MAPS_API_KEY` | No | None | Separate browser-restricted key used only for Geoapify map tiles; maps are disabled when unset |
-| `WIKIMEDIA_USER_AGENT` | No | None | Identifies this application to Wikimedia for image enrichment; it is not a secret, should include an appropriate product identity/contact, and enrichment is skipped when unset |
+| `PEXELS_API_KEY` | No | None | Private backend key for Pexels attraction-image search; enrichment is skipped when unset and the key is never returned to the browser |
 | `OPENWEATHER_API_KEY` | No | None | Private backend key for date-specific itinerary forecasts; enrichment is skipped when unset and the key is never returned to the browser |
 | `LITEAPI_API_KEY` | No | None | Private backend key for LiteAPI hotel-rate recommendations; hotels are marked unavailable when unset and the key is never returned to the browser |
 | `TEMPERATURE` | No | `0.0` | Model sampling temperature |
@@ -431,21 +430,16 @@ transport, accommodation, meal, and logistics activities are skipped because
 they are not attraction-like places. A trip-local circuit stops remaining calls
 after authentication, persistent rate-limit, or provider-outage failures.
 
-For fully resolved attraction-like places, enrichment retains a valid Wikidata
-QID exposed by Geoapify/OpenStreetMap and uses that stable identity directly.
-When no QID is available, Wikidata falls back to conservative matching using
-normalized landmark aliases, coordinates, P17 country when available, and
-location/description context. Wikimedia Commons first tries the entity's P18
-image and then supported reusable visual image files from its P373 Commons
-category. Commons supplies the file URL, an approximately 800px thumbnail URL,
-source page, dimensions,
-author/credit, license, and deterministic attribution text. Unknown, missing,
-non-commercial, or otherwise unsupported license metadata causes the image to
-be skipped rather than guessed. CC BY and CC BY-SA images also require an author
-and a valid provider-supplied license URL. Image lookups use request-local
-deduplication, bounded retries/concurrency, and a trip-local outage circuit.
-`WIKIMEDIA_USER_AGENT` is not an API key or secret, but Wikimedia requires a
-descriptive application identity with an appropriate contact method.
+For fully resolved attraction-like places, image enrichment searches Pexels
+with normalized landmark, city, and country context. It accepts only HTTPS
+image URLs hosted by Pexels and stores the provider photo ID, photographer,
+photographer profile, photo page, Pexels license, dimensions, and deterministic
+attribution text. The frontend hotlinks the provider image and keeps the
+photographer, license, and Pexels source links visible. Image lookups use
+request-local deduplication, bounded retries/concurrency, and a trip-local outage
+circuit. `PEXELS_API_KEY` stays on the backend. Pexels applies account request
+limits, so production usage should monitor the limits shown in the Pexels API
+dashboard.
 
 For each dated itinerary day, weather enrichment selects one fully resolved
 Geoapify place, preferring a place in the day's city. Requests for the same city
@@ -646,7 +640,7 @@ HotelStay
 
 Completed plans use the structured itinerary UI, including rich image cards,
 resolved place cards without images, compact logistics activities, budget
-visibility, practical notes, readable Wikimedia attribution, and a lazily loaded
+visibility, practical notes, readable Pexels attribution, and a lazily loaded
 Leaflet map. The map consumes existing Geoapify coordinates without additional
 geocoding or place-search calls. Its numbered markers and activity-card actions
 share stable per-itinerary identities for two-way selection. Dated days display
@@ -696,7 +690,7 @@ python -m pytest -q app/tests
 ```
 
 Provider tests use mocked transports and do not call Geoapify, OpenWeather,
-Swoop's upstream Google Flights RPCs, Wikidata, or Wikimedia Commons.
+Swoop's upstream Google Flights RPCs or Pexels.
 
 ### Frontend checks
 
@@ -742,7 +736,7 @@ The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion fai
 - No authentication or per-user thread ownership is implemented.
 - Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
-- Wikimedia image matching is intentionally conservative, has no generic image-search fallback, and may leave valid attractions without images.
+- Pexels improves broad image coverage, but search relevance cannot guarantee an exact photo for every landmark; activities remain usable when no safe result is returned.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
 - Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
 - Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.

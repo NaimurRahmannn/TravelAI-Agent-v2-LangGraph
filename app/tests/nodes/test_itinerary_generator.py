@@ -110,11 +110,7 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
             captured["method"] = method
             return RunnableLambda(
                 lambda prompt: captured.update({"prompt": prompt.to_string()})
-                or ItineraryGenerationOutput.model_validate(
-                    _plan().model_dump(
-                        exclude={"recommendations", "guest_nationality_country_code"}
-                    )
-                )
+                or _plan()
             )
 
     monkeypatch.setattr(
@@ -129,6 +125,25 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert isinstance(plan, TripPlan)
     assert captured["schema"] is ItineraryGenerationOutput
     assert "recommendations" not in captured["schema"].model_json_schema()[
+        "properties"
+    ]
+    schema_definitions = captured["schema"].model_json_schema()["$defs"]
+    assert set(schema_definitions) == {
+        "BudgetBreakdown",
+        "BudgetItem",
+        "ItineraryGenerationActivity",
+        "ItineraryGenerationDay",
+    }
+    assert "place" not in schema_definitions["ItineraryGenerationActivity"][
+        "properties"
+    ]
+    assert "image" not in schema_definitions["ItineraryGenerationActivity"][
+        "properties"
+    ]
+    assert "weather" not in schema_definitions["ItineraryGenerationDay"][
+        "properties"
+    ]
+    assert "travel_legs" not in schema_definitions["ItineraryGenerationDay"][
         "properties"
     ]
     assert captured["method"] == "json_schema"

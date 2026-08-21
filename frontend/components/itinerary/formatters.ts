@@ -84,7 +84,10 @@ export function formatTravelDistance(meters: number): string {
   return `${kilometers < 10 ? kilometers.toFixed(1) : Math.round(kilometers)} km`;
 }
 
-export function isTrustedWikimediaImageUrl(value: string | null | undefined): boolean {
+export function isTrustedPlaceImageUrl(
+  provider: "pexels" | "wikimedia_commons",
+  value: string | null | undefined,
+): boolean {
   if (!value) {
     return false;
   }
@@ -92,7 +95,9 @@ export function isTrustedWikimediaImageUrl(value: string | null | undefined): bo
     const url = new URL(value);
     return (
       url.protocol === "https:" &&
-      url.hostname === "upload.wikimedia.org" &&
+      ((provider === "pexels" && url.hostname === "images.pexels.com") ||
+        (provider === "wikimedia_commons" &&
+          url.hostname === "upload.wikimedia.org")) &&
       url.username === "" &&
       url.password === ""
     );
@@ -101,14 +106,17 @@ export function isTrustedWikimediaImageUrl(value: string | null | undefined): bo
   }
 }
 
-export function trustedWikimediaImageUrl(
+export function trustedPlaceImageUrl(
+  provider: "pexels" | "wikimedia_commons",
   thumbnailUrl: string | null | undefined,
   originalUrl: string | null | undefined,
 ): string | null {
-  if (isTrustedWikimediaImageUrl(thumbnailUrl)) {
+  if (isTrustedPlaceImageUrl(provider, thumbnailUrl)) {
     return thumbnailUrl ?? null;
   }
-  return isTrustedWikimediaImageUrl(originalUrl) ? originalUrl ?? null : null;
+  return isTrustedPlaceImageUrl(provider, originalUrl)
+    ? originalUrl ?? null
+    : null;
 }
 
 export function isSafeExternalUrl(value: string | null | undefined): boolean {
