@@ -41,7 +41,7 @@ type ChatMessage = {
 const SUGGESTIONS = [
   "I want to visit Japan from Bangladesh",
   "Plan a Thailand trip for 5 days",
-  "I prefer temple,food, culture",
+  "I prefer temple, mountain, river",
 ];
 
 const TRAVELER_ID_STORAGE_KEY = "travel-ai-user-id";
