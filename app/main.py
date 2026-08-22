@@ -7,6 +7,7 @@ from app.api.routes.approval import router as approval_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.config import router as config_router
 from app.api.routes.detailed_routing import router as detailed_routing_router
+from app.api.routes.flight_refresh import router as flight_refresh_router
 from app.api.routes.health import router as health_router
 from app.api.routes.travel_selection import router as travel_selection_router
 
@@ -46,6 +47,7 @@ app.include_router(chat_router)
 app.include_router(approval_router)
 app.include_router(config_router)
 app.include_router(detailed_routing_router)
+app.include_router(flight_refresh_router)
 app.include_router(travel_selection_router)
 
 

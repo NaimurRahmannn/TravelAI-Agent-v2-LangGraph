@@ -1,4 +1,4 @@
-import { CircleAlert, Clock3, Plane } from "lucide-react";
+import { CircleAlert, Clock3, Loader2, Plane, RefreshCcw } from "lucide-react";
 import type {
   FlightOption,
   FlightSlice,
@@ -7,19 +7,25 @@ import type {
 } from "@/lib/api";
 
 type FlightRecommendationsProps = {
+  error?: string | null;
   idPrefix: string;
   itinerary: TripPlan;
+  onRefresh?: () => Promise<void> | void;
   onSelectFlight?: (flightId: string) => void;
   selectedFlightId?: string | null;
   selectionMode?: boolean;
+  refreshing?: boolean;
 };
 
 export function FlightRecommendations({
+  error,
   idPrefix,
   itinerary,
+  onRefresh,
   onSelectFlight,
   selectedFlightId,
   selectionMode = false,
+  refreshing = false,
 }: FlightRecommendationsProps) {
   const recommendations = itinerary.recommendations;
   if (
@@ -42,7 +48,29 @@ export function FlightRecommendations({
           <p>Current flight search</p>
           <h3 id={headingId}>Flight recommendations</h3>
         </div>
+        {onRefresh ? (
+          <button
+            className="flightRefreshButton"
+            disabled={refreshing}
+            onClick={onRefresh}
+            type="button"
+          >
+            {refreshing ? (
+              <Loader2 aria-hidden="true" className="spin" size={15} />
+            ) : (
+              <RefreshCcw aria-hidden="true" size={15} />
+            )}
+            {refreshing ? "Refreshing flights..." : "Refresh flights"}
+          </button>
+        ) : null}
       </header>
+
+      {error ? (
+        <p className="flightRefreshError" role="alert">
+          <CircleAlert aria-hidden="true" size={16} />
+          {error}
+        </p>
+      ) : null}
 
       {flights.length > 0 ? (
         <fieldset className="recommendationChoiceGroup">
@@ -65,10 +93,7 @@ export function FlightRecommendations({
       )}
 
       <div className="flightDisclaimer">
-        <p>
-          Current flight-search price. Prices and availability can change
-          before booking.
-        </p>
+        <p>Flight prices and availability can change.</p>
         <p>Flight search data from Google Flights via Swoop.</p>
       </div>
     </section>

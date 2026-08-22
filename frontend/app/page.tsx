@@ -356,6 +356,25 @@ export default function Home() {
     );
   }
 
+  function handleFlightsRefreshed(
+    sourceMessageId: string,
+    itinerary: TripPlan,
+  ) {
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === sourceMessageId
+          ? {
+              ...item,
+              itinerary,
+              travelSelections: null,
+              tripCostSummary: null,
+              detailedRoutingPlan: null,
+            }
+          : item,
+      ),
+    );
+  }
+
   function resetThread() {
     setThreadId(null);
     setError(null);
@@ -509,6 +528,9 @@ export default function Home() {
                       }
                       onDetailedRoutingGenerated={(plan) =>
                         handleDetailedRoutingGenerated(message.id, plan)
+                      }
+                      onFlightsRefreshed={(itinerary) =>
+                        handleFlightsRefreshed(message.id, itinerary)
                       }
                       onDateContinue={(startDate, endDate) =>
                         handleDateSelection(message.id, startDate, endDate)

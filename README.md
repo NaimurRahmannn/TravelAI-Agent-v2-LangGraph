@@ -49,6 +49,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - Geoapify travel-time estimates between adjacent resolved itinerary activities
 - Provider-neutral travel recommendation foundation with independent search statuses
 - Automatic Swoop flight shopping using exact selected trip dates
+- Persistent 15-minute flight-search reuse with an explicit flight-only refresh
 - Automatic LiteAPI / Nuitee Connect hotel rate recommendations for each stay
 - Opt-in saved flight/hotel selection with deterministic updated trip cost
 - Opt-in door-to-door routing and deterministic timetable from saved selections
@@ -86,8 +87,10 @@ flowchart TD
     Q --> R[Image enrichment]
     R --> W[Weather enrichment]
     W --> T[Routing enrichment]
-    T --> U[Swoop flight recommendations]
-    U --> V[LiteAPI hotel recommendations]
+    T --> U[Flight request and cache]
+    U -->|miss| U1[Swoop flight recommendations]
+    U -->|hit| V[LiteAPI hotel recommendations]
+    U1 --> V
     V --> L
     D --> M[Response]
     L --> O[Write durable traveler facts]
@@ -114,7 +117,10 @@ request date-specific OpenWeather forecasts. The backend then requests
 pair-by-pair Geoapify route estimates only between adjacent, fully resolved
 same-day activities. After those factual enrichments, a focused Geoapify airport
 resolver maps the departure and first/last itinerary cities to trusted IATA
-codes. Swoop then retrieves current Google Flights-derived shopping results for
+codes. Before that work, the flight node compares the complete normalized
+`FlightSearchRequest` with a separate checkpointed cache. A fresh match
+reattaches normalized results to the new `TripPlan` without airport resolution
+or Swoop. A miss retrieves current Google Flights-derived shopping results for
 the exact selected dates and adult traveler count. Next, the backend derives
 consecutive city stays and uses trusted Geoapify coordinates to request current
 LiteAPI hotel rates for each exact check-in/check-out window.
@@ -382,6 +388,27 @@ that thread's stored recommendation snapshot, and atomically saves
 incomplete, duplicate, or wrong-stay IDs are rejected without partial state
 updates. Browser-provided prices and totals are forbidden.
 
+### Refresh flight recommendations
+
+```http
+POST /trip/refresh-flights
+Content-Type: application/json
+```
+
+```json
+{
+  "thread_id": "c2c00300-46a7-4ba0-bfa6-d91f30f4e162"
+}
+```
+
+This flight-only action loads the checkpointed `TripPlan`, derives the
+authoritative `FlightSearchRequest`, and forces a provider search even when the
+cache is fresh. It does not regenerate activities or refresh hotels, weather,
+places, images, or itinerary routing. Success replaces the flight snapshot and
+cache and clears `TravelSelections`, `TripCostSummary`, and
+`DetailedRoutingPlan`. Failure leaves the previous usable recommendations and
+cache unchanged.
+
 ### Resume an approval
 
 When a workflow is interrupted for approval, `/chat` returns `Approval required before continuing.` and the same thread ID. Resume it with:
@@ -568,6 +595,57 @@ itinerary using current Swoop shopping data. They are ranked deterministically
 by price, duration, stops, and stable provider ID; they are not filtered by the
 traveler's target and are not included in the base estimate.
 
+Phase 7.10 stores reusable flight state separately from
+`TripPlan.recommendations`, because itinerary generation intentionally clears
+provider data. The checkpointed `FlightSearchCache` contains the complete
+normalized `FlightSearchRequest`, final ranked `FlightOption` models, the search
+status, and a timezone-aware UTC `searched_at`. Cache identity compares
+`request.model_dump(mode="json")`, including every current or future request
+field instead of a manually maintained subset.
+
+Only `available` and successful `no_results` searches are reusable, with a
+15-minute TTL. `unavailable` represents a potentially temporary provider problem
+and is retried on the next relevant execution. “Add more temples” and
+budget-only changes reuse flights when the effective request remains identical.
+Changing the origin, dates, traveler count, first itinerary city, final
+itinerary city, or a country hint creates a miss and runs normal airport
+resolution and Swoop search.
+
+```text
+New TripPlan
+     |
+     v
+build complete FlightSearchRequest
+     |
+     v
+checkpointed FlightSearchCache
+   /                         \
+fresh match                  miss / expired / changed
+   |                         |
+   v                         v
+reattach cached        Geoapify airport resolution
+FlightOption[]                 |
+   |                           v
+   |                         Swoop
+   |                           |
+   |                    normalize + rank
+   |                           |
+   |                     replace cache
+   \___________________________/
+                 |
+                 v
+       TravelRecommendations.flights
+
+Refresh flights
+      |
+      v
+bypass cache -> Swoop -> replace cache and flight snapshot
+```
+
+This is a planning cache, not a price lock. Flight prices and availability can
+change. Any future booking or prebooking action must revalidate both immediately
+before acting; this phase adds no booking behavior.
+
 Hotel recommendations are also generated automatically when the LiteAPI key,
 an origin-derived nationality, dates, and a trusted search anchor are available.
 Multi-city results use separate, non-overlapping date windows and are grouped by
@@ -602,11 +680,12 @@ stay rates are not multiplied by nights or travelers. The original user budget
 is used only for an informational over/under comparison and never blocks a
 selection. Mixed-currency selections are rejected rather than converted. New
 trip generation or date-driven recommendation regeneration clears stale
-selections and cost summaries.
+selections and cost summaries. A successful explicit flight refresh also clears
+the derived detailed routing plan.
 
 Selection is for trip-cost planning only. It does not prebook, reserve,
-purchase, or pay for travel. Price refresh, prebooking, booking, and payment
-remain future work.
+purchase, or pay for travel. Explicit flight-price refresh is available;
+prebooking, booking, and payment remain future work.
 
 ### Detailed routing and timetable
 
@@ -677,13 +756,14 @@ flowchart TD
 
 ```text
 FlightSearchRequest
-   -> Geoapify airport resolver
-   -> trusted IATA codes
-   -> SwoopFlightProvider
-   -> Google Flights-derived shopping results
-   -> FlightOption[]
-   -> deterministic price/duration/stops ranking
-   -> top five Flight Recommendations
+   -> fresh matching FlightSearchCache? -> reattach FlightOption[]
+   -> otherwise Geoapify airport resolver
+      -> trusted IATA codes
+      -> SwoopFlightProvider
+      -> Google Flights-derived shopping results
+      -> FlightOption[]
+      -> deterministic price/duration/stops ranking
+      -> store cache + top five Flight Recommendations
 
 HotelStay
    -> trusted Geoapify search anchor
@@ -725,6 +805,8 @@ TripPlan
 The compiled graph uses LangGraph's `AsyncSqliteSaver`, writing checkpoints to a SQLite file on disk instead of keeping them in an in-memory dict:
 
 - State survives follow-up requests for as long as the SQLite file exists.
+- `flight_search_cache` is independent of regenerated `TripPlan` objects, so it
+  survives recommendation clearing across turns in the same thread.
 - The checkpointer is built lazily on first use (it needs a running event loop) and cached as a singleton for the life of the process, so repeated requests reuse the same connection instead of reopening it.
 - On Render's free tier the filesystem is ephemeral, so a redeploy or instance restart still clears conversation threads, exactly as it did under the old in-memory `MemorySaver` — the difference is that within a single running instance, memory usage no longer grows with every new thread.
 - State is local to one process, so multiple Uvicorn workers do not share threads. Keep `WEB_CONCURRENCY`/worker count at 1 unless threads are moved to shared storage.

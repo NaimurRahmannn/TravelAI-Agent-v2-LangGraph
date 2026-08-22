@@ -21,6 +21,7 @@ type AssistantMessageProps = {
     costSummary: TripCostSummary,
   ) => void;
   onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
+  onFlightsRefreshed?: (itinerary: TripPlan) => void;
   showMap?: boolean;
   threadId?: string | null;
   travelSelections?: TravelSelections | null;
@@ -38,6 +39,7 @@ export function AssistantMessage({
   onDateContinue,
   onDateUpdate,
   onDetailedRoutingGenerated,
+  onFlightsRefreshed,
   onTravelSelectionConfirmed,
   showMap = true,
   threadId,
@@ -53,6 +55,7 @@ export function AssistantMessage({
         mapPortalTarget={mapPortalTarget}
         onDateUpdate={onDateUpdate}
         onDetailedRoutingGenerated={onDetailedRoutingGenerated}
+        onFlightsRefreshed={onFlightsRefreshed}
         onTravelSelectionConfirmed={onTravelSelectionConfirmed}
         showMap={showMap}
         threadId={threadId}

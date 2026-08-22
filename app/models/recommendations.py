@@ -1,4 +1,4 @@
-from datetime import date as CalendarDate, datetime
+from datetime import UTC, date as CalendarDate, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -302,6 +302,24 @@ class FlightSearchRequest(BaseModel):
         if self.return_date is not None and self.return_date < self.departure_date:
             raise ValueError("Flight return date cannot be before departure date")
         return self
+
+
+class FlightSearchCache(BaseModel):
+    """Checkpoint-safe normalized results for one complete flight request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request: FlightSearchRequest
+    flights: list[FlightOption] = Field(default_factory=list)
+    status: RecommendationDomainState
+    searched_at: datetime
+
+    @field_validator("searched_at")
+    @classmethod
+    def normalize_searched_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Flight cache searched_at must be timezone-aware")
+        return value.astimezone(UTC)
 
 
 class HotelSearchRequest(BaseModel):

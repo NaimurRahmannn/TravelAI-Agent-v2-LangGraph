@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   confirmTravelSelection,
   createDetailedRoutingPlan,
+  refreshFlights,
   type DetailedRoutingPlan,
   type TravelSelections,
   type TripCostSummary,
@@ -34,6 +35,7 @@ type TripItineraryProps = {
     costSummary: TripCostSummary,
   ) => void;
   onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
+  onFlightsRefreshed?: (itinerary: TripPlan) => void;
   showMap?: boolean;
   threadId?: string | null;
   travelSelections?: TravelSelections | null;
@@ -48,6 +50,7 @@ export function TripItinerary({
   mapPortalTarget,
   onDateUpdate,
   onDetailedRoutingGenerated,
+  onFlightsRefreshed,
   onTravelSelectionConfirmed,
   showMap = true,
   threadId,
@@ -70,6 +73,10 @@ export function TripItinerary({
   const [routingDismissed, setRoutingDismissed] = useState(false);
   const [routingLoading, setRoutingLoading] = useState(false);
   const [routingError, setRoutingError] = useState<string | null>(null);
+  const [flightRefreshLoading, setFlightRefreshLoading] = useState(false);
+  const [flightRefreshError, setFlightRefreshError] = useState<string | null>(
+    null,
+  );
   const shouldScrollToUpdatedCost = useRef(false);
   const mapPoints = useMemo(
     () => buildItineraryMapPoints(itinerary, idPrefix),
@@ -217,6 +224,31 @@ export function TripItinerary({
     }
   }
 
+  async function handleFlightRefresh() {
+    if (!threadId || flightRefreshLoading) {
+      return;
+    }
+    setFlightRefreshLoading(true);
+    setFlightRefreshError(null);
+    try {
+      const response = await refreshFlights(threadId);
+      setSelectedFlightId(null);
+      setSelectedHotelIds({});
+      setSelectionMode(false);
+      setSelectionError(null);
+      setRoutingError(null);
+      onFlightsRefreshed?.(response.itinerary);
+    } catch (caughtError) {
+      setFlightRefreshError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "We couldn't refresh flight prices right now. Your previous flight recommendations are still available.",
+      );
+    } finally {
+      setFlightRefreshLoading(false);
+    }
+  }
+
   return (
     <div className="tripItinerary">
       <TripOverview
@@ -237,9 +269,12 @@ export function TripItinerary({
           )
         : null}
       <FlightRecommendations
+        error={flightRefreshError}
         idPrefix={idPrefix}
         itinerary={itinerary}
+        onRefresh={threadId ? handleFlightRefresh : undefined}
         onSelectFlight={setSelectedFlightId}
+        refreshing={flightRefreshLoading}
         selectedFlightId={selectedFlightId}
         selectionMode={selectionMode}
       />

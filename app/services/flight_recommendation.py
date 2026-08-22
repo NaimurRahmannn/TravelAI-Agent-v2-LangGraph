@@ -1,6 +1,10 @@
+from datetime import UTC, datetime, timedelta
+from inspect import isawaitable
+
 from app.core.logging import get_logger
 from app.models import (
     FlightOption,
+    FlightSearchCache,
     FlightSearchRequest,
     RecommendationDomainState,
     TravelRecommendations,
@@ -11,10 +15,17 @@ from app.services.recommendations import (
     rank_flights,
 )
 from app.services.recommendations.base import FlightProvider
+from app.services.recommendations.flights import (
+    GeoapifyAirportResolver,
+    SwoopFlightProvider,
+)
 
 logger = get_logger(__name__)
 
 MAX_FLIGHT_RECOMMENDATIONS = 5
+FLIGHT_SEARCH_CACHE_TTL_SECONDS = 15 * 60
+FLIGHT_SEARCH_CACHE_TTL = timedelta(seconds=FLIGHT_SEARCH_CACHE_TTL_SECONDS)
+CACHEABLE_FLIGHT_STATUSES = frozenset({"available", "no_results"})
 
 
 async def enrich_flight_recommendations(
@@ -30,6 +41,16 @@ async def enrich_flight_recommendations(
             flights=[],
             status=build_recommendation_status(searched=False),
         )
+
+    return await search_flight_recommendations(trip_plan, request, provider)
+
+
+async def search_flight_recommendations(
+    trip_plan: TripPlan,
+    request: FlightSearchRequest,
+    provider: FlightProvider,
+) -> TripPlan:
+    """Search one authoritative request and attach ranked normalized results."""
 
     provider_options = await provider.search_flights(request)
     if not provider_options:
@@ -54,6 +75,83 @@ async def enrich_flight_recommendations(
         flights=selected,
         status=status,
     )
+
+
+def flight_requests_match(
+    cached_request: FlightSearchRequest,
+    current_request: FlightSearchRequest,
+) -> bool:
+    """Compare every normalized request field, including future additions."""
+
+    return cached_request.model_dump(mode="json") == current_request.model_dump(
+        mode="json"
+    )
+
+
+def is_flight_cache_fresh(
+    cache: FlightSearchCache,
+    now: datetime,
+) -> bool:
+    """Return whether a cache timestamp is valid and inside the planning TTL."""
+
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Flight cache comparison time must be timezone-aware")
+    age = now.astimezone(UTC) - cache.searched_at
+    return timedelta(0) <= age <= FLIGHT_SEARCH_CACHE_TTL
+
+
+def can_reuse_flight_cache(
+    cache: FlightSearchCache | None,
+    current_request: FlightSearchRequest,
+    now: datetime,
+) -> bool:
+    """Return whether one successful normalized search can be reattached."""
+
+    return bool(
+        cache is not None
+        and cache.status.status in CACHEABLE_FLIGHT_STATUSES
+        and flight_requests_match(cache.request, current_request)
+        and is_flight_cache_fresh(cache, now)
+    )
+
+
+def build_flight_search_cache(
+    request: FlightSearchRequest,
+    trip_plan: TripPlan,
+    *,
+    searched_at: datetime | None = None,
+) -> FlightSearchCache:
+    """Persist only final application-normalized, cacheable flight results."""
+
+    recommendations = trip_plan.recommendations
+    if (
+        recommendations is None
+        or recommendations.flight_status.status not in CACHEABLE_FLIGHT_STATUSES
+    ):
+        raise ValueError("Only successful flight search outcomes can be cached")
+    return FlightSearchCache(
+        request=request,
+        flights=recommendations.flights,
+        status=recommendations.flight_status,
+        searched_at=searched_at or datetime.now(UTC),
+    )
+
+
+def build_flight_provider(geoapify_api_key: str) -> FlightProvider:
+    """Construct Swoop with the existing Geoapify airport resolver."""
+
+    return SwoopFlightProvider(GeoapifyAirportResolver(geoapify_api_key))
+
+
+async def close_flight_provider(provider: FlightProvider) -> None:
+    """Close a provider when it exposes a synchronous or asynchronous close."""
+
+    close = getattr(provider, "aclose", None)
+    if close is None:
+        return
+    result = close()
+    if isawaitable(result):
+        await result
 
 
 def build_flight_search_request(trip_plan: TripPlan) -> FlightSearchRequest | None:

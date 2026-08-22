@@ -4,6 +4,7 @@ from typing import Annotated, TypedDict
 from langgraph.graph import MessagesState
 from app.models import (
     DetailedRoutingPlan,
+    FlightSearchCache,
     TravelSelections,
     Trip,
     TripCostSummary,
@@ -41,6 +42,7 @@ class TravelState(MessagesState):
     selected_start_date: date | None
     selected_end_date: date | None
     itinerary: TripPlan | None
+    flight_search_cache: FlightSearchCache | None
     travel_selections: TravelSelections | None
     trip_cost_summary: TripCostSummary | None
     detailed_routing_plan: DetailedRoutingPlan | None

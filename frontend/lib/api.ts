@@ -295,6 +295,15 @@ export type DetailedRoutingResponse = {
   detailed_routing_plan: DetailedRoutingPlan;
 };
 
+export type FlightRefreshResponse = {
+  thread_id: string;
+  message: string;
+  itinerary: TripPlan;
+  travel_selections?: TravelSelections | null;
+  trip_cost_summary?: TripCostSummary | null;
+  detailed_routing_plan?: DetailedRoutingPlan | null;
+};
+
 export type TravelSelectionRequest = TravelSelections & {
   thread_id: string;
 };
@@ -451,6 +460,24 @@ export async function createDetailedRoutingPlan(
   threadId: string,
 ): Promise<DetailedRoutingResponse> {
   const response = await fetch(`${API_BASE_URL}/trip/detailed-routing`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ thread_id: threadId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return response.json();
+}
+
+export async function refreshFlights(
+  threadId: string,
+): Promise<FlightRefreshResponse> {
+  const response = await fetch(`${API_BASE_URL}/trip/refresh-flights`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

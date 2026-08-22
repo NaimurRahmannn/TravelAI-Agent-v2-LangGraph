@@ -1098,8 +1098,59 @@ textarea:disabled {
 .flightSectionHeader {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.flightSectionHeader > div {
+  min-width: 0;
+}
+
+.flightRefreshButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid #b9cbc2;
+  border-radius: 999px;
+  background: #fff;
+  color: #174f43;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.flightRefreshButton:hover:not(:disabled) {
+  border-color: #4b8779;
+  background: #f2f8f5;
+}
+
+.flightRefreshButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.flightRefreshError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -4px 0 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff3f1;
+  color: #8c3128;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flightRefreshError svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .flightSectionHeader > span {

@@ -94,6 +94,27 @@ class DetailedRoutingResponse(BaseModel):
     detailed_routing_plan: DetailedRoutingPlan
 
 
+class FlightRefreshRequest(BaseModel):
+    """Thread-only action; the backend derives every flight-search input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str = Field(min_length=1)
+
+
+class FlightRefreshResponse(BaseModel):
+    """Fresh flight results and explicitly invalidated derived selections."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str
+    message: str
+    itinerary: TripPlan
+    travel_selections: TravelSelections | None = None
+    trip_cost_summary: TripCostSummary | None = None
+    detailed_routing_plan: DetailedRoutingPlan | None = None
+
+
 class MapsConfigResponse(BaseModel):
     """Public browser configuration for map visualization."""
 
