@@ -19,7 +19,7 @@ The repository contains both the Python API and a browser client for chat, threa
 - [Conversation State](#conversation-state)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
-- [Current Limitations](#current-limitations)
+- [Limitations](#limitations)
 - [License](#license)
 
 ## Live Demo
@@ -102,7 +102,7 @@ flowchart TD
 Each new request gets a UUID unless the client supplies an existing `thread_id`. LangGraph's SQLite checkpointer uses that ID to restore the conversation and extracted trip state on later turns.
 When the client also supplies a stable `user_id`, Mem0 recalls and writes durable traveler facts across threads. Anonymous requests skip long-term personalization.
 
-Complete itineraries now have a structured `TripPlan` representation as the
+Complete itineraries have a structured `TripPlan` representation as the
 backend source of truth. The frontend renders completed plans as structured trip
 overviews, day sections, attraction cards, budgets, and practical notes, while
 clarification and general chat messages retain Markdown presentation. Geoapify enriches attraction-like
@@ -124,8 +124,8 @@ or Swoop. A miss retrieves current Google Flights-derived shopping results for
 the exact selected dates and adult traveler count. Next, the backend derives
 consecutive city stays and uses trusted Geoapify coordinates to request current
 LiteAPI hotel rates for each exact check-in/check-out window.
-Weather, routing, flight, and hotel recommendation enrichment never change the
-itinerary plan or dates. Itinerary validation and replanning remain future work.
+Weather, routing, flight, and hotel recommendation enrichment do not change the
+itinerary plan or dates.
 
 ```text
 final_response
@@ -283,7 +283,7 @@ Restart the backend after changing these values because settings and LLM clients
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | Base URL of the FastAPI server |
 
-The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API currently allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
+The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
 
 ### Itinerary map setup
 
@@ -295,7 +295,8 @@ The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.verc
 The browser map-tile key is intentionally visible in tile requests, so its
 origin restrictions are required. The backend-only `GEOAPIFY_API_KEY` remains
 private and is never returned to the frontend. No Map ID or Google API key is
-needed, and Phase 5 makes no routing calls.
+needed. The map displays existing itinerary coordinates without additional
+place or routing requests.
 
 ## API
 
@@ -436,7 +437,7 @@ The approval endpoint resumes graph execution but returns only its status, not t
 
 ## Tools and Data
 
-The LLM can currently call three registered tools:
+The LLM can call three registered tools:
 
 | Tool | Input | Behavior |
 | --- | --- | --- |
@@ -448,7 +449,7 @@ The research subgraph independently builds static destination context for
 climate, currency, and visa topics. This climate context is useful for itinerary
 drafting but is explicitly labeled as general guidance, not a date-specific
 forecast. Real forecast data is added later by deterministic server-side
-enrichment and does not involve a new LLM call.
+enrichment and does not involve an LLM call.
 
 Budget conversion is the exception: when the extractor identifies a non-USD budget, the backend requests a current conversion rate from the public Frankfurter API and caches it for six hours. If the request fails, the original budget is retained without a fabricated conversion.
 
@@ -482,8 +483,8 @@ never block itinerary delivery or trigger replanning. The
 `OPENWEATHER_API_KEY` remains server-side; only typed daily forecast fields are
 serialized to the frontend.
 
-Weather-aware activity changes and replanning are not implemented in this
-phase; forecasts are informational enrichment only.
+Forecasts are informational enrichment only; they do not automatically rewrite
+activities or replan the itinerary.
 
 After weather enrichment, Geoapify Routing estimates distance and duration for
 adjacent activities whose places both have trusted Geoapify coordinates. An
@@ -500,9 +501,9 @@ route geometry are not stored.
 
 ### Travel recommendations and base trip budget
 
-Phase 7.5 defines provider-neutral flight, hotel, and restaurant recommendation
-models, separate provider protocols, per-domain search statuses, and deterministic
-ranking helpers. Flights and hotels now use separate factual providers:
+The recommendation layer defines provider-neutral flight, hotel, and restaurant
+models, separate provider protocols, per-domain search statuses, and
+deterministic ranking helpers. Flights and hotels use separate factual providers:
 
 ```text
 Flights     -> Swoop
@@ -526,7 +527,7 @@ multiply it by traveler count or add the leg prices again.
 
 Swoop is an unofficial open-source integration that uses undocumented Google
 Flights internal RPC endpoints; it is not an official Google Flights API. It is
-appropriate for this prototype/demo, but upstream changes, rate limits, or
+appropriate for travel planning, but upstream changes, rate limits, or
 blocking can temporarily make only flight recommendations unavailable. No Swoop
 API key is required. The integration uses shopping data only and does not call
 booking, seller-selection, reservation, or payment APIs.
@@ -536,9 +537,9 @@ the exact dates, one occupancy containing the authoritative adult traveler
 count, USD currency, and a guest-nationality ISO-2 code derived from the
 Geoapify country code for the trip origin. The API does not accept a separate
 user-supplied nationality. This origin-based assumption can be inaccurate when
-origin and citizenship differ. The current MVP models all travelers as adults
-in one requested occupancy; child ages, room allocation, and room preferences
-require future authoritative input.
+origin and citizenship differ. Hotel searches model all travelers as adults in
+one requested occupancy; child ages, room allocation, and room preferences are
+not supported.
 
 Python groups consecutive itinerary days by normalized city, calculates nights
 as checkout minus check-in, derives display-only price per night with decimal
@@ -555,7 +556,7 @@ accommodation are deliberately excluded and remain separate recommendation and
 selection systems. The user's USD budget is preserved as an overall
 target, but the UI does not claim that the base estimate or any flight result
 makes the complete trip affordable. Flight search results are never filtered or
-classified by that target. The project does not currently provide booking,
+classified by that target. The project does not provide booking,
 order creation, or payment.
 
 Every structured budget crosses a deterministic validation boundary: controlled
@@ -595,13 +596,13 @@ itinerary using current Swoop shopping data. They are ranked deterministically
 by price, duration, stops, and stable provider ID; they are not filtered by the
 traveler's target and are not included in the base estimate.
 
-Phase 7.10 stores reusable flight state separately from
+Reusable flight state is stored separately from
 `TripPlan.recommendations`, because itinerary generation intentionally clears
 provider data. The checkpointed `FlightSearchCache` contains the complete
 normalized `FlightSearchRequest`, final ranked `FlightOption` models, the search
 status, and a timezone-aware UTC `searched_at`. Cache identity compares
-`request.model_dump(mode="json")`, including every current or future request
-field instead of a manually maintained subset.
+`request.model_dump(mode="json")`, including every request field instead of a
+manually maintained subset.
 
 Only `available` and successful `no_results` searches are reusable, with a
 15-minute TTL. `unavailable` represents a potentially temporary provider problem
@@ -643,8 +644,8 @@ bypass cache -> Swoop -> replace cache and flight snapshot
 ```
 
 This is a planning cache, not a price lock. Flight prices and availability can
-change. Any future booking or prebooking action must revalidate both immediately
-before acting; this phase adds no booking behavior.
+change. Any booking or prebooking action would need to revalidate both
+immediately before acting. This application does not include booking behavior.
 
 Hotel recommendations are also generated automatically when the LiteAPI key,
 an origin-derived nationality, dates, and a trusted search anchor are available.
@@ -659,9 +660,9 @@ After both recommendation domains are complete, the structured frontend asks
 whether the traveler wants to include one saved flight and one hotel per stay
 in an updated trip estimate. Opening or changing selection mode uses the exact
 recommendations already stored with the current thread: it performs no new
-Swoop, LiteAPI, Geoapify, or LLM call and does not refresh prices. The primary
-Phase 7.8 interaction is button-based; typed natural-language yes/no selection
-intent is not separately classified.
+Swoop, LiteAPI, Geoapify, or LLM call and does not refresh prices. The selection
+interaction is button-based; typed natural-language yes/no selection intent is
+not separately classified.
 
 The browser submits provider offer IDs and opaque deterministic stay keys, not
 money or provider facts. Python resolves those IDs against the current snapshot
@@ -685,11 +686,11 @@ the derived detailed routing plan.
 
 Selection is for trip-cost planning only. It does not prebook, reserve,
 purchase, or pay for travel. Explicit flight-price refresh is available;
-prebooking, booking, and payment remain future work.
+prebooking, booking, and payment are not supported.
 
 ### Detailed routing and timetable
 
-Phase 7.9 adds a separate, opt-in `POST /trip/detailed-routing` action after a
+The app provides a separate, opt-in `POST /trip/detailed-routing` action after a
 complete flight/hotel selection and updated trip cost. The request contains
 only the existing `thread_id`; Python reloads the authoritative itinerary,
 selected flight, selected hotels, and cost summary from the checkpoint. It does
@@ -808,9 +809,8 @@ The compiled graph uses LangGraph's `AsyncSqliteSaver`, writing checkpoints to a
 - `flight_search_cache` is independent of regenerated `TripPlan` objects, so it
   survives recommendation clearing across turns in the same thread.
 - The checkpointer is built lazily on first use (it needs a running event loop) and cached as a singleton for the life of the process, so repeated requests reuse the same connection instead of reopening it.
-- On Render's free tier the filesystem is ephemeral, so a redeploy or instance restart still clears conversation threads, exactly as it did under the old in-memory `MemorySaver` — the difference is that within a single running instance, memory usage no longer grows with every new thread.
+- On Render's free tier the filesystem is ephemeral, so a redeploy or instance restart clears conversation threads.
 - State is local to one process, so multiple Uvicorn workers do not share threads. Keep `WEB_CONCURRENCY`/worker count at 1 unless threads are moved to shared storage.
-- A PostgreSQL checkpointer module is a placeholder and is not wired into the graph yet.
 
 For production, point `CHECKPOINTER_SQLITE_PATH` at a persistent disk (a paid Render disk, or an external volume) or replace `AsyncSqliteSaver` in `app/graph/builder.py` with a durable shared backend (e.g. Postgres), and add an expiration policy for abandoned threads.
 
@@ -866,19 +866,19 @@ This means the graph was compiled with the sync `SqliteSaver` while being invoke
 
 The backend needs outbound HTTPS access to `api.frankfurter.dev`. Conversion failures are logged as warnings and do not stop itinerary generation.
 
-## Current Limitations
+## Limitations
 
 - General climate, currency, and visa research remains static guidance; date-specific weather uses OpenWeather only within its available forecast horizon.
 - Conversation persistence is disk-backed but not durable across redeploys on ephemeral hosting (see [Conversation State](#conversation-state)).
 - No authentication or per-user thread ownership is implemented.
-- Place eligibility currently uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
+- Place eligibility uses deterministic category/name heuristics rather than a dedicated typed activity taxonomy.
 - Geoapify place and routing deduplication/circuit state are request-local; there is no persistent provider cache.
 - Pexels improves broad image coverage, but search relevance cannot guarantee an exact photo for every landmark; activities remain usable when no safe result is returned.
 - The itinerary map remains visualization-only: routing estimates are card-only and do not include geometry, live traffic, turn-by-turn directions, or route-aware replanning.
 - Detailed routing is opt-in planning output, not live transit data; AI fallbacks provide labeled ranges only, and no route geometry, directions, booking, or availability guarantee is added.
 - Swoop relies on undocumented Google Flights internal RPC endpoints and may temporarily fail after upstream changes, rate limits, or blocking; flight enrichment degrades independently from the itinerary.
 - Flight shopping uses a US point of sale and adult-only economy requests; fares and availability can differ by point of sale and can change before booking.
-- LiteAPI hotel search currently uses one adults-only occupancy and an origin-derived guest-nationality ISO-2 code; child ages, multiple-room allocation, and booking are not implemented.
-- Restaurant recommendation provider integration remains future work.
-- Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not currently registered.
+- LiteAPI hotel search uses one adults-only occupancy and an origin-derived guest-nationality ISO-2 code; child ages, multiple-room allocation, and booking are not implemented.
+- Restaurant recommendation provider integration is not included.
+- Sensitive booking/payment tool names are recognized by the approval logic, but booking and payment tools are not registered.
 - The backend's Render free-tier instance spins down when idle, adding cold-start latency to the first request after inactivity.
