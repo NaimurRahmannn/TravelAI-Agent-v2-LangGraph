@@ -10,6 +10,7 @@ from app.graph.nodes.extractor import (
     _apply_selected_dates,
     _get_missing_required_fields,
     _merge_trip,
+    _should_replace_preferences,
 )
 from app.models import (
     Activity,
@@ -62,6 +63,67 @@ def test_preference_fallback_recovers_mountain_and_river_preferences():
     )
 
     assert extraction.preferences == ["mountains", "rivers"]
+
+
+def test_only_preference_replaces_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples", "food"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer only top mountain places in Japan",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences(
+            "I prefer only top mountain places in Japan"
+        ),
+    )
+
+    assert trip.preferences == ["mountains"]
+
+
+def test_fresh_preference_set_replaces_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples", "food"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer mountain and river places",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences(
+            "I prefer mountain and river places"
+        ),
+    )
+
+    assert trip.preferences == ["mountains", "rivers"]
+
+
+def test_additive_preference_wording_keeps_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "Also add river places",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences("Also add river places"),
+    )
+
+    assert trip.preferences == ["temples", "rivers"]
 
 
 def test_japan_request_recovers_stated_fields_and_asks_for_travelers():

@@ -130,6 +130,7 @@ def extractor_node(
     trip = _merge_trip(
         existing_trip=existing_trip,
         extracted_trip=extracted_trip,
+        replace_preferences=_should_replace_preferences(message_text),
     )
     trip = _apply_selected_dates(
         trip,
@@ -199,6 +200,8 @@ def _get_missing_required_fields(trip: Trip) -> list[str]:
 def _merge_trip(
     existing_trip: Trip | None,
     extracted_trip: TripExtraction,
+    *,
+    replace_preferences: bool = False,
 ) -> Trip:
     """Merge newly extracted trip details with checkpointed trip state."""
 
@@ -217,10 +220,13 @@ def _merge_trip(
             continue
 
         if field_name == "preferences":
-            merged_data[field_name] = _merge_preferences(
-                existing_data.get(field_name, []),
-                value or [],
-            )
+            if replace_preferences and value:
+                merged_data[field_name] = _merge_preferences([], value)
+            else:
+                merged_data[field_name] = _merge_preferences(
+                    existing_data.get(field_name, []),
+                    value or [],
+                )
             continue
 
         if value is not None:
@@ -475,6 +481,30 @@ def _extract_preferences(message: str) -> list[str]:
             if normalized not in preferences:
                 preferences.append(normalized)
     return preferences
+
+
+def _should_replace_preferences(message: str) -> bool:
+    """Return whether latest preference wording should replace old preferences."""
+
+    if not _extract_preferences(message):
+        return False
+
+    if re.search(r"\b(?:only|just|instead|rather than)\b", message, re.IGNORECASE):
+        return True
+
+    explicit_preference_set = re.search(
+        r"\b(?:i|we)\s+(?:would\s+)?prefer\b"
+        r"|\b(?:my|our)\s+preferences?\s+(?:are|is)\b"
+        r"|\bpreferences?\s*:",
+        message,
+        re.IGNORECASE,
+    )
+    additive_update = re.search(
+        r"\b(?:also|add|include|too|as well|another)\b",
+        message,
+        re.IGNORECASE,
+    )
+    return bool(explicit_preference_set and not additive_update)
 
 
 def _extract_unlabelled_origin(message: str) -> str | None:
