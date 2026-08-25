@@ -11,10 +11,7 @@ from app.models import (
     TripPlan,
 )
 from app.schemas.api import TravelSelectionRequest, TravelSelectionResponse
-from app.services.hotel_recommendation import (
-    MAX_HOTEL_STAY_SEARCHES,
-    derive_hotel_stays,
-)
+from app.services.hotel_recommendation import derive_hotel_stays
 
 logger = get_logger(__name__)
 _MONEY_QUANTUM = Decimal("0.01")
@@ -182,7 +179,7 @@ def validate_travel_selections(
         )
         raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
 
-    required_stays = derive_hotel_stays(trip_plan)[:MAX_HOTEL_STAY_SEARCHES]
+    required_stays = derive_hotel_stays(trip_plan)
     required_keys = {stay.stay_key for stay in required_stays}
     submitted_keys = {selection.stay_key for selection in selections.selected_hotels}
     if not required_keys or submitted_keys != required_keys:

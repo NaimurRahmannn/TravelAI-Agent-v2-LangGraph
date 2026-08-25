@@ -301,7 +301,7 @@ function deriveRequiredHotelStays(itinerary: TripPlan): string[] {
       current.push(day);
     }
   });
-  return groups.slice(0, 5).flatMap((group, index) => {
+  return groups.flatMap((group, index) => {
     const checkIn = group[0].date;
     const checkOut = groups[index + 1]?.[0].date ?? itinerary.end_date;
     if (!checkIn || !checkOut || checkOut <= checkIn) {

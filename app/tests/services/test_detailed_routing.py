@@ -634,6 +634,61 @@ def test_detailed_plan_markdown_labels_facts_estimates_and_buffers():
     assert "not a live transit schedule" in rendered
 
 
+def test_soft_routing_advisories_are_not_exposed_in_new_or_saved_plans():
+    hidden_warnings = (
+        (
+            "Transit routing was unavailable from Geoapify, so an AI planning "
+            "estimate is shown for this leg."
+        ),
+        (
+            "The selected flight has no stored return slice, so no airport "
+            "deadline could be calculated."
+        ),
+        "Planned activities extend beyond the preferred day-end time.",
+    )
+    plan = _plan()
+    selected_flight = plan.recommendations.flights[0]
+    plan.recommendations.flights[0] = selected_flight.model_copy(
+        update={"slices": selected_flight.slices[:1]}
+    )
+    late_activity = plan.days[0].activities[0]
+    plan.days[0].activities[0] = late_activity.model_copy(
+        update={"start_time": "22:30"}
+    )
+    context = build_detailed_routing_context(plan, _selections(plan))
+    context = with_resolved_point(
+        context,
+        stop_id="arrival-airport",
+        latitude=35.77,
+        longitude=140.39,
+    )
+    bundle = asyncio.run(
+        build_planning_estimates(
+            context,
+            collect_required_route_legs(context),
+            routing_provider=None,
+            planning_estimator=FakeEstimator(),
+        )
+    )
+    detailed = build_detailed_timetable(context, bundle)
+    generated_warnings = detailed.warnings + [
+        warning for day in detailed.days for warning in day.warnings
+    ]
+
+    assert not any(warning in generated_warnings for warning in hidden_warnings)
+
+    saved_days = list(detailed.days)
+    saved_days[0] = saved_days[0].model_copy(
+        update={"warnings": list(hidden_warnings)}
+    )
+    saved_plan = detailed.model_copy(
+        update={"days": saved_days, "warnings": list(hidden_warnings)}
+    )
+    rendered = render_itinerary(plan, detailed_routing_plan=saved_plan)
+
+    assert not any(warning in rendered for warning in hidden_warnings)
+
+
 class FakeGraph:
     def __init__(self, values):
         self.values = values

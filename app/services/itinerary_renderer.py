@@ -10,6 +10,20 @@ from app.models import (
 )
 from app.services.selection_status import build_travel_selection_status
 
+_HIDDEN_ROUTING_WARNINGS = frozenset(
+    {
+        (
+            "Transit routing was unavailable from Geoapify, so an AI planning "
+            "estimate is shown for this leg."
+        ),
+        (
+            "The selected flight has no stored return slice, so no airport "
+            "deadline could be calculated."
+        ),
+        "Planned activities extend beyond the preferred day-end time.",
+    }
+)
+
 
 def render_itinerary(
     plan: TripPlan,
@@ -337,10 +351,19 @@ def _append_detailed_routing(
             )
         )
         lines.extend(f"- {event}" for _, _, event in events)
-        lines.extend(f"- Warning: {warning}" for warning in day.warnings)
-    if plan.warnings:
+        lines.extend(
+            f"- Warning: {warning}"
+            for warning in day.warnings
+            if warning not in _HIDDEN_ROUTING_WARNINGS
+        )
+    visible_plan_warnings = [
+        warning
+        for warning in plan.warnings
+        if warning not in _HIDDEN_ROUTING_WARNINGS
+    ]
+    if visible_plan_warnings:
         lines.extend(["", "Planning warnings:"])
-        lines.extend(f"- {warning}" for warning in plan.warnings)
+        lines.extend(f"- {warning}" for warning in visible_plan_warnings)
 
 
 def _render_timetable_stop(stop: TimetableStop) -> str:

@@ -1,8 +1,5 @@
 from app.models import SelectionStatus, TravelSelections, TravelSelectionStatus, TripPlan
-from app.services.hotel_recommendation import (
-    MAX_HOTEL_STAY_SEARCHES,
-    derive_hotel_stays,
-)
+from app.services.hotel_recommendation import derive_hotel_stays
 
 
 def build_travel_selection_status(
@@ -25,7 +22,7 @@ def build_travel_selection_status(
         has_complete_options=bool(recommendations.flights),
     )
 
-    required_stays = derive_hotel_stays(itinerary)[:MAX_HOTEL_STAY_SEARCHES]
+    required_stays = derive_hotel_stays(itinerary)
     required_stay_keys = {stay.stay_key for stay in required_stays}
     option_stay_keys = {hotel.stay_key for hotel in recommendations.hotels}
     hotel_options_complete = bool(required_stay_keys) and (

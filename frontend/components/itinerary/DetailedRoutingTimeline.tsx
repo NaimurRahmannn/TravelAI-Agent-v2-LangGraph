@@ -17,6 +17,12 @@ type TimelineEvent =
   | { kind: "stop"; sortTime: string; stop: TimetableStop }
   | { kind: "route"; sortTime: string; leg: DetailedRouteLeg };
 
+const HIDDEN_ROUTING_WARNINGS = new Set([
+  "Transit routing was unavailable from Geoapify, so an AI planning estimate is shown for this leg.",
+  "The selected flight has no stored return slice, so no airport deadline could be calculated.",
+  "Planned activities extend beyond the preferred day-end time.",
+]);
+
 export function DetailedRoutingTimeline({
   plan,
 }: {
@@ -59,6 +65,9 @@ export function DetailedRoutingTimeline({
 
 function DetailedRoutingDayCard({ day }: { day: DetailedRoutingDay }) {
   const events = buildTimelineEvents(day);
+  const visibleWarnings = day.warnings.filter(
+    (warning) => !HIDDEN_ROUTING_WARNINGS.has(warning),
+  );
   return (
     <article className="detailedRoutingDay">
       <header>
@@ -96,9 +105,9 @@ function DetailedRoutingDayCard({ day }: { day: DetailedRoutingDay }) {
         ))}
       </ol>
 
-      {day.warnings.length > 0 ? (
+      {visibleWarnings.length > 0 ? (
         <div className="routingWarnings" role="status">
-          {day.warnings.map((warning) => (
+          {visibleWarnings.map((warning) => (
             <p key={warning}>
               <TriangleAlert aria-hidden="true" size={15} />
               {warning}
