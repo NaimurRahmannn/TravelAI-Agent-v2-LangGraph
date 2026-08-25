@@ -372,6 +372,31 @@ def test_geoapify_success_is_exact_and_skips_llm_route_fallback():
     assert len(estimator.calls) == 1
 
 
+def test_geoapify_duration_above_planning_limit_uses_llm_fallback():
+    context = _context_with_airports()
+    required = collect_required_route_legs(context)
+    estimator = FakeEstimator()
+
+    bundle = asyncio.run(
+        build_planning_estimates(
+            context,
+            required,
+            routing_provider=FakeRoutingProvider(minutes=572),
+            planning_estimator=estimator,
+        )
+    )
+
+    assert len(estimator.calls) == 1
+    assert len(estimator.calls[0][0]) == len(required)
+    assert all(
+        leg.duration.source == "llm_estimate"
+        and leg.duration.planning_minutes == 35
+        for leg in bundle.route_legs.values()
+    )
+    assert bundle.geoapify_success_count == 0
+    assert bundle.geoapify_failure_count == len(required)
+
+
 def test_failed_routes_and_all_activity_estimates_use_one_llm_batch():
     context = _context_with_airports()
     required = collect_required_route_legs(context)
