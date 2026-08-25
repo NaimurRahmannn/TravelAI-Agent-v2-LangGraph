@@ -23,6 +23,45 @@ from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
 
+_PREFERENCE_TERMS = [
+    "temples",
+    "temple",
+    "food",
+    "cuisine",
+    "nature",
+    "mountains",
+    "mountain",
+    "rivers",
+    "river",
+    "gardens",
+    "garden",
+    "parks",
+    "park",
+    "hiking",
+    "museums",
+    "museum",
+    "shopping",
+    "nightlife",
+    "beaches",
+    "beach",
+    "history",
+    "culture",
+]
+
+_PREFERENCE_NORMALIZATION = {
+    "temple": "temples",
+    "cuisine": "food",
+    "mountain": "mountains",
+    "river": "rivers",
+    "garden": "nature",
+    "gardens": "nature",
+    "park": "nature",
+    "parks": "nature",
+    "hiking": "nature",
+    "museum": "museums",
+    "beach": "beaches",
+}
+
 
 def extractor_node(
     state: TravelState,
@@ -287,7 +326,7 @@ def _apply_deterministic_fallback(
 ) -> TripExtraction:
     """Fill obvious facts when a model returns valid but incomplete structured data."""
 
-    updates: dict[str, str | int | float] = {}
+    updates: dict[str, str | int | float | list[str]] = {}
 
     if extracted_trip.duration is None:
         duration = _extract_duration(message)
@@ -319,6 +358,15 @@ def _apply_deterministic_fallback(
             updates["budget"] = budget
         if currency and extracted_trip.currency is None:
             updates["currency"] = currency
+
+    preferences = _extract_preferences(message)
+    if preferences:
+        merged_preferences = _merge_preferences(
+            extracted_trip.preferences,
+            preferences,
+        )
+        if merged_preferences != extracted_trip.preferences:
+            updates["preferences"] = merged_preferences
 
     # A clarification reply is often just "Bangladesh 2", without labels such
     # as "from" or "travelers". Only interpret that shorthand after we already
@@ -415,6 +463,18 @@ def _extract_travelers(message: str) -> int | None:
         if match:
             return int(match.group(1))
     return None
+
+
+def _extract_preferences(message: str) -> list[str]:
+    """Extract common travel preferences from free text."""
+
+    preferences: list[str] = []
+    for term in _PREFERENCE_TERMS:
+        if re.search(rf"\b{re.escape(term)}\b", message, re.IGNORECASE):
+            normalized = _PREFERENCE_NORMALIZATION.get(term, term)
+            if normalized not in preferences:
+                preferences.append(normalized)
+    return preferences
 
 
 def _extract_unlabelled_origin(message: str) -> str | None:

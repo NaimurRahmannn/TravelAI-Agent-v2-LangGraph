@@ -24,7 +24,13 @@ Rules:
   such as "visit", "exploration", "tour", or "experience". Leave
   `place_search_name` null for transport, meals, lodging, and other activities
   that are not one searchable physical place.
-- Respect all stated traveler preferences and constraints.
+- Respect all stated traveler preferences and constraints. When preferences are
+  present, make them the main activity theme of the itinerary rather than a
+  minor mention. For preference-focused requests such as mountain places,
+  rivers, temples, food, or nature, choose concrete named activities that match
+  those interests first. Avoid generic sightseeing that does not support the
+  stated preferences unless needed for arrival, departure, meals, transfers, or
+  schedule pacing.
 - Preserve the stated budget as the traveler's overall target for all travelers,
   not as a spending target and not as a per-person amount unless explicitly
   stated. The structured budget is not a complete-trip affordability calculation.

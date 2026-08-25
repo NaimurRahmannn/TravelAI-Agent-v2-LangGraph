@@ -55,6 +55,15 @@ def test_thailand_request_recovers_destination_and_duration():
     ]
 
 
+def test_preference_fallback_recovers_mountain_and_river_preferences():
+    extraction = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer top mountain places and rivers in Japan",
+    )
+
+    assert extraction.preferences == ["mountains", "rivers"]
+
+
 def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
     """The reported Japan request should ask only for its unstated party size."""
 
