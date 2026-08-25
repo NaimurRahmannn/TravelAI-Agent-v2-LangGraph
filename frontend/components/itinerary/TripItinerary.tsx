@@ -7,6 +7,7 @@ import {
   createDetailedRoutingPlan,
   refreshFlights,
   type DetailedRoutingPlan,
+  type SelectionStatus,
   type TravelSelections,
   type TripCostSummary,
   type TripPlan,
@@ -41,10 +42,14 @@ type TripItineraryProps = {
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
   detailedRoutingPlan?: DetailedRoutingPlan | null;
+  flightSelectionStatus?: SelectionStatus;
+  hotelSelectionStatus?: SelectionStatus;
 };
 
 export function TripItinerary({
   detailedRoutingPlan,
+  flightSelectionStatus,
+  hotelSelectionStatus,
   isUpdatingDates = false,
   itinerary,
   mapPortalTarget,
@@ -297,6 +302,8 @@ export function TripItinerary({
           dismissed={selectionDismissed}
           error={selectionError}
           itinerary={itinerary}
+          flightSelectionStatus={flightSelectionStatus}
+          hotelSelectionStatus={hotelSelectionStatus}
           onBegin={beginSelection}
           onCancel={() => {
             setSelectionMode(false);
@@ -339,6 +346,8 @@ export function TripItinerary({
           dismissed={selectionDismissed}
           error={selectionError}
           itinerary={itinerary}
+          flightSelectionStatus={flightSelectionStatus}
+          hotelSelectionStatus={hotelSelectionStatus}
           onBegin={beginSelection}
           onCancel={() => {
             setSelectionMode(false);

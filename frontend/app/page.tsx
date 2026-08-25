@@ -20,6 +20,7 @@ import {
   approveAction,
   sendChat,
   type DetailedRoutingPlan,
+  type SelectionStatus,
   type TravelSelections,
   type TripCostSummary,
   type TripPlan,
@@ -35,6 +36,8 @@ type ChatMessage = {
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
   detailedRoutingPlan?: DetailedRoutingPlan | null;
+  flightSelectionStatus?: SelectionStatus;
+  hotelSelectionStatus?: SelectionStatus;
   missingFields?: string[];
 };
 
@@ -160,6 +163,8 @@ export default function Home() {
         travelSelections: response.travel_selections,
         tripCostSummary: response.trip_cost_summary,
         detailedRoutingPlan: response.detailed_routing_plan,
+        flightSelectionStatus: response.flight_selection_status,
+        hotelSelectionStatus: response.hotel_selection_status,
         missingFields: response.missing_fields,
       },
     ]);
@@ -214,6 +219,8 @@ export default function Home() {
           travelSelections: response.travel_selections,
           tripCostSummary: response.trip_cost_summary,
           detailedRoutingPlan: response.detailed_routing_plan,
+          flightSelectionStatus: response.flight_selection_status,
+          hotelSelectionStatus: response.hotel_selection_status,
           missingFields: response.missing_fields,
         },
       ]);
@@ -279,6 +286,8 @@ export default function Home() {
                 travelSelections: response.travel_selections,
                 tripCostSummary: response.trip_cost_summary,
                 detailedRoutingPlan: response.detailed_routing_plan,
+                flightSelectionStatus: response.flight_selection_status,
+                hotelSelectionStatus: response.hotel_selection_status,
                 missingFields: response.missing_fields,
               }
             : item,
@@ -337,6 +346,8 @@ export default function Home() {
               travelSelections: selections,
               tripCostSummary: costSummary,
               detailedRoutingPlan: null,
+              flightSelectionStatus: "selected",
+              hotelSelectionStatus: "selected",
             }
           : item,
       ),
@@ -369,6 +380,8 @@ export default function Home() {
               travelSelections: null,
               tripCostSummary: null,
               detailedRoutingPlan: null,
+              flightSelectionStatus: undefined,
+              hotelSelectionStatus: undefined,
             }
           : item,
       ),
@@ -516,6 +529,8 @@ export default function Home() {
                       content={message.content}
                       detailedRoutingPlan={message.detailedRoutingPlan}
                       itinerary={message.itinerary}
+                      flightSelectionStatus={message.flightSelectionStatus}
+                      hotelSelectionStatus={message.hotelSelectionStatus}
                       isLoading={isLoading}
                       mapPortalTarget={mapRailTarget}
                       missingFields={message.missingFields}

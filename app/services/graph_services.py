@@ -9,8 +9,10 @@ from langgraph.types import Command
 
 from app.core.logging import get_logger
 from app.graph.builder import get_graph
+from app.models import TravelSelections, TripPlan
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
 from app.schemas.api import ChatRequest, ChatResponse
+from app.services.selection_status import build_travel_selection_status
 
 logger = get_logger(__name__)
 
@@ -76,13 +78,28 @@ class GraphService:
             logger.info("checkpoint save thread_id=%s", thread_id)
             await graph.aget_state(config)
             logger.info("graph async invocation finished thread_id=%s", thread_id)
+            raw_itinerary = result.get("itinerary")
+            itinerary = (
+                TripPlan.model_validate(raw_itinerary)
+                if raw_itinerary is not None
+                else None
+            )
+            raw_selections = result.get("travel_selections")
+            selections = (
+                TravelSelections.model_validate(raw_selections)
+                if raw_selections is not None
+                else None
+            )
+            selection_status = build_travel_selection_status(itinerary, selections)
             return ChatResponse(
                 response=result.get("response", ""),
                 thread_id=thread_id,
-                itinerary=result.get("itinerary"),
-                travel_selections=result.get("travel_selections"),
+                itinerary=itinerary,
+                travel_selections=selections,
                 trip_cost_summary=result.get("trip_cost_summary"),
                 detailed_routing_plan=result.get("detailed_routing_plan"),
+                flight_selection_status=selection_status.flight,
+                hotel_selection_status=selection_status.hotel,
                 missing_fields=result.get("missing_fields", []),
             )
         except Exception as exc:

@@ -8,6 +8,7 @@ from app.models import (
     TripCostSummary,
     TripPlan,
 )
+from app.services.selection_status import build_travel_selection_status
 
 
 def render_itinerary(
@@ -107,6 +108,9 @@ def render_itinerary(
             ]
         )
 
+    selection_status = build_travel_selection_status(plan, travel_selections)
+    _append_selection_prompt(lines, selection_status.flight, selection_status.hotel)
+
     for day in plan.days:
         day_heading = f"## Day {day.day_number} — {day.city}"
         if day.date:
@@ -187,6 +191,25 @@ def render_itinerary(
         _append_detailed_routing(lines, detailed_routing_plan)
 
     return "\n".join(lines).strip()
+
+
+def _append_selection_prompt(
+    lines: list[str],
+    flight_status: str,
+    hotel_status: str,
+) -> None:
+    """Render the deterministic next action after fresh recommendations."""
+
+    if flight_status == "required" and hotel_status == "required":
+        lines.extend(
+            [
+                "",
+                "## Select Your Travel Options",
+                "",
+                "Would you like to select one flight and one hotel for each "
+                "stay? No booking will be made.",
+            ]
+        )
 
 
 def _append_selected_travel(

@@ -34,6 +34,13 @@ Rules:
   generic sightseeing or older preference themes that do not support the active
   preferences unless needed for arrival, departure, meals, transfers, or
   schedule pacing.
+- Populate `preference_tags` for every activity using only the controlled values
+  allowed by the schema. A discretionary activity must have one or more tags
+  from the current active `Trip.preferences`, and it must not carry an inactive
+  preference tag. Use an empty list only for required arrival/departure
+  logistics, transfers, lodging/check-in, rest, and meals when food is not an
+  active preference. Never label an unrelated activity with a preference tag
+  merely to satisfy the schema.
 - Preserve the stated budget as the traveler's overall target for all travelers,
   not as a spending target and not as a per-person amount unless explicitly
   stated. The structured budget is not a complete-trip affordability calculation.
@@ -108,6 +115,9 @@ Relevant traveler memories:
 
 Destination research:
 {research_summary}
+
+Validation feedback from a rejected generation attempt:
+{validation_feedback}
 """,
         ),
     ]

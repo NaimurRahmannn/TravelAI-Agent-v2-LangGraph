@@ -126,6 +126,17 @@ def test_additive_preference_wording_keeps_existing_preferences():
     assert trip.preferences == ["temples", "rivers"]
 
 
+def test_preference_merge_normalizes_model_aliases_and_case():
+    existing = Trip(destination="Japan", preferences=["Temples"])
+    extracted = _empty_extraction().model_copy(
+        update={"preferences": ["MOUNTAIN", "temple"]}
+    )
+
+    trip = _merge_trip(existing, extracted)
+
+    assert trip.preferences == ["temples", "mountains"]
+
+
 def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
     """The reported Japan request should ask only for its unstated party size."""
 
@@ -576,3 +587,35 @@ def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
     assert result["trip_cost_summary"] is None
     assert result["detailed_routing_plan"] is None
     assert result["needs_clarification"] is True
+
+
+def test_extractor_marks_changed_preferences_and_clears_selection(monkeypatch):
+    class EmptyExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(lambda _: _empty_extraction())
+
+    monkeypatch.setattr(extractor, "get_groq_llm", lambda: EmptyExtractionModel())
+    existing_trip = Trip(
+        origin="Dhaka",
+        destination="Japan",
+        start_date=date(2026, 9, 10),
+        end_date=date(2026, 9, 12),
+        duration=3,
+        budget=2000,
+        currency="USD",
+        travelers=2,
+        preferences=["mountains"],
+    )
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="Also add temples")],
+            "trip": existing_trip,
+            "travel_selections": {"selected_flight_id": "old-selection"},
+        },
+        config={},
+    )
+
+    assert result["trip"].preferences == ["mountains", "temples"]
+    assert result["preferences_changed"] is True
+    assert result["travel_selections"] is None

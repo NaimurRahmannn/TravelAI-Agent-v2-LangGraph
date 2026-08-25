@@ -15,6 +15,7 @@ from app.models import (
     TripExtraction,
     TripPlan,
 )
+from app.models.preferences import PREFERENCE_ALIASES, normalize_preference
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
@@ -23,44 +24,7 @@ from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
 
-_PREFERENCE_TERMS = [
-    "temples",
-    "temple",
-    "food",
-    "cuisine",
-    "nature",
-    "mountains",
-    "mountain",
-    "rivers",
-    "river",
-    "gardens",
-    "garden",
-    "parks",
-    "park",
-    "hiking",
-    "museums",
-    "museum",
-    "shopping",
-    "nightlife",
-    "beaches",
-    "beach",
-    "history",
-    "culture",
-]
-
-_PREFERENCE_NORMALIZATION = {
-    "temple": "temples",
-    "cuisine": "food",
-    "mountain": "mountains",
-    "river": "rivers",
-    "garden": "nature",
-    "gardens": "nature",
-    "park": "nature",
-    "parks": "nature",
-    "hiking": "nature",
-    "museum": "museums",
-    "beach": "beaches",
-}
+_PREFERENCE_TERMS = list(PREFERENCE_ALIASES)
 
 
 def extractor_node(
@@ -138,10 +102,15 @@ def extractor_node(
         state.get("selected_end_date"),
     )
     trip = _normalize_budget_to_usd(trip)
+    preferences_changed = bool(
+        existing_trip is not None
+        and existing_trip.preferences != trip.preferences
+    )
 
     missing_fields = _get_missing_required_fields(trip)
     if state.get("travel_selections") is not None:
-        logger.info("travel_selection_reset reason=trip_regenerated")
+        reason = "preferences_changed" if preferences_changed else "trip_regenerated"
+        logger.info("travel_selection_reset reason=%s", reason)
     result = {
         "trip": trip,
         # Every new user turn must replace, clarify, or regenerate the plan.
@@ -151,6 +120,7 @@ def extractor_node(
         "travel_selections": None,
         "trip_cost_summary": None,
         "detailed_routing_plan": None,
+        "preferences_changed": preferences_changed,
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }
@@ -477,7 +447,7 @@ def _extract_preferences(message: str) -> list[str]:
     preferences: list[str] = []
     for term in _PREFERENCE_TERMS:
         if re.search(rf"\b{re.escape(term)}\b", message, re.IGNORECASE):
-            normalized = _PREFERENCE_NORMALIZATION.get(term, term)
+            normalized = normalize_preference(term)
             if normalized not in preferences:
                 preferences.append(normalized)
     return preferences
@@ -595,7 +565,7 @@ def _merge_preferences(
 
     merged_preferences: list[str] = []
     for preference in existing_preferences + extracted_preferences:
-        normalized_preference = preference.strip()
+        normalized_preference = normalize_preference(preference)
         if normalized_preference and normalized_preference not in merged_preferences:
             merged_preferences.append(normalized_preference)
 

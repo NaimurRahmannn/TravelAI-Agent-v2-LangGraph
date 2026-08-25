@@ -39,6 +39,7 @@ class TravelState(MessagesState):
     user_id: str | None
     planner: PlannerState
     trip: Trip | None
+    preferences_changed: bool
     selected_start_date: date | None
     selected_end_date: date | None
     itinerary: TripPlan | None

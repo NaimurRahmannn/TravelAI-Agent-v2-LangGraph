@@ -1,6 +1,7 @@
 import { MarkdownContent } from "@/app/MarkdownContent";
 import type {
   DetailedRoutingPlan,
+  SelectionStatus,
   TravelSelections,
   TripCostSummary,
   TripPlan,
@@ -27,11 +28,15 @@ type AssistantMessageProps = {
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
   detailedRoutingPlan?: DetailedRoutingPlan | null;
+  flightSelectionStatus?: SelectionStatus;
+  hotelSelectionStatus?: SelectionStatus;
 };
 
 export function AssistantMessage({
   content,
   detailedRoutingPlan,
+  flightSelectionStatus,
+  hotelSelectionStatus,
   itinerary,
   missingFields = [],
   isLoading = false,
@@ -50,6 +55,8 @@ export function AssistantMessage({
     return (
       <TripItinerary
         detailedRoutingPlan={detailedRoutingPlan}
+        flightSelectionStatus={flightSelectionStatus}
+        hotelSelectionStatus={hotelSelectionStatus}
         isUpdatingDates={isLoading}
         itinerary={itinerary}
         mapPortalTarget={mapPortalTarget}

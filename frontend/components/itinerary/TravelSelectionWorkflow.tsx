@@ -1,6 +1,7 @@
 import { Building2, CheckCircle2, CircleAlert, Plane } from "lucide-react";
 import type {
   HotelOption,
+  SelectionStatus,
   TravelSelections,
   TripCostSummary,
   TripPlan,
@@ -12,6 +13,8 @@ type TravelSelectionWorkflowProps = {
   dismissed: boolean;
   error: string | null;
   itinerary: TripPlan;
+  flightSelectionStatus?: SelectionStatus;
+  hotelSelectionStatus?: SelectionStatus;
   onBegin: () => void;
   onCancel: () => void;
   onConfirm: () => Promise<void> | void;
@@ -28,6 +31,8 @@ export function TravelSelectionWorkflow({
   dismissed,
   error,
   itinerary,
+  flightSelectionStatus,
+  hotelSelectionStatus,
   onBegin,
   onCancel,
   onConfirm,
@@ -37,7 +42,13 @@ export function TravelSelectionWorkflow({
   updatedTripCostSectionId,
   updating,
 }: TravelSelectionWorkflowProps) {
-  if (!canOfferTravelSelection(itinerary)) {
+  if (
+    !canOfferTravelSelection(
+      itinerary,
+      flightSelectionStatus,
+      hotelSelectionStatus,
+    )
+  ) {
     return null;
   }
 
@@ -239,7 +250,19 @@ export function getSelectableHotelStayKeys(itinerary: TripPlan): string[] {
   );
 }
 
-function canOfferTravelSelection(itinerary: TripPlan): boolean {
+function canOfferTravelSelection(
+  itinerary: TripPlan,
+  flightSelectionStatus?: SelectionStatus,
+  hotelSelectionStatus?: SelectionStatus,
+): boolean {
+  if (
+    (flightSelectionStatus &&
+      !["required", "selected"].includes(flightSelectionStatus)) ||
+    (hotelSelectionStatus &&
+      !["required", "selected"].includes(hotelSelectionStatus))
+  ) {
+    return false;
+  }
   const recommendations = itinerary.recommendations;
   if (
     !recommendations ||
