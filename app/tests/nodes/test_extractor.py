@@ -10,6 +10,7 @@ from app.graph.nodes.extractor import (
     _apply_selected_dates,
     _get_missing_required_fields,
     _merge_trip,
+    _should_replace_preferences,
 )
 from app.models import (
     Activity,
@@ -53,6 +54,87 @@ def test_thailand_request_recovers_destination_and_duration():
         "origin",
         "travelers",
     ]
+
+
+def test_preference_fallback_recovers_mountain_and_river_preferences():
+    extraction = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer top mountain places and rivers in Japan",
+    )
+
+    assert extraction.preferences == ["mountains", "rivers"]
+
+
+def test_only_preference_replaces_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples", "food"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer only top mountain places in Japan",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences(
+            "I prefer only top mountain places in Japan"
+        ),
+    )
+
+    assert trip.preferences == ["mountains"]
+
+
+def test_fresh_preference_set_replaces_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples", "food"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "I prefer mountain and river places",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences(
+            "I prefer mountain and river places"
+        ),
+    )
+
+    assert trip.preferences == ["mountains", "rivers"]
+
+
+def test_additive_preference_wording_keeps_existing_preferences():
+    existing = Trip(
+        destination="Japan",
+        preferences=["temples"],
+    )
+    follow_up = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "Also add river places",
+    )
+
+    trip = _merge_trip(
+        existing,
+        follow_up,
+        replace_preferences=_should_replace_preferences("Also add river places"),
+    )
+
+    assert trip.preferences == ["temples", "rivers"]
+
+
+def test_preference_merge_normalizes_model_aliases_and_case():
+    existing = Trip(destination="Japan", preferences=["Temples"])
+    extracted = _empty_extraction().model_copy(
+        update={"preferences": ["MOUNTAIN", "temple"]}
+    )
+
+    trip = _merge_trip(existing, extracted)
+
+    assert trip.preferences == ["temples", "mountains"]
 
 
 def test_japan_request_recovers_stated_fields_and_asks_for_travelers():
@@ -505,3 +587,35 @@ def test_extractor_clears_checkpointed_itinerary_on_new_turn(monkeypatch):
     assert result["trip_cost_summary"] is None
     assert result["detailed_routing_plan"] is None
     assert result["needs_clarification"] is True
+
+
+def test_extractor_marks_changed_preferences_and_clears_selection(monkeypatch):
+    class EmptyExtractionModel:
+        def with_structured_output(self, schema, *, method, strict):
+            return RunnableLambda(lambda _: _empty_extraction())
+
+    monkeypatch.setattr(extractor, "get_groq_llm", lambda: EmptyExtractionModel())
+    existing_trip = Trip(
+        origin="Dhaka",
+        destination="Japan",
+        start_date=date(2026, 9, 10),
+        end_date=date(2026, 9, 12),
+        duration=3,
+        budget=2000,
+        currency="USD",
+        travelers=2,
+        preferences=["mountains"],
+    )
+
+    result = extractor.extractor_node(
+        {
+            "messages": [HumanMessage(content="Also add temples")],
+            "trip": existing_trip,
+            "travel_selections": {"selected_flight_id": "old-selection"},
+        },
+        config={},
+    )
+
+    assert result["trip"].preferences == ["mountains", "temples"]
+    assert result["preferences_changed"] is True
+    assert result["travel_selections"] is None

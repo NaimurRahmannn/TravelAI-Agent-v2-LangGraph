@@ -285,34 +285,36 @@ async def _resolve_geoapify_routes(
         route = cache.get(key_for_leg.get(leg.leg_id))
         if route is not None:
             minutes = max(1, math.ceil(route.duration_seconds / 60))
-            results[leg.leg_id] = DetailedRouteLeg(
-                leg_id=leg.leg_id,
-                origin_stop_id=leg.origin.stop_id,
-                destination_stop_id=leg.destination.stop_id,
-                origin_name=leg.origin.name,
-                destination_name=leg.destination.name,
-                requested_mode=leg.requested_mode,
-                resolved_mode=leg.requested_mode,
-                distance_km=round(route.distance_meters / 1000, 2),
-                duration=RouteTimeEstimate(
-                    min_minutes=minutes,
-                    max_minutes=minutes,
-                    planning_minutes=minutes,
-                    source="geoapify",
-                ),
-                provider="geoapify",
-            )
-        else:
-            results[leg.leg_id] = DetailedRouteLeg(
-                leg_id=leg.leg_id,
-                origin_stop_id=leg.origin.stop_id,
-                destination_stop_id=leg.destination.stop_id,
-                origin_name=leg.origin.name,
-                destination_name=leg.destination.name,
-                requested_mode=leg.requested_mode,
-                duration=RouteTimeEstimate(source="unavailable"),
-                note="Routing information was unavailable for this leg.",
-            )
+            if minutes <= MAX_PLANNING_MINUTES:
+                results[leg.leg_id] = DetailedRouteLeg(
+                    leg_id=leg.leg_id,
+                    origin_stop_id=leg.origin.stop_id,
+                    destination_stop_id=leg.destination.stop_id,
+                    origin_name=leg.origin.name,
+                    destination_name=leg.destination.name,
+                    requested_mode=leg.requested_mode,
+                    resolved_mode=leg.requested_mode,
+                    distance_km=round(route.distance_meters / 1000, 2),
+                    duration=RouteTimeEstimate(
+                        min_minutes=minutes,
+                        max_minutes=minutes,
+                        planning_minutes=minutes,
+                        source="geoapify",
+                    ),
+                    provider="geoapify",
+                )
+                continue
+
+        results[leg.leg_id] = DetailedRouteLeg(
+            leg_id=leg.leg_id,
+            origin_stop_id=leg.origin.stop_id,
+            destination_stop_id=leg.destination.stop_id,
+            origin_name=leg.origin.name,
+            destination_name=leg.destination.name,
+            requested_mode=leg.requested_mode,
+            duration=RouteTimeEstimate(source="unavailable"),
+            note="Routing information was unavailable for this leg.",
+        )
     return results
 
 

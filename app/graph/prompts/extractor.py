@@ -44,6 +44,11 @@ travelers; destination must be null because the message does not change it.
 When the user adds preferences, return only the newly mentioned preferences;
 the caller will merge them with existing ones for you.
 
+If the user says they prefer "only" certain interests, or states a fresh
+preference set such as "I prefer mountains and rivers", return that latest set
+as the active preferences. The caller may replace older preferences with this
+new set.
+
 Do not guess values the user did not state.
 
 Return every key defined by the structured-output schema. Use null for scalar

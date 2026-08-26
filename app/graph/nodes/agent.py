@@ -110,8 +110,9 @@ def _build_trip_context_message(state: TravelState) -> SystemMessage:
             "trip state and pay special attention to the latest user message. "
             "If the latest user message adds preferences, constraints, or changes, "
             "the response must directly incorporate them and avoid repeating the "
-            "previous answer unchanged. For preferences like temples, food, and "
-            "nature, give concrete recommendations or itinerary adjustments for "
+            "previous answer unchanged. For preferences like temples, food, "
+            "mountains, rivers, and nature, give concrete recommendations or "
+            "itinerary adjustments for "
             "those interests. When no tool call is needed, return the complete "
             "final itinerary directly. The current trip state is authoritative "
             "and supersedes conflicting durations or dates in older conversation "
@@ -188,6 +189,10 @@ def _extract_latest_preferences(latest_user_message: str) -> list[str]:
         "food",
         "cuisine",
         "nature",
+        "mountains",
+        "mountain",
+        "rivers",
+        "river",
         "gardens",
         "garden",
         "parks",
@@ -220,6 +225,8 @@ def _normalize_preference(preference: str) -> str:
     preference_map = {
         "temple": "temples",
         "cuisine": "food",
+        "mountain": "mountains",
+        "river": "rivers",
         "garden": "nature",
         "gardens": "nature",
         "park": "nature",

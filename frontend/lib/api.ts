@@ -54,11 +54,25 @@ export type Activity = {
   end_time?: string | null;
   estimated_cost_usd?: number | null;
   reason_for_recommendation?: string | null;
+  preference_tags: PreferenceTag[];
   travel_mode_to_next?: TravelMode | null;
   place?: ResolvedPlace | null;
   place_resolution_status: "resolved" | "partially_resolved" | "unresolved";
   image?: PlaceImage | null;
 };
+
+export type PreferenceTag =
+  | "temples"
+  | "food"
+  | "nature"
+  | "mountains"
+  | "rivers"
+  | "museums"
+  | "shopping"
+  | "nightlife"
+  | "beaches"
+  | "history"
+  | "culture";
 
 export type TravelMode = "walk" | "drive" | "transit" | "bicycle";
 
@@ -361,8 +375,16 @@ export type ChatResponse = {
   travel_selections?: TravelSelections | null;
   trip_cost_summary?: TripCostSummary | null;
   detailed_routing_plan?: DetailedRoutingPlan | null;
+  flight_selection_status: SelectionStatus;
+  hotel_selection_status: SelectionStatus;
   missing_fields: string[];
 };
+
+export type SelectionStatus =
+  | "not_required"
+  | "required"
+  | "selected"
+  | "unavailable";
 
 export type ApprovalResponse = {
   status: string;

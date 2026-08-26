@@ -1,6 +1,19 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.recommendations import NonEmptyString
+
+SelectionStatus = Literal["not_required", "required", "selected", "unavailable"]
+
+
+class TravelSelectionStatus(BaseModel):
+    """Deterministic frontend state for the current recommendation snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    flight: SelectionStatus = "not_required"
+    hotel: SelectionStatus = "not_required"
 
 
 class SelectedHotelStay(BaseModel):

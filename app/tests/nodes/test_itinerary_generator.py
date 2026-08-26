@@ -21,6 +21,7 @@ from app.models import (
     FlightSlice,
     ItineraryDay,
     PlaceImage,
+    PreferenceTag,
     ResolvedPlace,
     Trip,
     TripPlan,
@@ -45,6 +46,7 @@ def _plan() -> TripPlan:
                     Activity(
                         name="Grand Palace",
                         category="culture",
+                        preference_tags=["culture"],
                         estimated_cost_usd=100,
                     )
                 ],
@@ -56,6 +58,7 @@ def _plan() -> TripPlan:
                     Activity(
                         name="Wat Arun",
                         category="culture",
+                        preference_tags=["culture"],
                         estimated_cost_usd=50,
                     )
                 ],
@@ -133,12 +136,16 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
         "BudgetItem",
         "ItineraryGenerationActivity",
         "ItineraryGenerationDay",
+        "PreferenceTag",
     }
     assert "place" not in schema_definitions["ItineraryGenerationActivity"][
         "properties"
     ]
     assert "image" not in schema_definitions["ItineraryGenerationActivity"][
         "properties"
+    ]
+    assert "preference_tags" in schema_definitions["ItineraryGenerationActivity"][
+        "required"
     ]
     assert "weather" not in schema_definitions["ItineraryGenerationDay"][
         "properties"
@@ -182,6 +189,47 @@ def test_generator_stores_plan_and_enforces_authoritative_trip(monkeypatch):
     assert "Traveler prefers vegetarian food" in captured["prompt"]
     assert "Agent planning draft" not in captured["prompt"]
     assert "output exactly `Trip.duration` numbered days" in captured["prompt"]
+
+
+def test_generator_retries_once_when_activity_tags_ignore_preferences(monkeypatch):
+    invalid = _plan().model_copy(deep=True)
+    valid = _plan().model_copy(deep=True)
+    for day in valid.days:
+        for activity in day.activities:
+            activity.preference_tags = [PreferenceTag.MOUNTAINS]
+
+    calls = []
+
+    class StructuredModel:
+        def with_structured_output(self, schema, *, method):
+            def generate(prompt):
+                calls.append(prompt.to_string())
+                return invalid if len(calls) == 1 else valid
+
+            return RunnableLambda(generate)
+
+    monkeypatch.setattr(
+        itinerary_generator,
+        "get_gemini_llm",
+        lambda: StructuredModel(),
+    )
+    state = _state()
+    state["trip"] = state["trip"].model_copy(
+        update={"preferences": ["mountains"]}
+    )
+
+    plan = itinerary_generator.itinerary_generator_node(state, config={})[
+        "itinerary"
+    ]
+
+    assert plan is not None
+    assert len(calls) == 2
+    assert "Grand Palace' has tags [culture]" in calls[1]
+    assert all(
+        activity.preference_tags == ["mountains"]
+        for day in plan.days
+        for activity in day.activities
+    )
 
 
 def test_generator_overwrites_conflicting_llm_day_dates(monkeypatch):

@@ -15,6 +15,7 @@ from app.models import (
     TripExtraction,
     TripPlan,
 )
+from app.models.preferences import PREFERENCE_ALIASES, normalize_preference
 
 from app.graph.prompts.extractor import extractor_prompt
 from app.graph.state import TravelState
@@ -22,6 +23,8 @@ from app.services.currency_converter import convert_to_usd
 from app.services.trip_dates import validate_and_derive_duration
 
 logger = get_logger(__name__)
+
+_PREFERENCE_TERMS = list(PREFERENCE_ALIASES)
 
 
 def extractor_node(
@@ -91,6 +94,7 @@ def extractor_node(
     trip = _merge_trip(
         existing_trip=existing_trip,
         extracted_trip=extracted_trip,
+        replace_preferences=_should_replace_preferences(message_text),
     )
     trip = _apply_selected_dates(
         trip,
@@ -98,10 +102,15 @@ def extractor_node(
         state.get("selected_end_date"),
     )
     trip = _normalize_budget_to_usd(trip)
+    preferences_changed = bool(
+        existing_trip is not None
+        and existing_trip.preferences != trip.preferences
+    )
 
     missing_fields = _get_missing_required_fields(trip)
     if state.get("travel_selections") is not None:
-        logger.info("travel_selection_reset reason=trip_regenerated")
+        reason = "preferences_changed" if preferences_changed else "trip_regenerated"
+        logger.info("travel_selection_reset reason=%s", reason)
     result = {
         "trip": trip,
         # Every new user turn must replace, clarify, or regenerate the plan.
@@ -111,6 +120,7 @@ def extractor_node(
         "travel_selections": None,
         "trip_cost_summary": None,
         "detailed_routing_plan": None,
+        "preferences_changed": preferences_changed,
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }
@@ -160,6 +170,8 @@ def _get_missing_required_fields(trip: Trip) -> list[str]:
 def _merge_trip(
     existing_trip: Trip | None,
     extracted_trip: TripExtraction,
+    *,
+    replace_preferences: bool = False,
 ) -> Trip:
     """Merge newly extracted trip details with checkpointed trip state."""
 
@@ -178,10 +190,13 @@ def _merge_trip(
             continue
 
         if field_name == "preferences":
-            merged_data[field_name] = _merge_preferences(
-                existing_data.get(field_name, []),
-                value or [],
-            )
+            if replace_preferences and value:
+                merged_data[field_name] = _merge_preferences([], value)
+            else:
+                merged_data[field_name] = _merge_preferences(
+                    existing_data.get(field_name, []),
+                    value or [],
+                )
             continue
 
         if value is not None:
@@ -287,7 +302,7 @@ def _apply_deterministic_fallback(
 ) -> TripExtraction:
     """Fill obvious facts when a model returns valid but incomplete structured data."""
 
-    updates: dict[str, str | int | float] = {}
+    updates: dict[str, str | int | float | list[str]] = {}
 
     if extracted_trip.duration is None:
         duration = _extract_duration(message)
@@ -319,6 +334,15 @@ def _apply_deterministic_fallback(
             updates["budget"] = budget
         if currency and extracted_trip.currency is None:
             updates["currency"] = currency
+
+    preferences = _extract_preferences(message)
+    if preferences:
+        merged_preferences = _merge_preferences(
+            extracted_trip.preferences,
+            preferences,
+        )
+        if merged_preferences != extracted_trip.preferences:
+            updates["preferences"] = merged_preferences
 
     # A clarification reply is often just "Bangladesh 2", without labels such
     # as "from" or "travelers". Only interpret that shorthand after we already
@@ -417,6 +441,42 @@ def _extract_travelers(message: str) -> int | None:
     return None
 
 
+def _extract_preferences(message: str) -> list[str]:
+    """Extract common travel preferences from free text."""
+
+    preferences: list[str] = []
+    for term in _PREFERENCE_TERMS:
+        if re.search(rf"\b{re.escape(term)}\b", message, re.IGNORECASE):
+            normalized = normalize_preference(term)
+            if normalized not in preferences:
+                preferences.append(normalized)
+    return preferences
+
+
+def _should_replace_preferences(message: str) -> bool:
+    """Return whether latest preference wording should replace old preferences."""
+
+    if not _extract_preferences(message):
+        return False
+
+    if re.search(r"\b(?:only|just|instead|rather than)\b", message, re.IGNORECASE):
+        return True
+
+    explicit_preference_set = re.search(
+        r"\b(?:i|we)\s+(?:would\s+)?prefer\b"
+        r"|\b(?:my|our)\s+preferences?\s+(?:are|is)\b"
+        r"|\bpreferences?\s*:",
+        message,
+        re.IGNORECASE,
+    )
+    additive_update = re.search(
+        r"\b(?:also|add|include|too|as well|another)\b",
+        message,
+        re.IGNORECASE,
+    )
+    return bool(explicit_preference_set and not additive_update)
+
+
 def _extract_unlabelled_origin(message: str) -> str | None:
     """Extract a short place-only reply to an origin clarification."""
 
@@ -505,7 +565,7 @@ def _merge_preferences(
 
     merged_preferences: list[str] = []
     for preference in existing_preferences + extracted_preferences:
-        normalized_preference = preference.strip()
+        normalized_preference = normalize_preference(preference)
         if normalized_preference and normalized_preference not in merged_preferences:
             merged_preferences.append(normalized_preference)
 

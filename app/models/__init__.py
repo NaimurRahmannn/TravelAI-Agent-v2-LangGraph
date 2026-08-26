@@ -21,6 +21,7 @@ from .itinerary import (
     TripPlan,
     WeatherStatus,
 )
+from .preferences import PreferenceTag
 from .recommendations import (
     FlightLayover,
     FlightOption,
@@ -37,7 +38,13 @@ from .recommendations import (
     RestaurantSearchRequest,
     TravelRecommendations,
 )
-from .selections import SelectedHotelStay, TravelSelections, TripCostSummary
+from .selections import (
+    SelectedHotelStay,
+    SelectionStatus,
+    TravelSelections,
+    TravelSelectionStatus,
+    TripCostSummary,
+)
 from .trip import Trip, TripExtraction
 
 __all__ = [
@@ -61,6 +68,7 @@ __all__ = [
     "HotelSearchRequest",
     "PlaceImage",
     "PlaceResolutionStatus",
+    "PreferenceTag",
     "ResolvedPlace",
     "RecommendationDomainState",
     "RecommendationStatus",
@@ -68,6 +76,7 @@ __all__ = [
     "RestaurantSearchRequest",
     "RouteTimeEstimate",
     "SelectedHotelStay",
+    "SelectionStatus",
     "TravelLeg",
     "TravelLegStatus",
     "TravelMode",
@@ -76,6 +85,7 @@ __all__ = [
     "TripPlan",
     "TravelRecommendations",
     "TravelSelections",
+    "TravelSelectionStatus",
     "TripCostSummary",
     "TimetableStop",
     "WeatherStatus",

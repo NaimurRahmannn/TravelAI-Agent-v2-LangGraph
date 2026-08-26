@@ -56,6 +56,8 @@ def test_chat_response_schema_supports_optional_itinerary():
     assert response.travel_selections is None
     assert response.trip_cost_summary is None
     assert response.detailed_routing_plan is None
+    assert response.flight_selection_status == "not_required"
+    assert response.hotel_selection_status == "not_required"
 
 
 def test_chat_request_rejects_end_date_before_start_date():
@@ -152,6 +154,8 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
     assert response.itinerary == plan
     assert response.travel_selections == selections
     assert response.trip_cost_summary == summary
+    assert response.flight_selection_status == "selected"
+    assert response.hotel_selection_status == "selected"
 
 
 def test_date_update_keeps_thread_and_uses_structured_date_fields(monkeypatch):

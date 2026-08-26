@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.models import (
     DetailedRoutingPlan,
     SelectedHotelStay,
+    SelectionStatus,
     TravelSelections,
     TripCostSummary,
     TripPlan,
@@ -54,6 +55,8 @@ class ChatResponse(BaseModel):
     travel_selections: TravelSelections | None = None
     trip_cost_summary: TripCostSummary | None = None
     detailed_routing_plan: DetailedRoutingPlan | None = None
+    flight_selection_status: SelectionStatus = "not_required"
+    hotel_selection_status: SelectionStatus = "not_required"
     missing_fields: list[str] = Field(default_factory=list)
 
 

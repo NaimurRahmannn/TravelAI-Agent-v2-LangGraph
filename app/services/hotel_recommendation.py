@@ -19,7 +19,7 @@ from app.services.recommendations.base import HotelProvider
 logger = get_logger(__name__)
 
 HOTEL_SEARCH_RADIUS_METERS = 5_000
-MAX_HOTEL_STAY_SEARCHES = 5
+MAX_HOTEL_STAY_SEARCHES = 10
 MAX_HOTEL_RESULTS_TO_CONSIDER_PER_STAY = 20
 MAX_HOTEL_RECOMMENDATIONS_PER_STAY = 3
 HOTEL_SEARCH_CONCURRENCY = 2
@@ -104,13 +104,25 @@ async def enrich_hotel_recommendations(
 ) -> TripPlan:
     """Search bounded hotel stays without changing itinerary budget or flights."""
 
-    stays = derive_hotel_stays(trip_plan)[:MAX_HOTEL_STAY_SEARCHES]
+    stays = derive_hotel_stays(trip_plan)
     nationality = trip_plan.guest_nationality_country_code
     if not stays:
         return update_hotel_recommendations(
             trip_plan,
             hotels=[],
             status=build_recommendation_status(searched=False),
+        )
+    if len(stays) > MAX_HOTEL_STAY_SEARCHES:
+        logger.warning(
+            "hotel_recommendations_unavailable reason=stay_limit_exceeded "
+            "stay_count=%s stay_limit=%s",
+            len(stays),
+            MAX_HOTEL_STAY_SEARCHES,
+        )
+        return update_hotel_recommendations(
+            trip_plan,
+            hotels=[],
+            status=build_recommendation_status(provider_available=False),
         )
     if nationality is None:
         logger.info("hotel_recommendations_unavailable reason=nationality_required")

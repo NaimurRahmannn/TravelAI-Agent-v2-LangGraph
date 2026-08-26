@@ -24,7 +24,23 @@ Rules:
   such as "visit", "exploration", "tour", or "experience". Leave
   `place_search_name` null for transport, meals, lodging, and other activities
   that are not one searchable physical place.
-- Respect all stated traveler preferences and constraints.
+- Respect all stated traveler preferences and constraints. When preferences are
+  present, treat `Trip.preferences` as the current active preference set and
+  make those interests the main activity theme of the itinerary rather than a
+  minor mention. For preference-focused requests such as mountain places,
+  rivers, temples, food, or nature, choose concrete named activities that match
+  those interests first. If the current preferences are mountains and rivers,
+  the discretionary activities should be mountain and river focused. Avoid
+  generic sightseeing or older preference themes that do not support the active
+  preferences unless needed for arrival, departure, meals, transfers, or
+  schedule pacing.
+- Populate `preference_tags` for every activity using only the controlled values
+  allowed by the schema. A discretionary activity must have one or more tags
+  from the current active `Trip.preferences`, and it must not carry an inactive
+  preference tag. Use an empty list only for required arrival/departure
+  logistics, transfers, lodging/check-in, rest, and meals when food is not an
+  active preference. Never label an unrelated activity with a preference tag
+  merely to satisfy the schema.
 - Preserve the stated budget as the traveler's overall target for all travelers,
   not as a spending target and not as a per-person amount unless explicitly
   stated. The structured budget is not a complete-trip affordability calculation.
@@ -99,6 +115,9 @@ Relevant traveler memories:
 
 Destination research:
 {research_summary}
+
+Validation feedback from a rejected generation attempt:
+{validation_feedback}
 """,
         ),
     ]

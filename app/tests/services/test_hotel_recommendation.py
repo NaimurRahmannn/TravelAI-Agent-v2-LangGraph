@@ -17,6 +17,7 @@ from app.models import (
     build_hotel_stay_key,
 )
 from app.services.hotel_recommendation import (
+    MAX_HOTEL_STAY_SEARCHES,
     derive_hotel_stays,
     enrich_hotel_recommendations,
 )
@@ -185,6 +186,34 @@ def test_zero_night_segment_is_not_searched():
     enriched = asyncio.run(enrich_hotel_recommendations(plan, provider))
     assert provider.requests == []
     assert enriched.recommendations.hotel_status.status == "not_searched"
+
+
+def test_every_stay_up_to_supported_limit_is_searched():
+    cities = [f"City {index}" for index in range(1, 8)]
+    plan = _plan(cities)
+    provider = Provider({city: [200 + index] for index, city in enumerate(cities)})
+
+    enriched = asyncio.run(enrich_hotel_recommendations(plan, provider))
+
+    assert len(provider.requests) == 7
+    assert {request.city for request in provider.requests} == set(cities)
+    assert len(enriched.recommendations.hotels) == 7
+    assert enriched.recommendations.hotel_status.status == "available"
+
+
+def test_stay_count_above_supported_limit_never_publishes_partial_results():
+    cities = [
+        f"City {index}"
+        for index in range(1, MAX_HOTEL_STAY_SEARCHES + 2)
+    ]
+    plan = _plan(cities)
+    provider = Provider({city: [200] for city in cities})
+
+    enriched = asyncio.run(enrich_hotel_recommendations(plan, provider))
+
+    assert provider.requests == []
+    assert enriched.recommendations.hotels == []
+    assert enriched.recommendations.hotel_status.status == "unavailable"
 
 
 def test_hotels_ignore_user_budget_and_leave_base_budget_and_flights_unchanged():

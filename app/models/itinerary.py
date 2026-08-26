@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.preferences import PreferenceTag
 from app.models.recommendations import TravelRecommendations
 
 PlaceResolutionStatus = Literal[
@@ -175,6 +176,7 @@ class Activity(BaseModel):
     end_time: str | None = None
     estimated_cost_usd: float | None = Field(default=None, ge=0)
     reason_for_recommendation: str | None = None
+    preference_tags: list[PreferenceTag] = Field(default_factory=list)
     travel_mode_to_next: TravelMode | None = None
     place: ResolvedPlace | None = None
     place_resolution_status: PlaceResolutionStatus = "unresolved"

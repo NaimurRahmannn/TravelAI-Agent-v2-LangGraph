@@ -10,8 +10,9 @@ from app.core.logging import get_logger
 from app.graph.prompts.itinerary import itinerary_prompt
 from app.graph.state import TravelState
 from app.llm import get_gemini_llm
-from app.models import BudgetBreakdown, TravelMode, Trip, TripPlan
+from app.models import BudgetBreakdown, PreferenceTag, TravelMode, Trip, TripPlan
 from app.models.itinerary import _is_flight_ticket_activity
+from app.models.preferences import preference_tag_for
 from app.services.message_content import message_content_to_text
 from app.services.trip_dates import validate_and_derive_duration
 
@@ -32,6 +33,7 @@ class ItineraryGenerationActivity(BaseModel):
     end_time: str | None = None
     estimated_cost_usd: float | None = Field(default=None, ge=0)
     reason_for_recommendation: str | None = None
+    preference_tags: list[PreferenceTag]
     travel_mode_to_next: TravelMode | None = None
 
 
@@ -68,6 +70,10 @@ class ItineraryGenerationOutput(BaseModel):
     practical_notes: list[str]
 
 
+class PreferenceValidationError(ValueError):
+    """Generated discretionary activities do not match active preferences."""
+
+
 def itinerary_generator_node(
     state: TravelState,
     config: RunnableConfig,
@@ -89,15 +95,25 @@ def itinerary_generator_node(
             method="json_schema",
         )
         chain = itinerary_prompt | structured_llm
-        raw_plan = chain.invoke(
-            _build_generation_context(state, complete_trip),
-            config=config,
-        )
-        plan = _coerce_trip_plan(raw_plan)
-        plan = _clear_untrusted_place_enrichment(plan)
-        plan = _apply_authoritative_trip(plan, complete_trip)
-        plan = _normalize_plan_details(plan)
-        _validate_day_structure(plan)
+        context = _build_generation_context(state, complete_trip)
+        plan = None
+        for attempt in range(2):
+            raw_plan = chain.invoke(context, config=config)
+            candidate = _coerce_trip_plan(raw_plan)
+            candidate = _clear_untrusted_place_enrichment(candidate)
+            candidate = _apply_authoritative_trip(candidate, complete_trip)
+            candidate = _normalize_plan_details(candidate)
+            _validate_day_structure(candidate)
+            try:
+                _validate_preference_alignment(candidate)
+            except PreferenceValidationError as exc:
+                if attempt == 1:
+                    raise
+                logger.info("itinerary_preference_retry attempt=%s", attempt + 2)
+                context["validation_feedback"] = str(exc)
+                continue
+            plan = candidate
+            break
     except Exception:
         logger.exception(
             "structured itinerary generation failed; using agent text fallback"
@@ -123,6 +139,7 @@ def _build_generation_context(state: TravelState, trip: Trip) -> dict[str, str]:
         "latest_user_request": _latest_message_text(state["messages"], HumanMessage),
         "memories": "\n".join(f"- {memory}" for memory in memories) or "None",
         "research_summary": research_summary or "None",
+        "validation_feedback": "None; this is the first generation attempt.",
     }
 
 
@@ -212,6 +229,86 @@ def _validate_day_structure(plan: TripPlan) -> None:
     actual_numbers = [day.day_number for day in plan.days]
     if actual_numbers != expected_numbers:
         raise ValueError("Itinerary days must be sequential")
+
+
+def _validate_preference_alignment(plan: TripPlan) -> None:
+    """Require each discretionary activity to match the active known interests."""
+
+    active_tags = {
+        tag
+        for preference in plan.preferences
+        if (tag := preference_tag_for(preference)) is not None
+    }
+    if not active_tags:
+        return
+
+    violations: list[str] = []
+    matching_activity_count = 0
+    for day in plan.days:
+        for activity in day.activities:
+            if _is_required_schedule_activity(activity, active_tags):
+                continue
+            activity_tags = set(activity.preference_tags)
+            if not activity_tags or not activity_tags <= active_tags:
+                rendered_tags = ", ".join(
+                    sorted(tag.value for tag in activity_tags)
+                ) or "none"
+                violations.append(
+                    f"Day {day.day_number} '{activity.name}' has tags "
+                    f"[{rendered_tags}]"
+                )
+            else:
+                matching_activity_count += 1
+
+    if matching_activity_count == 0 and not violations:
+        violations.append("the itinerary has no preference-focused activity")
+
+    if violations:
+        allowed = ", ".join(sorted(tag.value for tag in active_tags))
+        details = "; ".join(violations)
+        raise PreferenceValidationError(
+            "Regenerate the complete itinerary. Every discretionary activity "
+            f"must use only these active preference tags: [{allowed}]. "
+            f"Violations: {details}. Required transfers, lodging, rest, and "
+            "non-preference meals may use an empty preference_tags list."
+        )
+
+
+def _is_required_schedule_activity(
+    activity: object,
+    active_tags: set[PreferenceTag],
+) -> bool:
+    """Return whether an activity is necessary trip pacing rather than an interest."""
+
+    name = str(getattr(activity, "name", "")).casefold()
+    category = str(getattr(activity, "category", "")).casefold()
+    normalized = f"{name} {category}"
+    logistics_terms = (
+        "airport",
+        "arrival",
+        "departure",
+        "flight",
+        "hotel check",
+        "check-in",
+        "check in",
+        "check-out",
+        "check out",
+        "lodging",
+        "accommodation",
+        "transfer",
+        "transport",
+        "transit",
+        "train to",
+        "bus to",
+    )
+    if any(term in normalized for term in logistics_terms):
+        return True
+    if any(term in normalized for term in ("rest", "free time", "break")):
+        return True
+
+    meal_terms = ("meal", "breakfast", "lunch", "dinner", "restaurant", "cafe")
+    is_meal = any(term in normalized for term in meal_terms) or category == "food"
+    return is_meal and PreferenceTag.FOOD not in active_tags
 
 
 def _normalize_plan_details(plan: TripPlan) -> TripPlan:

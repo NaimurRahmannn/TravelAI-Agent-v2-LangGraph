@@ -18,12 +18,6 @@ AIRPORT_PREDEPARTURE_BUFFER_MINUTES = 180
 HOTEL_ARRIVAL_BUFFER_MINUTES = 20
 HOTEL_DEPARTURE_BUFFER_MINUTES = 15
 DEFAULT_DAY_START_TIME = time(9, 0)
-DEFAULT_DAY_END_TIME = time(21, 30)
-
-AI_ROUTE_WARNING = (
-    "Transit routing was unavailable from Geoapify, so an AI planning estimate "
-    "is shown for this leg."
-)
 UNAVAILABLE_ROUTE_WARNING = "Routing information was unavailable for this stop."
 FINAL_ACTIVITY_WARNING = (
     "This activity could not fit before your return-flight airport deadline."
@@ -311,19 +305,6 @@ def _build_day(
                 source="selected_flight",
             )
         )
-    elif is_final:
-        _add_warning(
-            warnings,
-            "The selected flight has no stored return slice, so no airport deadline "
-            "could be calculated.",
-        )
-
-    preferred_end = datetime.combine(day.date, DEFAULT_DAY_END_TIME, timezone)
-    if current_time > preferred_end and not is_final:
-        _add_warning(
-            warnings,
-            "Planned activities extend beyond the preferred day-end time.",
-        )
     return DetailedRoutingDay(
         day_number=day.day_number,
         date=day.date,
@@ -356,8 +337,6 @@ def _append_route(
             update={"departure_time": departure, "arrival_time": arrival}
         )
     )
-    if leg.duration.source == "llm_estimate":
-        _add_warning(warnings, AI_ROUTE_WARNING)
     return arrival
 
 
