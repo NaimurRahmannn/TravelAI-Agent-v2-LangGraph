@@ -26,7 +26,7 @@ The repository contains both the Python API and a browser client for chat, threa
 
 | Service | URL |
 | --- | --- |
-| Frontend | [https://travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) |
+| Frontend | [https://travel-ai-agent-v2-lang-graph.vercel.app/](https://travel-ai-agent-v2-lang-graph.vercel.app/) |
 | Backend API | [https://travelai-8b0i.onrender.com](https://travelai-8b0i.onrender.com) |
 | API docs (Swagger) | [https://travelai-8b0i.onrender.com/docs](https://travelai-8b0i.onrender.com/docs) |
 
@@ -283,7 +283,7 @@ Restart the backend after changing these values because settings and LLM clients
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | Base URL of the FastAPI server |
 
-The deployed frontend at [travel-ai-fawn.vercel.app](https://travel-ai-fawn.vercel.app) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
+The deployed frontend at [travel-ai-agent-v2-lang-graph.vercel.app](https://travel-ai-agent-v2-lang-graph.vercel.app/) points `NEXT_PUBLIC_API_BASE_URL` at the live Render backend. The API allows browser requests from that origin plus `localhost:3000` and `127.0.0.1:3000`; update `CORS_ALLOWED_ORIGINS` (or the CORS setup in `app/main.py`) for other frontend hosts.
 
 ### Itinerary map setup
 
