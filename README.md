@@ -28,7 +28,6 @@ The repository contains both the Python API and a browser client for chat, threa
 | --- | --- |
 | Frontend | [https://travel-ai-agent-v2-lang-graph.vercel.app/](https://travel-ai-agent-v2-lang-graph.vercel.app/) |
 | Backend API | [https://travelai-8b0i.onrender.com](https://travelai-8b0i.onrender.com) |
-| API docs (Swagger) | [https://travelai-8b0i.onrender.com/docs](https://travelai-8b0i.onrender.com/docs) |
 
 > [!NOTE]
 > The backend runs on Render's free tier, which spins down after inactivity. The first request after a period of idleness may take up to a minute while the instance wakes up; the free-tier disk is also ephemeral, so conversation threads and Mem0 data reset on redeploy or restart (see [Conversation State](#conversation-state)).
