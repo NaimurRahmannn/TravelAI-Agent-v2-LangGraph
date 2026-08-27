@@ -40,6 +40,7 @@ from .recommendations import (
     TravelRecommendations,
 )
 from .selections import (
+    ConfirmedTripSnapshot,
     SelectedHotelStay,
     SelectionStatus,
     TravelSelections,
@@ -78,6 +79,7 @@ __all__ = [
     "RestaurantRecommendation",
     "RestaurantSearchRequest",
     "RouteTimeEstimate",
+    "ConfirmedTripSnapshot",
     "SelectedHotelStay",
     "SelectionStatus",
     "TravelLeg",

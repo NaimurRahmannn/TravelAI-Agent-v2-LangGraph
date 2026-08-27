@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   confirmTravelSelection,
   createDetailedRoutingPlan,
+  type ConfirmedTripSnapshot,
   refreshFlights,
   type DetailedRoutingPlan,
   type SelectionStatus,
@@ -34,6 +35,7 @@ type TripItineraryProps = {
   onTravelSelectionConfirmed?: (
     selections: TravelSelections,
     costSummary: TripCostSummary,
+    confirmedSnapshot: ConfirmedTripSnapshot,
   ) => void;
   onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
   onFlightsRefreshed?: (itinerary: TripPlan) => void;
@@ -70,6 +72,12 @@ export function TripItinerary({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionDismissed, setSelectionDismissed] = useState(false);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
+  const [selectedOutboundFlightId, setSelectedOutboundFlightId] = useState<
+    string | null
+  >(null);
+  const [selectedReturnFlightId, setSelectedReturnFlightId] = useState<
+    string | null
+  >(null);
   const [selectedHotelIds, setSelectedHotelIds] = useState<Record<string, string>>(
     {},
   );
@@ -93,8 +101,19 @@ export function TripItinerary({
     itinerary.recommendations?.flights.map((flight) => flight.provider_offer_id).join(",")
   }|${itinerary.recommendations?.hotels.map((hotel) => hotel.provider_offer_id).join(",")}`;
   const requiredHotelStayKeys = getSelectableHotelStayKeys(itinerary);
+  const usesSplitFlights = Boolean(
+    itinerary.recommendations &&
+      (itinerary.recommendations.outbound_flights.length ||
+        itinerary.recommendations.return_flights.length ||
+        itinerary.recommendations.outbound_flight_status.status !==
+          "not_searched" ||
+        itinerary.recommendations.return_flight_status.status !==
+          "not_searched"),
+  );
   const selectionComplete = Boolean(
-    selectedFlightId &&
+    (usesSplitFlights
+      ? selectedOutboundFlightId && selectedReturnFlightId
+      : selectedFlightId) &&
       requiredHotelStayKeys.length > 0 &&
       requiredHotelStayKeys.every((stayKey) => selectedHotelIds[stayKey]),
   );
@@ -157,6 +176,12 @@ export function TripItinerary({
 
   function beginSelection() {
     setSelectedFlightId(travelSelections?.selected_flight_id ?? null);
+    setSelectedOutboundFlightId(
+      travelSelections?.selected_outbound_flight_id ?? null,
+    );
+    setSelectedReturnFlightId(
+      travelSelections?.selected_return_flight_id ?? null,
+    );
     setSelectedHotelIds(
       Object.fromEntries(
         (travelSelections?.selected_hotels ?? []).map((selection) => [
@@ -168,7 +193,9 @@ export function TripItinerary({
     setSelectionError(null);
     setSelectionMode(true);
     requestAnimationFrame(() => {
-      document.getElementById(`${idPrefix}-flights-heading`)?.scrollIntoView({
+    document.getElementById(
+      `${idPrefix}-${usesSplitFlights ? "outbound-flights" : "flights"}-heading`,
+    )?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -176,7 +203,7 @@ export function TripItinerary({
   }
 
   async function confirmSelections() {
-    if (!threadId || !selectedFlightId || !selectionComplete || selectionUpdating) {
+    if (!threadId || !selectionComplete || selectionUpdating) {
       return;
     }
     setSelectionUpdating(true);
@@ -184,7 +211,13 @@ export function TripItinerary({
     try {
       const response = await confirmTravelSelection({
         thread_id: threadId,
-        selected_flight_id: selectedFlightId,
+        selected_flight_id: usesSplitFlights ? null : selectedFlightId,
+        selected_outbound_flight_id: usesSplitFlights
+          ? selectedOutboundFlightId
+          : null,
+        selected_return_flight_id: usesSplitFlights
+          ? selectedReturnFlightId
+          : null,
         selected_hotels: requiredHotelStayKeys.map((stayKey) => ({
           stay_key: stayKey,
           hotel_option_id: selectedHotelIds[stayKey],
@@ -194,6 +227,7 @@ export function TripItinerary({
       onTravelSelectionConfirmed?.(
         response.travel_selections,
         response.trip_cost_summary,
+        response.confirmed_snapshot,
       );
       setRoutingDismissed(false);
       setRoutingError(null);
@@ -273,16 +307,40 @@ export function TripItinerary({
             mapPortalTarget,
           )
         : null}
-      <FlightRecommendations
-        error={flightRefreshError}
-        idPrefix={idPrefix}
-        itinerary={itinerary}
-        onRefresh={threadId ? handleFlightRefresh : undefined}
-        onSelectFlight={setSelectedFlightId}
-        refreshing={flightRefreshLoading}
-        selectedFlightId={selectedFlightId}
-        selectionMode={selectionMode}
-      />
+      {usesSplitFlights ? (
+        <>
+          <FlightRecommendations
+            error={flightRefreshError}
+            idPrefix={`${idPrefix}-outbound`}
+            itinerary={itinerary}
+            onRefresh={threadId ? handleFlightRefresh : undefined}
+            onSelectFlight={setSelectedOutboundFlightId}
+            refreshing={flightRefreshLoading}
+            scope="outbound"
+            selectedFlightId={selectedOutboundFlightId}
+            selectionMode={selectionMode}
+          />
+          <FlightRecommendations
+            idPrefix={`${idPrefix}-return`}
+            itinerary={itinerary}
+            onSelectFlight={setSelectedReturnFlightId}
+            scope="return"
+            selectedFlightId={selectedReturnFlightId}
+            selectionMode={selectionMode}
+          />
+        </>
+      ) : (
+        <FlightRecommendations
+          error={flightRefreshError}
+          idPrefix={idPrefix}
+          itinerary={itinerary}
+          onRefresh={threadId ? handleFlightRefresh : undefined}
+          onSelectFlight={setSelectedFlightId}
+          refreshing={flightRefreshLoading}
+          selectedFlightId={selectedFlightId}
+          selectionMode={selectionMode}
+        />
+      )}
       <HotelRecommendations
         idPrefix={idPrefix}
         itinerary={itinerary}

@@ -21,12 +21,13 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import {
   approveAction,
+  confirmFlightLeg,
   sendChat,
   type ChatResponseMode,
+  type ConfirmedTripSnapshot,
   type DetailedRoutingPlan,
   type FlightSearchScope,
   type SelectionStatus,
@@ -59,9 +60,6 @@ const SUGGESTIONS = [
 ];
 
 const TRAVELER_ID_STORAGE_KEY = "travel-ai-user-id";
-const subscribeToHydration = () => () => undefined;
-const getClientHydrationSnapshot = () => true;
-const getServerHydrationSnapshot = () => false;
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -77,12 +75,9 @@ export default function Home() {
   const [userId, setUserId] = useState("");
   const [mapRailTarget, setMapRailTarget] = useState<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const hasHydrated = useSyncExternalStore(
-    subscribeToHydration,
-    getClientHydrationSnapshot,
-    getServerHydrationSnapshot,
-  );
   const [error, setError] = useState<string | null>(null);
+  const [confirmedSnapshot, setConfirmedSnapshot] =
+    useState<ConfirmedTripSnapshot | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const dateUpdateInFlightRef = useRef(false);
 
@@ -181,6 +176,7 @@ export default function Home() {
     });
 
     setThreadId(response.thread_id);
+    setConfirmedSnapshot(response.confirmed_snapshot ?? null);
     setMessages((current) => [
       ...current,
       {
@@ -230,6 +226,7 @@ export default function Home() {
       });
 
       setThreadId(response.thread_id);
+      setConfirmedSnapshot(response.confirmed_snapshot ?? null);
       setMessages((current) => [
         ...current.map((item) =>
           item.id === sourceMessageId
@@ -299,6 +296,7 @@ export default function Home() {
         start_date: startDate,
         end_date: endDate,
       });
+      setConfirmedSnapshot(response.confirmed_snapshot ?? null);
       if (!response.itinerary) {
         throw new Error(
           "The itinerary could not be regenerated. Please try again.",
@@ -371,7 +369,9 @@ export default function Home() {
     sourceMessageId: string,
     selections: TravelSelections,
     costSummary: TripCostSummary,
+    snapshot: ConfirmedTripSnapshot,
   ) {
+    setConfirmedSnapshot(snapshot);
     setMessages((current) =>
       current.map((item) =>
         item.id === sourceMessageId
@@ -392,6 +392,9 @@ export default function Home() {
     sourceMessageId: string,
     detailedRoutingPlan: DetailedRoutingPlan,
   ) {
+    setConfirmedSnapshot((current) =>
+      current ? { ...current, routing_plan: detailedRoutingPlan } : current,
+    );
     setMessages((current) =>
       current.map((item) =>
         item.id === sourceMessageId
@@ -411,11 +414,6 @@ export default function Home() {
           ? {
               ...item,
               itinerary,
-              travelSelections: null,
-              tripCostSummary: null,
-              detailedRoutingPlan: null,
-              flightSelectionStatus: undefined,
-              hotelSelectionStatus: undefined,
             }
           : item,
       ),
@@ -424,6 +422,7 @@ export default function Home() {
 
   function resetThread() {
     setThreadId(null);
+    setConfirmedSnapshot(null);
     setError(null);
     setMessages([
       {
@@ -440,6 +439,7 @@ export default function Home() {
     window.localStorage.setItem(TRAVELER_ID_STORAGE_KEY, nextUserId);
     setUserId(nextUserId);
     setThreadId(null);
+    setConfirmedSnapshot(null);
     setError(null);
     setMessages([
       {
@@ -515,8 +515,9 @@ export default function Home() {
           <div className="approvalRow">
             <button
               className="iconButton accept"
-              disabled={!hasHydrated || !threadId || isLoading}
+              disabled={!threadId || isLoading}
               onClick={() => handleApproval(true)}
+              suppressHydrationWarning
               title="Approve"
               type="button"
             >
@@ -524,8 +525,9 @@ export default function Home() {
             </button>
             <button
               className="iconButton reject"
-              disabled={!hasHydrated || !threadId || isLoading}
+              disabled={!threadId || isLoading}
               onClick={() => handleApproval(false)}
+              suppressHydrationWarning
               title="Reject"
               type="button"
             >
@@ -546,6 +548,10 @@ export default function Home() {
             {isLoading ? "Running" : "Ready"}
           </div>
         </div>
+
+        {confirmedSnapshot ? (
+          <ConfirmedSnapshotPanel snapshot={confirmedSnapshot} />
+        ) : null}
 
         <div className="contentGrid">
           <section className="chatSurface">
@@ -581,11 +587,12 @@ export default function Home() {
                       isLoading={isLoading}
                       mapPortalTarget={mapRailTarget}
                       missingFields={message.missingFields}
-                      onTravelSelectionConfirmed={(selections, costSummary) =>
+                      onTravelSelectionConfirmed={(selections, costSummary, snapshot) =>
                         handleTravelSelectionConfirmed(
                           message.id,
                           selections,
                           costSummary,
+                          snapshot,
                         )
                       }
                       onDetailedRoutingGenerated={(plan) =>
@@ -593,6 +600,43 @@ export default function Home() {
                       }
                       onFlightsRefreshed={(itinerary) =>
                         handleFlightsRefreshed(message.id, itinerary)
+                      }
+                      onFlightLegSelected={
+                        threadId
+                          ? async (scope, flightId) => {
+                              const result = await confirmFlightLeg(
+                                threadId,
+                                scope,
+                                flightId,
+                              );
+                              setConfirmedSnapshot(result.confirmed_snapshot);
+                              setMessages((current) =>
+                                current.map((item) => {
+                                  if (
+                                    item.id !== message.id &&
+                                    item.id !== editableItineraryMessageId
+                                  ) {
+                                    return item;
+                                  }
+                                  return {
+                                    ...item,
+                                    itinerary:
+                                      item.id === editableItineraryMessageId
+                                        ? result.itinerary
+                                        : item.itinerary,
+                                    travelSelections:
+                                      result.travel_selections,
+                                    tripCostSummary:
+                                      result.trip_cost_summary,
+                                    detailedRoutingPlan:
+                                      result.detailed_routing_plan,
+                                    flightSelectionStatus: "selected",
+                                    hotelSelectionStatus: "selected",
+                                  };
+                                }),
+                              );
+                            }
+                          : undefined
                       }
                       onDateContinue={(startDate, endDate) =>
                         handleDateSelection(message.id, startDate, endDate)
@@ -682,5 +726,36 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+function ConfirmedSnapshotPanel({
+  snapshot,
+}: {
+  snapshot: ConfirmedTripSnapshot;
+}) {
+  const total = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(snapshot.cost_summary.updated_trip_total_usd);
+  return (
+    <section className={`confirmedSnapshotBar ${snapshot.status}`}>
+      <div>
+        <span>Confirmed trip · Revision {snapshot.revision}</span>
+        <strong>{snapshot.itinerary.title}</strong>
+      </div>
+      <div>
+        <span>Updated total</span>
+        <strong>{total}</strong>
+      </div>
+      <div>
+        <span>Routing timetable</span>
+        <strong>{snapshot.routing_plan ? "Ready" : "Not generated"}</strong>
+      </div>
+      {snapshot.status === "stale" ? (
+        <p>{snapshot.stale_reasons.join(" ")}</p>
+      ) : null}
+    </section>
   );
 }

@@ -9,7 +9,7 @@ from langgraph.types import Command
 
 from app.core.logging import get_logger
 from app.graph.builder import get_graph
-from app.models import TravelSelections, TripPlan
+from app.models import ConfirmedTripSnapshot, TravelSelections, TripPlan
 from app.schemas.approval import ApprovalRequest, ApprovalResponse
 from app.schemas.api import ChatRequest, ChatResponse
 from app.services.selection_status import build_travel_selection_status
@@ -91,6 +91,13 @@ class GraphService:
                 else None
             )
             selection_status = build_travel_selection_status(itinerary, selections)
+            raw_confirmed_snapshot = result.get("confirmed_snapshot")
+            try:
+                confirmed_snapshot = ConfirmedTripSnapshot.model_validate(
+                    raw_confirmed_snapshot
+                )
+            except ValueError:
+                confirmed_snapshot = None
             turn_intent = result.get("turn_intent")
             is_flight_follow_up = turn_intent in {
                 "suggest_outbound_flights",
@@ -118,7 +125,6 @@ class GraphService:
                 if itinerary is not None
                 else "text"
             )
-            is_focused_recommendation = is_flight_follow_up or is_hotel_follow_up
             return ChatResponse(
                 response=result.get("response", ""),
                 response_mode=response_mode,
@@ -132,16 +138,9 @@ class GraphService:
                 # flight-card component for a focused flight response.
                 itinerary=None if is_text_only else itinerary,
                 travel_selections=selections,
-                trip_cost_summary=(
-                    None
-                    if is_focused_recommendation or is_extension
-                    else result.get("trip_cost_summary")
-                ),
-                detailed_routing_plan=(
-                    None
-                    if is_focused_recommendation or is_extension
-                    else result.get("detailed_routing_plan")
-                ),
+                trip_cost_summary=result.get("trip_cost_summary"),
+                detailed_routing_plan=result.get("detailed_routing_plan"),
+                confirmed_snapshot=confirmed_snapshot,
                 flight_selection_status=(
                     "not_required"
                     if is_hotel_follow_up or is_text_only

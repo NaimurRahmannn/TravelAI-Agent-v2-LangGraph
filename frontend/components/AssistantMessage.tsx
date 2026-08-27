@@ -1,6 +1,8 @@
 import { MarkdownContent } from "@/app/MarkdownContent";
+import { useState } from "react";
 import type {
   ChatResponseMode,
+  ConfirmedTripSnapshot,
   DetailedRoutingPlan,
   FlightSearchScope,
   SelectionStatus,
@@ -26,9 +28,14 @@ type AssistantMessageProps = {
   onTravelSelectionConfirmed?: (
     selections: TravelSelections,
     costSummary: TripCostSummary,
+    confirmedSnapshot: ConfirmedTripSnapshot,
   ) => void;
   onDetailedRoutingGenerated?: (plan: DetailedRoutingPlan) => void;
   onFlightsRefreshed?: (itinerary: TripPlan) => void;
+  onFlightLegSelected?: (
+    scope: "outbound" | "return",
+    flightId: string,
+  ) => Promise<void> | void;
   showMap?: boolean;
   threadId?: string | null;
   travelSelections?: TravelSelections | null;
@@ -52,6 +59,7 @@ export function AssistantMessage({
   onDateUpdate,
   onDetailedRoutingGenerated,
   onFlightsRefreshed,
+  onFlightLegSelected,
   onTravelSelectionConfirmed,
   responseMode = "text",
   showMap = true,
@@ -59,13 +67,42 @@ export function AssistantMessage({
   travelSelections,
   tripCostSummary,
 }: AssistantMessageProps) {
+  const [focusedFlightId, setFocusedFlightId] = useState<string | null>(null);
+  const [focusedFlightError, setFocusedFlightError] = useState<string | null>(
+    null,
+  );
   if (responseMode === "flight_suggestions") {
     if (itinerary) {
       return (
         <FlightRecommendations
           idPrefix={`focused-${itinerary.destination.replace(/\s+/g, "-").toLowerCase()}`}
           itinerary={itinerary}
+          error={focusedFlightError}
+          onSelectFlight={
+            onFlightLegSelected && flightSearchScope !== "round_trip"
+              ? async (flightId) => {
+                  setFocusedFlightId(flightId);
+                  setFocusedFlightError(null);
+                  try {
+                    await onFlightLegSelected(
+                      flightSearchScope ?? "return",
+                      flightId,
+                    );
+                  } catch (caughtError) {
+                    setFocusedFlightError(
+                      caughtError instanceof Error
+                        ? caughtError.message
+                        : "Unable to select this flight.",
+                    );
+                  }
+                }
+              : undefined
+          }
           scope={flightSearchScope ?? "round_trip"}
+          selectedFlightId={focusedFlightId}
+          selectionMode={Boolean(
+            onFlightLegSelected && flightSearchScope !== "round_trip",
+          )}
           variant="standalone"
         />
       );

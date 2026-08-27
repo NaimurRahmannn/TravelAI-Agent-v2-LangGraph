@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.logging import get_logger
 from app.llm import get_groq_llm
 from app.models import (
+    ConfirmedTripSnapshot,
     DetailedRoutingPlan,
     TravelSelections,
     Trip,
@@ -124,6 +125,29 @@ def extractor_node(
         "missing_fields": missing_fields,
         "needs_clarification": len(missing_fields) > 0,
     }
+    try:
+        confirmed_snapshot = ConfirmedTripSnapshot.model_validate(
+            state.get("confirmed_snapshot")
+        )
+    except ValueError:
+        confirmed_snapshot = None
+    if confirmed_snapshot is not None and existing_trip is not None:
+        destination_changed = existing_trip.destination != trip.destination
+        if destination_changed:
+            archived = list(state.get("archived_snapshots") or [])
+            archived.append(confirmed_snapshot)
+            result["archived_snapshots"] = archived
+            result["confirmed_snapshot"] = None
+        else:
+            result["confirmed_snapshot"] = confirmed_snapshot.model_copy(
+                update={
+                    "status": "stale",
+                    "stale_reasons": [
+                        "The trip plan changed; confirm updated travel options "
+                        "before treating this total and routing as current."
+                    ],
+                }
+            )
     duration = perf_counter() - started_at
     logger.info(
         "extractor_node exited tool_count=%s tool_names=%s duration=%.4fs",

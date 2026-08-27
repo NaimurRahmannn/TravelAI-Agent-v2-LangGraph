@@ -6,10 +6,13 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    ConfirmedTripSnapshot,
     ItineraryDay,
     RecommendationDomainState,
     TravelRecommendations,
+    TravelSelections,
     Trip,
+    TripCostSummary,
     TripPlan,
 )
 from app.services.hotel_recommendation import derive_hotel_stays
@@ -108,6 +111,50 @@ def test_failed_extension_generation_restores_original_trip_and_itinerary():
     assert result["extension_ready"] is False
     assert result["trip"] == trip
     assert result["itinerary"] == base
+
+
+def test_extension_marks_confirmed_snapshot_stale_and_failure_restores_it():
+    base = _plan(duration=3)
+    trip = Trip(
+        origin="Dhaka",
+        destination="Japan",
+        start_date=base.start_date,
+        end_date=base.end_date,
+        duration=base.duration_days,
+        travelers=base.travelers,
+    )
+    confirmed = ConfirmedTripSnapshot(
+        revision=3,
+        itinerary=base,
+        selections=TravelSelections(selected_flight_id="confirmed-flight"),
+        cost_summary=TripCostSummary(
+            base_trip_total_usd=300,
+            selected_flight_usd=700,
+            selected_hotels_usd=0,
+            additions_total_usd=700,
+            updated_trip_total_usd=1000,
+        ),
+    )
+
+    mutation = trip_extension.trip_extension_node(
+        {
+            "trip": trip,
+            "itinerary": base,
+            "extension_days": 2,
+            "confirmed_snapshot": confirmed,
+        },
+        config={},
+    )
+
+    assert mutation["confirmed_snapshot"].status == "stale"
+    assert mutation["confirmed_snapshot"].cost_summary == confirmed.cost_summary
+    assert mutation["extension_base_confirmed_snapshot"] == confirmed
+
+    failed = trip_extension.extension_merge_node(
+        {**mutation, "itinerary": None},
+        config={},
+    )
+    assert failed["confirmed_snapshot"] == confirmed
 
 
 def test_extension_hotel_scope_starts_at_previous_end_date(monkeypatch):

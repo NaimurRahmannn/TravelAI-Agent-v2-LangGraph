@@ -22,7 +22,10 @@ from app.services.flight_recommendation import (
     flight_requests_match,
     is_flight_cache_fresh,
     mark_flight_recommendations_unavailable,
+    merge_scoped_flight_recommendations,
+    search_flight_options,
     search_flight_recommendations,
+    update_split_flight_recommendations,
     update_flight_recommendations,
 )
 from app.services.recommendations.base import FlightProvider
@@ -47,12 +50,18 @@ async def flight_recommendation_node(
     current_request = build_flight_search_request(itinerary, scope=scope)
     if current_request is None:
         return {
-            "itinerary": update_flight_recommendations(
+            "itinerary": mark_flight_recommendations_unavailable(
                 itinerary,
-                flights=[],
-                status=build_recommendation_status(searched=False),
+                scope=scope,
             )
         }
+
+    if scope == "round_trip" and state.get("turn_intent") in {
+        "create_trip",
+        "modify_trip",
+        "suggest_round_trip_flights",
+    }:
+        return await _search_split_round_trip(itinerary)
 
     cache = _validated_cache(state.get("flight_search_cache"))
     now = datetime.now(UTC)
@@ -70,6 +79,12 @@ async def flight_recommendation_node(
             flights=cache.flights,
             status=cache.status,
         )
+        if scope != "round_trip":
+            enriched = merge_scoped_flight_recommendations(
+                itinerary,
+                enriched,
+                scope=scope,
+            )
         logger.info(
             "flight_recommendation_node exited source=cache duration=%.4fs",
             perf_counter() - started_at,
@@ -97,6 +112,12 @@ async def flight_recommendation_node(
             current_request,
             provider,
         )
+        if scope != "round_trip":
+            enriched = merge_scoped_flight_recommendations(
+                itinerary,
+                enriched,
+                scope=scope,
+            )
         stored_cache = build_flight_search_cache(current_request, enriched)
         logger.info(
             "flight_cache_store status=%s result_count=%s",
@@ -127,6 +148,78 @@ async def flight_recommendation_node(
     if stored_cache is not None:
         result["flight_search_cache"] = stored_cache
     return result
+
+
+async def _search_split_round_trip(
+    itinerary: TripPlan,
+) -> dict[str, TripPlan | None]:
+    """Search independently priced outbound and return legs for new trips."""
+
+    outbound_request = build_flight_search_request(itinerary, scope="outbound")
+    return_request = build_flight_search_request(itinerary, scope="return")
+    if outbound_request is None or return_request is None:
+        return {
+            "itinerary": update_split_flight_recommendations(
+                itinerary,
+                outbound=[],
+                outbound_status=build_recommendation_status(searched=False),
+                return_flights=[],
+                return_status=build_recommendation_status(searched=False),
+            )
+        }
+    api_key = get_settings().GEOAPIFY_API_KEY
+    if not api_key or not api_key.strip():
+        unavailable = build_recommendation_status(provider_available=False)
+        return {
+            "itinerary": update_split_flight_recommendations(
+                itinerary,
+                outbound=[],
+                outbound_status=unavailable,
+                return_flights=[],
+                return_status=unavailable,
+            )
+        }
+    provider: FlightProvider | None = None
+    try:
+        provider = build_flight_provider(api_key)
+        outbound, outbound_status = await search_flight_options(
+            outbound_request,
+            provider,
+        )
+        return_flights, return_status = await search_flight_options(
+            return_request,
+            provider,
+        )
+        enriched = update_split_flight_recommendations(
+            itinerary,
+            outbound=outbound,
+            outbound_status=outbound_status,
+            return_flights=return_flights,
+            return_status=return_status,
+        )
+    except Exception as exc:
+        logger.warning(
+            "split_flight_recommendation_unavailable error_type=%s",
+            type(exc).__name__,
+        )
+        unavailable = build_recommendation_status(provider_available=False)
+        enriched = update_split_flight_recommendations(
+            itinerary,
+            outbound=[],
+            outbound_status=unavailable,
+            return_flights=[],
+            return_status=unavailable,
+        )
+    finally:
+        if provider is not None:
+            try:
+                await close_flight_provider(provider)
+            except Exception as exc:
+                logger.warning(
+                    "flight_provider_close_failed error_type=%s",
+                    type(exc).__name__,
+                )
+    return {"itinerary": enriched}
 
 
 def _validated_scope(value: object) -> FlightSearchScope:

@@ -9,6 +9,8 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    DetailedRoutingDay,
+    DetailedRoutingPlan,
     FlightOption,
     FlightSegment,
     FlightSlice,
@@ -21,7 +23,9 @@ from app.models import (
     TripPlan,
     build_hotel_stay_key,
 )
-from app.schemas.api import TravelSelectionRequest
+from app.schemas.api import FlightLegSelectionRequest, TravelSelectionRequest
+from app.services.detailed_routing import DetailedRoutingService
+from app.services.flight_leg_selection import FlightLegSelectionService
 from app.services.recommendations.flights import SwoopFlightProvider
 from app.services.recommendations.hotels import LiteApiHotelProvider
 from app.services.itinerary_renderer import render_itinerary
@@ -67,6 +71,44 @@ def _flight(offer_id: str, price: float) -> FlightOption:
                 departure_at=departure,
                 arrival_at=arrival,
                 duration_minutes=360,
+                stops=0,
+                segments=[segment],
+            )
+        ],
+        fetched_at=FETCHED_AT,
+    )
+
+
+def _return_flight(offer_id: str, price: float) -> FlightOption:
+    departure = datetime(2026, 9, 13, 3, tzinfo=UTC)
+    arrival = datetime(2026, 9, 13, 11, tzinfo=UTC)
+    segment = FlightSegment(
+        origin_code="KIX",
+        destination_code="DAC",
+        departure_at=departure,
+        arrival_at=arrival,
+        duration_minutes=480,
+        airline_name=f"Airline {offer_id}",
+    )
+    return FlightOption(
+        provider="swoop",
+        provider_offer_id=offer_id,
+        origin_code="KIX",
+        destination_code="DAC",
+        adults=2,
+        total_duration_minutes=480,
+        stops=0,
+        total_price=price,
+        currency="USD",
+        price_type="shopping_total",
+        airline_names=[f"Airline {offer_id}"],
+        slices=[
+            FlightSlice(
+                origin_code="KIX",
+                destination_code="DAC",
+                departure_at=departure,
+                arrival_at=arrival,
+                duration_minutes=480,
                 stops=0,
                 segments=[segment],
             )
@@ -178,6 +220,29 @@ def _request(**kwargs) -> TravelSelectionRequest:
     )
 
 
+def _split_plan() -> TripPlan:
+    plan = _plan()
+    assert plan.recommendations is not None
+    plan.recommendations.flights = []
+    plan.recommendations.outbound_flights = [
+        _flight("outbound-a", 650),
+        _flight("outbound-b", 720),
+    ]
+    plan.recommendations.return_flights = [
+        _return_flight("return-a", 510),
+        _return_flight("return-b", 590),
+    ]
+    plan.recommendations.outbound_flight_status = RecommendationDomainState(
+        status="available",
+        provider_result_count=2,
+    )
+    plan.recommendations.return_flight_status = RecommendationDomainState(
+        status="available",
+        provider_result_count=2,
+    )
+    return plan
+
+
 def test_complete_multi_city_selection_calculates_expected_decimal_summary():
     plan = _plan()
     original_budget = plan.budget.model_copy(deep=True)
@@ -194,6 +259,39 @@ def test_complete_multi_city_selection_calculates_expected_decimal_summary():
     assert summary.difference_from_budget_usd == 220
     assert plan.budget == original_budget
     assert plan.recommendations == original_recommendations
+
+
+def test_separate_outbound_and_return_prices_are_combined_authoritatively():
+    hotels = _selections().selected_hotels
+    selections = TravelSelections(
+        selected_outbound_flight_id="outbound-a",
+        selected_return_flight_id="return-a",
+        selected_hotels=hotels,
+    )
+
+    summary = calculate_trip_cost_summary(_split_plan(), selections)
+
+    assert summary.selected_flight_usd == 1160
+    assert summary.selected_hotels_usd == 920
+    assert summary.updated_trip_total_usd == 3030
+
+
+def test_split_flight_request_rejects_partial_or_mixed_leg_selection():
+    hotels = _selections().selected_hotels
+    with pytest.raises(ValidationError, match="both outbound and return"):
+        TravelSelectionRequest(
+            thread_id="thread-a",
+            selected_outbound_flight_id="outbound-a",
+            selected_hotels=hotels,
+        )
+    with pytest.raises(ValidationError, match="either one bundled flight"):
+        TravelSelectionRequest(
+            thread_id="thread-a",
+            selected_flight_id="legacy",
+            selected_outbound_flight_id="outbound-a",
+            selected_return_flight_id="return-a",
+            selected_hotels=hotels,
+        )
 
 
 def test_markdown_renders_selected_travel_and_updated_cost_separately():
@@ -350,7 +448,10 @@ def test_confirmation_uses_checkpoint_snapshot_and_makes_zero_provider_calls(
         "travel_selections",
         "trip_cost_summary",
         "detailed_routing_plan",
+        "confirmed_snapshot",
     }
+    assert response.confirmed_snapshot.revision == 1
+    assert response.confirmed_snapshot.cost_summary == response.trip_cost_summary
 
 
 def test_invalid_complete_set_does_not_partially_mutate_checkpoint(monkeypatch):
@@ -408,6 +509,66 @@ def test_change_selection_replaces_old_cost_without_provider_refresh(monkeypatch
     assert changed.trip_cost_summary.selected_hotels_usd == 980
     assert changed.trip_cost_summary.updated_trip_total_usd == 2650
     assert states["thread-a"]["travel_selections"].selected_flight_id == "flight-b"
+
+
+def test_return_leg_replacement_recalculates_cost_and_requests_new_routing(
+    monkeypatch,
+):
+    hotels = _selections().selected_hotels
+    initial_request = TravelSelectionRequest(
+        thread_id="thread-a",
+        selected_outbound_flight_id="outbound-a",
+        selected_return_flight_id="return-a",
+        selected_hotels=hotels,
+    )
+    states = {"thread-a": {"itinerary": _split_plan()}}
+    graph = FakeGraph(states)
+
+    async def get_fake_graph():
+        return graph
+
+    monkeypatch.setattr(
+        TravelSelectionService,
+        "_get_graph",
+        staticmethod(get_fake_graph),
+    )
+    monkeypatch.setattr(
+        FlightLegSelectionService,
+        "_get_graph",
+        staticmethod(get_fake_graph),
+    )
+    first = asyncio.run(TravelSelectionService().confirm(initial_request))
+    routing_plan = DetailedRoutingPlan(
+        days=[DetailedRoutingDay(day_number=1, date=START_DATE)],
+        generated_at=FETCHED_AT,
+        has_ai_estimates=False,
+    )
+    routing_calls = []
+
+    async def fake_generate(self, request):
+        routing_calls.append(request.thread_id)
+        return SimpleNamespace(detailed_routing_plan=routing_plan)
+
+    monkeypatch.setattr(DetailedRoutingService, "generate", fake_generate)
+
+    changed = asyncio.run(
+        FlightLegSelectionService().confirm(
+            FlightLegSelectionRequest(
+                thread_id="thread-a",
+                scope="return",
+                selected_flight_id="return-b",
+            )
+        )
+    )
+
+    assert first.confirmed_snapshot.revision == 1
+    assert changed.travel_selections.selected_outbound_flight_id == "outbound-a"
+    assert changed.travel_selections.selected_return_flight_id == "return-b"
+    assert changed.trip_cost_summary.selected_flight_usd == 1240
+    assert changed.trip_cost_summary.updated_trip_total_usd == 3110
+    assert changed.confirmed_snapshot.revision == 2
+    assert changed.confirmed_snapshot.routing_plan == routing_plan
+    assert routing_calls == ["thread-a"]
 
 
 def test_unknown_thread_and_missing_itinerary_are_deterministic_client_errors(

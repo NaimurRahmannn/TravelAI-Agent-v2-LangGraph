@@ -9,8 +9,8 @@ from app.core.logging import get_logger
 from app.graph.state import TravelState
 from app.models import (
     RecommendationDomainState,
+    ConfirmedTripSnapshot,
     TravelRecommendations,
-    TravelSelections,
     Trip,
     TripPlan,
 )
@@ -65,16 +65,31 @@ def trip_extension_node(
         extension_days,
         perf_counter() - started_at,
     )
+    try:
+        base_confirmed_snapshot = ConfirmedTripSnapshot.model_validate(
+            state.get("confirmed_snapshot")
+        )
+        confirmed_snapshot = base_confirmed_snapshot.model_copy(
+            update={
+                "status": "stale",
+                "stale_reasons": [
+                    "Trip dates changed; added hotels and the return flight "
+                    "must be confirmed before totals and routing are current."
+                ],
+            }
+        )
+    except ValueError:
+        base_confirmed_snapshot = None
+        confirmed_snapshot = None
     return {
         "trip": updated_trip,
         "extension_base_trip": trip,
         "extension_base_itinerary": base,
+        "extension_base_confirmed_snapshot": base_confirmed_snapshot,
         "extension_original_end_date": old_end,
         "extension_ready": True,
         "flight_search_cache": None,
-        "travel_selections": _preserve_valid_hotel_selections(base, state),
-        "trip_cost_summary": None,
-        "detailed_routing_plan": None,
+        "confirmed_snapshot": confirmed_snapshot,
     }
 
 
@@ -133,6 +148,7 @@ def extension_merge_node(
         return {
             "itinerary": base_value,
             "trip": base_trip,
+            "confirmed_snapshot": state.get("extension_base_confirmed_snapshot"),
             "extension_ready": False,
             "response": response,
             "messages": [AIMessage(content=response)],
@@ -177,33 +193,10 @@ def _recommendations_after_extension(
     )
     recommendations.flights = []
     recommendations.flight_status = RecommendationDomainState()
+    recommendations.return_flights = []
+    recommendations.return_flight_status = RecommendationDomainState()
     recommendations.hotels = [
         hotel for hotel in recommendations.hotels if hotel.check_out <= old_end
     ]
     recommendations.hotel_status = RecommendationDomainState()
     return recommendations
-
-
-def _preserve_valid_hotel_selections(
-    base: TripPlan,
-    state: TravelState,
-) -> TravelSelections | None:
-    try:
-        selections = TravelSelections.model_validate(state.get("travel_selections"))
-    except ValueError:
-        return None
-    old_end = base.end_date
-    recommendations = base.recommendations
-    if old_end is None or recommendations is None:
-        return None
-    valid_ids = {
-        hotel.provider_offer_id
-        for hotel in recommendations.hotels
-        if hotel.check_out <= old_end
-    }
-    hotels = [
-        selection
-        for selection in selections.selected_hotels
-        if selection.hotel_option_id in valid_ids
-    ]
-    return TravelSelections(selected_hotels=hotels) if hotels else None

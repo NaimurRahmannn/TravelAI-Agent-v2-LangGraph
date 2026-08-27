@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.logging import get_logger
 from app.graph.state import TravelState
-from app.models import FlightSearchScope, TravelSelections, TripPlan
+from app.models import FlightSearchScope, TripPlan
 from app.services.itinerary_renderer import render_flight_recommendations
 
 logger = get_logger(__name__)
@@ -38,14 +38,6 @@ def flight_responder_node(
     return {
         "response": response,
         "messages": [AIMessage(content=response)],
-        # A new flight result set invalidates the aggregate flight/hotel choice
-        # and all calculations derived from that choice. It does not alter the
-        # itinerary or its hotel recommendation data.
-        "travel_selections": _preserve_hotel_selections(
-            state.get("travel_selections")
-        ),
-        "trip_cost_summary": None,
-        "detailed_routing_plan": None,
     }
 
 
@@ -70,13 +62,3 @@ def _missing_flight_context_response(
         "I need a completed trip with an origin, destination, and travel dates "
         "before I can suggest flights."
     )
-
-
-def _preserve_hotel_selections(value: object) -> TravelSelections | None:
-    try:
-        selections = TravelSelections.model_validate(value)
-    except ValueError:
-        return None
-    if not selections.selected_hotels:
-        return None
-    return TravelSelections(selected_hotels=selections.selected_hotels)

@@ -146,6 +146,22 @@ function ConfirmedTravelSelection({
   const flight = recommendations?.flights.find(
     (option) => option.provider_offer_id === selections.selected_flight_id,
   );
+  const outboundFlight = recommendations?.outbound_flights.find(
+    (option) =>
+      option.provider_offer_id === selections.selected_outbound_flight_id,
+  );
+  const returnFlight = recommendations?.return_flights.find(
+    (option) => option.provider_offer_id === selections.selected_return_flight_id,
+  );
+  const selectedFlights = flight
+    ? [{ label: "Selected flight", option: flight }]
+    : [
+        { label: "Selected outbound", option: outboundFlight },
+        { label: "Selected return", option: returnFlight },
+      ].filter(
+        (item): item is { label: string; option: NonNullable<typeof outboundFlight> } =>
+          Boolean(item.option),
+      );
   const hotels = selections.selected_hotels
     .map((selection) =>
       recommendations?.hotels.find(
@@ -173,18 +189,18 @@ function ConfirmedTravelSelection({
       </header>
 
       <div className="selectedTravelChoices">
-        {flight ? (
-          <article>
+        {selectedFlights.map(({ label, option }) => (
+          <article key={option.provider_offer_id}>
             <Plane aria-hidden="true" size={18} />
             <div>
-              <strong>{flight.airline_names.join(" + ") || "Selected flight"}</strong>
+              <strong>{option.airline_names.join(" + ") || label}</strong>
               <span>
-                {flight.origin_code} to {flight.destination_code} ·{" "}
-                {formatMoney(flight.total_price)}
+                {label}: {option.origin_code} to {option.destination_code} ·{" "}
+                {formatMoney(option.total_price)}
               </span>
             </div>
           </article>
-        ) : null}
+        ))}
         {hotels.map((hotel) => (
           <article key={hotel.stay_key}>
             <Building2 aria-hidden="true" size={18} />

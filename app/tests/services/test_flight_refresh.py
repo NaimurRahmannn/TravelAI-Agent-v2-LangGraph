@@ -9,12 +9,17 @@ from app.models import (
     Activity,
     BudgetBreakdown,
     BudgetItem,
+    ConfirmedTripSnapshot,
+    DetailedRoutingDay,
+    DetailedRoutingPlan,
     FlightOption,
     FlightSearchCache,
     FlightSegment,
     FlightSlice,
     ItineraryDay,
     RecommendationDomainState,
+    TravelSelections,
+    TripCostSummary,
     TravelRecommendations,
     TripPlan,
 )
@@ -149,18 +154,39 @@ def _install(monkeypatch, graph: FakeGraph, provider) -> None:
     )
 
 
-def test_explicit_refresh_bypasses_fresh_cache_and_invalidates_derived_state(
+def test_explicit_refresh_bypasses_fresh_cache_and_preserves_confirmed_state(
     monkeypatch,
 ):
     old_plan = _plan(_flight("old-flight", 714.20))
     old_cache = _cache(old_plan)
+    selections = TravelSelections(selected_flight_id="old-flight")
+    cost_summary = TripCostSummary(
+        base_trip_total_usd=500,
+        selected_flight_usd=714.20,
+        selected_hotels_usd=0,
+        additions_total_usd=714.20,
+        updated_trip_total_usd=1214.20,
+    )
+    routing_plan = DetailedRoutingPlan(
+        days=[DetailedRoutingDay(day_number=1, date=date(2026, 9, 10))],
+        generated_at=datetime(2026, 8, 22, tzinfo=UTC),
+        has_ai_estimates=False,
+    )
+    confirmed = ConfirmedTripSnapshot(
+        revision=1,
+        itinerary=old_plan,
+        selections=selections,
+        cost_summary=cost_summary,
+        routing_plan=routing_plan,
+    )
     graph = FakeGraph(
         {
             "itinerary": old_plan,
             "flight_search_cache": old_cache,
-            "travel_selections": {"selected_flight_id": "old-flight"},
-            "trip_cost_summary": {"updated_trip_total_usd": 2000},
-            "detailed_routing_plan": {"generated_at": "old"},
+            "travel_selections": selections,
+            "trip_cost_summary": cost_summary,
+            "detailed_routing_plan": routing_plan,
+            "confirmed_snapshot": confirmed,
         }
     )
 
@@ -198,13 +224,15 @@ def test_explicit_refresh_bypasses_fresh_cache_and_invalidates_derived_state(
     )
     assert update["flight_search_cache"].request == old_cache.request
     assert update["flight_search_cache"].flights[0].total_price == 800
-    assert update["travel_selections"] is None
-    assert update["trip_cost_summary"] is None
-    assert update["detailed_routing_plan"] is None
+    assert "travel_selections" not in update
+    assert "trip_cost_summary" not in update
+    assert "detailed_routing_plan" not in update
+    assert "confirmed_snapshot" not in update
     assert response.itinerary == update["itinerary"]
-    assert response.travel_selections is None
-    assert response.trip_cost_summary is None
-    assert response.detailed_routing_plan is None
+    assert response.travel_selections == selections
+    assert response.trip_cost_summary == cost_summary
+    assert response.detailed_routing_plan == routing_plan
+    assert response.confirmed_snapshot == confirmed
 
 
 def test_successful_empty_refresh_replaces_cache_with_no_results(monkeypatch):
@@ -229,6 +257,55 @@ def test_successful_empty_refresh_replaces_cache_with_no_results(monkeypatch):
     assert response.itinerary.recommendations.flight_status.status == "no_results"
     assert graph.values["flight_search_cache"].flights == []
     assert graph.values["flight_search_cache"].status.status == "no_results"
+
+
+def test_explicit_refresh_updates_both_split_candidate_sets(monkeypatch):
+    plan = _plan(_flight("legacy", 700))
+    assert plan.recommendations is not None
+    plan.recommendations.flights = []
+    plan.recommendations.outbound_flights = [_flight("old-outbound", 500)]
+    plan.recommendations.return_flights = [_flight("old-return", 400)]
+    plan.recommendations.outbound_flight_status = RecommendationDomainState(
+        status="available",
+        provider_result_count=1,
+    )
+    plan.recommendations.return_flight_status = RecommendationDomainState(
+        status="available",
+        provider_result_count=1,
+    )
+    graph = FakeGraph({"itinerary": plan, "flight_search_cache": None})
+
+    class Provider:
+        requests = []
+
+        async def search_flights(self, request):
+            self.requests.append(request)
+            return [
+                _flight(
+                    "fresh-outbound" if len(self.requests) == 1 else "fresh-return",
+                    550 if len(self.requests) == 1 else 450,
+                )
+            ]
+
+    provider = Provider()
+    _install(monkeypatch, graph, provider)
+
+    response = asyncio.run(
+        FlightRefreshService().refresh(
+            FlightRefreshRequest(thread_id="thread-a")
+        )
+    )
+
+    assert len(provider.requests) == 2
+    assert provider.requests[0].return_date is None
+    assert provider.requests[1].departure_date == plan.end_date
+    assert response.itinerary.recommendations.outbound_flights[0].provider_offer_id == (
+        "fresh-outbound"
+    )
+    assert response.itinerary.recommendations.return_flights[0].provider_offer_id == (
+        "fresh-return"
+    )
+    assert graph.values["flight_search_cache"] is None
 
 
 def test_refresh_failure_preserves_previous_cache_and_recommendations(monkeypatch):

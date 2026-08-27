@@ -11,7 +11,9 @@ from app.services.flight_recommendation import (
     build_flight_search_cache,
     build_flight_search_request,
     close_flight_provider,
+    search_flight_options,
     search_flight_recommendations,
+    update_split_flight_recommendations,
 )
 from app.services.recommendations.base import FlightProvider
 
@@ -62,6 +64,17 @@ class FlightRefreshService:
                 "The travel thread does not have a usable itinerary.",
             ) from exc
 
+        has_split_candidates = bool(
+            itinerary.recommendations
+            and (
+                itinerary.recommendations.outbound_flights
+                or itinerary.recommendations.return_flights
+                or itinerary.recommendations.outbound_flight_status.status
+                != "not_searched"
+                or itinerary.recommendations.return_flight_status.status
+                != "not_searched"
+            )
+        )
         current_request = build_flight_search_request(itinerary)
         if current_request is None:
             raise FlightRefreshError(
@@ -78,18 +91,46 @@ class FlightRefreshService:
         provider: FlightProvider | None = None
         try:
             provider = self._build_provider(api_key)
-            enriched = await search_flight_recommendations(
-                itinerary,
-                current_request,
-                provider,
-            )
-            cache = build_flight_search_cache(current_request, enriched)
-            logger.info(
-                "flight_cache_store source=explicit_refresh status=%s "
-                "result_count=%s",
-                cache.status.status,
-                len(cache.flights),
-            )
+            if has_split_candidates:
+                outbound_request = build_flight_search_request(
+                    itinerary,
+                    scope="outbound",
+                )
+                return_request = build_flight_search_request(
+                    itinerary,
+                    scope="return",
+                )
+                if outbound_request is None or return_request is None:
+                    raise ValueError("Split flight search inputs are incomplete")
+                outbound, outbound_status = await search_flight_options(
+                    outbound_request,
+                    provider,
+                )
+                return_flights, return_status = await search_flight_options(
+                    return_request,
+                    provider,
+                )
+                enriched = update_split_flight_recommendations(
+                    itinerary,
+                    outbound=outbound,
+                    outbound_status=outbound_status,
+                    return_flights=return_flights,
+                    return_status=return_status,
+                )
+                cache = None
+            else:
+                enriched = await search_flight_recommendations(
+                    itinerary,
+                    current_request,
+                    provider,
+                )
+                cache = build_flight_search_cache(current_request, enriched)
+                logger.info(
+                    "flight_cache_store source=explicit_refresh status=%s "
+                    "result_count=%s",
+                    cache.status.status,
+                    len(cache.flights),
+                )
         except Exception as exc:
             logger.warning(
                 "flight_refresh_failed_preserving_cache thread_id=%s "
@@ -113,9 +154,6 @@ class FlightRefreshService:
             {
                 "itinerary": enriched,
                 "flight_search_cache": cache,
-                "travel_selections": None,
-                "trip_cost_summary": None,
-                "detailed_routing_plan": None,
             },
             as_node="memory_write",
         )
@@ -123,15 +161,16 @@ class FlightRefreshService:
             "flight_refresh_completed thread_id=%s status=%s result_count=%s "
             "duration=%.4fs",
             request.thread_id,
-            cache.status.status,
-            len(cache.flights),
+            enriched.recommendations.flight_status.status,
+            len(enriched.recommendations.flights),
             perf_counter() - started_at,
         )
         return FlightRefreshResponse(
             thread_id=request.thread_id,
             message="Flight recommendations refreshed.",
             itinerary=enriched,
-            travel_selections=None,
-            trip_cost_summary=None,
-            detailed_routing_plan=None,
+            travel_selections=values.get("travel_selections"),
+            trip_cost_summary=values.get("trip_cost_summary"),
+            detailed_routing_plan=values.get("detailed_routing_plan"),
+            confirmed_snapshot=values.get("confirmed_snapshot"),
         )

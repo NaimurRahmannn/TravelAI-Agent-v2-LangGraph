@@ -15,12 +15,20 @@ from app.services.detailed_routing_estimates import PlanningEstimateBundle
 
 INTERNATIONAL_ARRIVAL_PROCESSING_MINUTES = 90
 AIRPORT_PREDEPARTURE_BUFFER_MINUTES = 180
+AIRLINE_CHECK_IN_MINUTES = 60
+SECURITY_AND_IMMIGRATION_MINUTES = 60
+GATE_AND_BOARDING_MINUTES = 60
 HOTEL_ARRIVAL_BUFFER_MINUTES = 20
 HOTEL_DEPARTURE_BUFFER_MINUTES = 15
 DEFAULT_DAY_START_TIME = time(9, 0)
 UNAVAILABLE_ROUTE_WARNING = "Routing information was unavailable for this stop."
 FINAL_ACTIVITY_WARNING = (
-    "This activity could not fit before your return-flight airport deadline."
+    "This activity was removed because it cannot fit safely before the "
+    "hotel-to-airport journey and airport processing window."
+)
+INSUFFICIENT_AIRPORT_BUFFER_WARNING = (
+    "The estimated airport arrival leaves less than the recommended three hours "
+    "for international check-in, security, immigration, and boarding."
 )
 
 
@@ -154,6 +162,22 @@ def _build_day(
         else:
             _add_warning(warnings, UNAVAILABLE_ROUTE_WARNING)
 
+    if latest_hotel_departure is not None and not (
+        is_first and context.arrival.local_time.date() == day.date
+    ):
+        departure_preparation_start = latest_hotel_departure - timedelta(
+            minutes=HOTEL_DEPARTURE_BUFFER_MINUTES
+        )
+        if departure_preparation_start < current_time:
+            current_time = departure_preparation_start
+            if stops and stops[-1].stop_type == "hotel":
+                stops[-1] = stops[-1].model_copy(
+                    update={
+                        "arrival_time": current_time,
+                        "departure_time": current_time,
+                    }
+                )
+
     for activity in day.activities:
         incoming = route_lookup.get(
             (current_point.stop_id, activity.point.stop_id)
@@ -187,7 +211,10 @@ def _build_day(
                         visit_duration_max_minutes=visit.maximum_minutes,
                         source=_visit_source(visit.source),
                         scheduled=False,
-                        note="Not scheduled due to departure timing.",
+                        note=(
+                            "Skipped to preserve hotel-to-airport travel plus "
+                            "check-in, security, immigration, and boarding time."
+                        ),
                     )
                 )
                 _add_warning(warnings, FINAL_ACTIVITY_WARNING)
@@ -264,7 +291,8 @@ def _build_day(
         elif latest_hotel_departure is not None and current_time > latest_hotel_departure:
             _add_warning(
                 warnings,
-                "The calculated hotel departure is later than the preferred airport deadline.",
+                "The selected return flight cannot retain the full recommended "
+                "airport-processing window from the current schedule.",
             )
         current_time = _append_route(
             final_route,
@@ -283,15 +311,12 @@ def _build_day(
                 source="planning_policy",
             )
         )
-        if airport_arrival < context.departure.local_time:
-            stops.append(
-                _buffer_stop(
-                    "predeparture-buffer",
-                    "Pre-departure airport buffer",
-                    airport_arrival,
-                    context.departure.local_time,
-                )
-            )
+        _append_airport_processing_stops(
+            stops,
+            airport_arrival=airport_arrival,
+            flight_departure=context.departure.local_time,
+            warnings=warnings,
+        )
         stops.append(
             TimetableStop(
                 stop_id="departure-flight",
@@ -377,6 +402,68 @@ def _activity_start(
         except ValueError:
             continue
     return None
+
+
+def _append_airport_processing_stops(
+    stops: list[TimetableStop],
+    *,
+    airport_arrival: datetime,
+    flight_departure: datetime,
+    warnings: list[str],
+) -> None:
+    """Reserve explicit international-departure procedures before the flight."""
+
+    if airport_arrival >= flight_departure:
+        _add_warning(
+            warnings,
+            "The estimated airport arrival is not before the selected return flight.",
+        )
+        return
+    recommended_start = flight_departure - timedelta(
+        minutes=AIRPORT_PREDEPARTURE_BUFFER_MINUTES
+    )
+    if airport_arrival > recommended_start:
+        stops.append(
+            _buffer_stop(
+                "reduced-airport-processing-window",
+                "Reduced airport processing window",
+                airport_arrival,
+                flight_departure,
+            )
+        )
+        _add_warning(warnings, INSUFFICIENT_AIRPORT_BUFFER_WARNING)
+        return
+    current_time = airport_arrival
+    if current_time < recommended_start:
+        stops.append(
+            _buffer_stop(
+                "airport-contingency-buffer",
+                "Airport arrival contingency buffer",
+                current_time,
+                recommended_start,
+            )
+        )
+        current_time = recommended_start
+    for stop_id, name, minutes in (
+        (
+            "airport-check-in",
+            "Airline check-in and bag drop",
+            AIRLINE_CHECK_IN_MINUTES,
+        ),
+        (
+            "airport-security-immigration",
+            "Security screening and outbound immigration",
+            SECURITY_AND_IMMIGRATION_MINUTES,
+        ),
+        (
+            "airport-gate-boarding",
+            "Walk to gate and boarding buffer",
+            GATE_AND_BOARDING_MINUTES,
+        ),
+    ):
+        end_time = current_time + timedelta(minutes=minutes)
+        stops.append(_buffer_stop(stop_id, name, current_time, end_time))
+        current_time = end_time
 
 
 def _day_timezone(context: DetailedRoutingContext, *, is_final: bool):

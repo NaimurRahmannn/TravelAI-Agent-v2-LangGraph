@@ -78,6 +78,84 @@ async def search_flight_recommendations(
     )
 
 
+async def search_flight_options(
+    request: FlightSearchRequest,
+    provider: FlightProvider,
+) -> tuple[list[FlightOption], RecommendationDomainState]:
+    """Return ranked options and status without mutating an itinerary."""
+
+    provider_options = await provider.search_flights(request)
+    if not provider_options:
+        return [], build_recommendation_status(provider_result_count=0)
+    selected = rank_flights(provider_options)[:MAX_FLIGHT_RECOMMENDATIONS]
+    return selected, build_recommendation_status(
+        provider_result_count=len(provider_options)
+    )
+
+
+def update_split_flight_recommendations(
+    trip_plan: TripPlan,
+    *,
+    outbound: list[FlightOption],
+    outbound_status: RecommendationDomainState,
+    return_flights: list[FlightOption],
+    return_status: RecommendationDomainState,
+) -> TripPlan:
+    """Store independently priced outbound and return candidate sets."""
+
+    recommendations = (
+        trip_plan.recommendations.model_copy(deep=True)
+        if trip_plan.recommendations is not None
+        else TravelRecommendations()
+    )
+    recommendations.outbound_flights = list(outbound)
+    recommendations.return_flights = list(return_flights)
+    recommendations.outbound_flight_status = outbound_status
+    recommendations.return_flight_status = return_status
+    recommendations.flights = [*outbound, *return_flights]
+    if outbound and return_flights:
+        recommendations.flight_status = build_recommendation_status(
+            provider_result_count=(
+                outbound_status.provider_result_count
+                + return_status.provider_result_count
+            )
+        )
+    elif outbound_status.status == "unavailable" or return_status.status == "unavailable":
+        recommendations.flight_status = build_recommendation_status(
+            provider_available=False
+        )
+    else:
+        recommendations.flight_status = build_recommendation_status(
+            provider_result_count=0
+        )
+    return trip_plan.model_copy(update={"recommendations": recommendations})
+
+
+def merge_scoped_flight_recommendations(
+    trip_plan: TripPlan,
+    search_result: TripPlan,
+    *,
+    scope: FlightSearchScope,
+) -> TripPlan:
+    """Update one candidate leg while preserving the other candidate set."""
+
+    result_recommendations = search_result.recommendations or TravelRecommendations()
+    recommendations = (
+        trip_plan.recommendations.model_copy(deep=True)
+        if trip_plan.recommendations is not None
+        else TravelRecommendations()
+    )
+    if scope == "outbound":
+        recommendations.outbound_flights = list(result_recommendations.flights)
+        recommendations.outbound_flight_status = result_recommendations.flight_status
+    elif scope == "return":
+        recommendations.return_flights = list(result_recommendations.flights)
+        recommendations.return_flight_status = result_recommendations.flight_status
+    recommendations.flights = list(result_recommendations.flights)
+    recommendations.flight_status = result_recommendations.flight_status
+    return trip_plan.model_copy(update={"recommendations": recommendations})
+
+
 def flight_requests_match(
     cached_request: FlightSearchRequest,
     current_request: FlightSearchRequest,
@@ -219,7 +297,18 @@ def mark_flight_recommendations_unavailable(
         if build_flight_search_request(trip_plan, scope=scope) is not None
         else build_recommendation_status(searched=False)
     )
-    return update_flight_recommendations(trip_plan, flights=[], status=status)
+    updated = update_flight_recommendations(
+        trip_plan,
+        flights=[],
+        status=status,
+    )
+    if scope != "round_trip":
+        return merge_scoped_flight_recommendations(
+            trip_plan,
+            updated,
+            scope=scope,
+        )
+    return updated
 
 
 def update_flight_recommendations(

@@ -5,6 +5,7 @@ from app.core.logging import get_logger
 from app.graph.builder import get_graph
 from app.models import (
     FlightOption,
+    ConfirmedTripSnapshot,
     HotelOption,
     TravelSelections,
     TripCostSummary,
@@ -64,9 +65,24 @@ class TravelSelectionService:
 
         selections = TravelSelections(
             selected_flight_id=request.selected_flight_id,
+            selected_outbound_flight_id=request.selected_outbound_flight_id,
+            selected_return_flight_id=request.selected_return_flight_id,
             selected_hotels=request.selected_hotels,
         )
         summary = calculate_trip_cost_summary(itinerary, selections)
+        previous_snapshot = values.get("confirmed_snapshot")
+        try:
+            previous_revision = ConfirmedTripSnapshot.model_validate(
+                previous_snapshot
+            ).revision
+        except ValueError:
+            previous_revision = 0
+        confirmed_snapshot = ConfirmedTripSnapshot(
+            revision=previous_revision + 1,
+            itinerary=itinerary.model_copy(deep=True),
+            selections=selections.model_copy(deep=True),
+            cost_summary=summary.model_copy(deep=True),
+        )
 
         await graph.aupdate_state(
             config,
@@ -74,6 +90,7 @@ class TravelSelectionService:
                 "travel_selections": selections,
                 "trip_cost_summary": summary,
                 "detailed_routing_plan": None,
+                "confirmed_snapshot": confirmed_snapshot,
             },
             as_node="memory_write",
         )
@@ -89,6 +106,7 @@ class TravelSelectionService:
             thread_id=request.thread_id,
             travel_selections=selections,
             trip_cost_summary=summary,
+            confirmed_snapshot=confirmed_snapshot,
         )
 
 
@@ -159,7 +177,11 @@ def validate_travel_selections(
 ) -> tuple[FlightOption, list[HotelOption]]:
     """Resolve a complete IDs-only selection against the current snapshot."""
 
-    if selections.selected_flight_id is None or not selections.selected_hotels:
+    has_flight = selections.selected_flight_id is not None or (
+        selections.selected_outbound_flight_id is not None
+        and selections.selected_return_flight_id is not None
+    )
+    if not has_flight or not selections.selected_hotels:
         raise TravelSelectionError(
             409,
             "Select one flight and one hotel for every required stay before confirming.",
@@ -172,17 +194,7 @@ def validate_travel_selections(
     ):
         raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
 
-    flights = [
-        option
-        for option in recommendations.flights
-        if option.provider_offer_id == selections.selected_flight_id
-    ]
-    if len(flights) != 1:
-        logger.info(
-            "travel_selection_invalid flight_id=%s",
-            selections.selected_flight_id,
-        )
-        raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
+    selected_flight = _resolve_selected_flight(recommendations, selections)
 
     required_stays = derive_hotel_stays(trip_plan)
     required_keys = {stay.stay_key for stay in required_stays}
@@ -210,7 +222,67 @@ def validate_travel_selections(
             raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
         selected_hotels.append(matches[0])
 
-    return flights[0], selected_hotels
+    return selected_flight, selected_hotels
+
+
+def _resolve_selected_flight(
+    recommendations,
+    selections: TravelSelections,
+) -> FlightOption:
+    if selections.selected_flight_id is not None:
+        matches = [
+            option
+            for option in recommendations.flights
+            if option.provider_offer_id == selections.selected_flight_id
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
+
+    outbound = next(
+        (
+            option
+            for option in recommendations.outbound_flights
+            if option.provider_offer_id == selections.selected_outbound_flight_id
+        ),
+        None,
+    )
+    return_flight = next(
+        (
+            option
+            for option in recommendations.return_flights
+            if option.provider_offer_id == selections.selected_return_flight_id
+        ),
+        None,
+    )
+    if outbound is None or return_flight is None:
+        raise TravelSelectionError(409, _STALE_SELECTION_DETAIL)
+    if outbound.currency != return_flight.currency:
+        raise TravelSelectionError(
+            409,
+            "Outbound and return flights must use the same currency.",
+        )
+    return FlightOption(
+        provider="swoop",
+        provider_offer_id=(
+            f"journey:{outbound.provider_offer_id}:{return_flight.provider_offer_id}"
+        ),
+        origin_code=outbound.origin_code,
+        destination_code=outbound.destination_code,
+        adults=outbound.adults,
+        total_duration_minutes=(
+            outbound.total_duration_minutes + return_flight.total_duration_minutes
+        ),
+        stops=outbound.stops + return_flight.stops,
+        total_price=round(outbound.total_price + return_flight.total_price, 2),
+        currency=outbound.currency,
+        price_type="shopping_total",
+        airline_names=list(
+            dict.fromkeys([*outbound.airline_names, *return_flight.airline_names])
+        ),
+        slices=[*outbound.slices, *return_flight.slices],
+        fetched_at=max(outbound.fetched_at, return_flight.fetched_at),
+    )
 
 
 def _money(value: float) -> Decimal:

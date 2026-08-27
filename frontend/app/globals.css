@@ -251,6 +251,54 @@ textarea:disabled {
   min-height: 0;
 }
 
+.confirmedSnapshotBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(9rem, 0.7fr));
+  gap: 1rem;
+  align-items: center;
+  margin: 0 0 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(14, 116, 144, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(236, 254, 255, 0.96), #fff);
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+}
+
+.confirmedSnapshotBar > div {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.confirmedSnapshotBar span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.confirmedSnapshotBar strong {
+  color: var(--ink);
+}
+
+.confirmedSnapshotBar.stale {
+  border-color: rgba(217, 119, 6, 0.35);
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), #fff);
+}
+
+.confirmedSnapshotBar > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #92400e;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 760px) {
+  .confirmedSnapshotBar {
+    grid-template-columns: 1fr;
+  }
+}
+
 .chatSurface {
   min-width: 0;
   border: 1px solid var(--border);

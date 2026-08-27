@@ -587,6 +587,81 @@ def test_return_flight_creates_hard_airport_deadline():
         stop for stop in detailed.days[-1].stops if stop.stop_id == "departure-flight"
     )
     assert flight.departure_time.strftime("%H:%M") == "20:30"
+    assert [
+        stop.stop_id
+        for stop in detailed.days[-1].stops
+        if stop.stop_id.startswith("airport-")
+    ] == [
+        "airport-check-in",
+        "airport-security-immigration",
+        "airport-gate-boarding",
+    ]
+
+
+def test_early_return_flight_starts_departure_day_before_default_day_start():
+    plan = _plan()
+    flight = plan.recommendations.flights[0]
+    early_departure = datetime(2026, 9, 12, 10, 30, tzinfo=JST)
+    return_slice = flight.slices[-1].model_copy(
+        update={"departure_at": early_departure}
+    )
+    plan.recommendations.flights[0] = flight.model_copy(
+        update={"slices": [flight.slices[0], return_slice]}
+    )
+    context = _context_with_airports(plan)
+    bundle = asyncio.run(
+        build_planning_estimates(
+            context,
+            collect_required_route_legs(context),
+            routing_provider=FakeRoutingProvider(minutes=70),
+            planning_estimator=FakeEstimator(visit_minutes=60),
+        )
+    )
+
+    detailed = build_detailed_timetable(context, bundle)
+    final_day = detailed.days[-1]
+
+    assert final_day.latest_departure_for_airport.strftime("%H:%M") == "06:20"
+    hotel_buffer = next(
+        stop for stop in final_day.stops if stop.stop_id == "hotel-departure-buffer"
+    )
+    airport_arrival = next(
+        stop for stop in final_day.stops if stop.stop_id == "departure-airport-arrival"
+    )
+    assert hotel_buffer.arrival_time.strftime("%H:%M") == "06:05"
+    assert hotel_buffer.departure_time.strftime("%H:%M") == "06:20"
+    assert airport_arrival.arrival_time.strftime("%H:%M") == "07:30"
+    assert {
+        "airport-check-in",
+        "airport-security-immigration",
+        "airport-gate-boarding",
+    } <= {stop.stop_id for stop in final_day.stops}
+    assert not any("current schedule" in warning for warning in final_day.warnings)
+
+
+def test_departure_logistics_placeholder_is_replaced_by_timetable_steps():
+    plan = _plan()
+    plan.days[-1].activities = [
+        _activity("Departure Logistics", 35.01, 135.76)
+    ]
+    context = _context_with_airports(plan)
+    assert context.days[-1].activities == ()
+    bundle = asyncio.run(
+        build_planning_estimates(
+            context,
+            collect_required_route_legs(context),
+            routing_provider=FakeRoutingProvider(minutes=70),
+            planning_estimator=FakeEstimator(),
+        )
+    )
+
+    detailed = build_detailed_timetable(context, bundle)
+    names = {stop.name for stop in detailed.days[-1].stops}
+
+    assert "Departure Logistics" not in names
+    assert "Airline check-in and bag drop" in names
+    assert "Security screening and outbound immigration" in names
+    assert "Walk to gate and boarding buffer" in names
 
 
 def test_final_activity_that_does_not_fit_is_not_compressed_or_removed_from_plan():
@@ -608,7 +683,7 @@ def test_final_activity_that_does_not_fit_is_not_compressed_or_removed_from_plan
 
     assert final_activity.scheduled is False
     assert final_activity.planned_visit_minutes == 90
-    assert "could not fit" in detailed.days[-1].warnings[0]
+    assert "removed" in detailed.days[-1].warnings[0]
     assert plan.days[-1].activities[0].name == "Nishiki Market"
 
 

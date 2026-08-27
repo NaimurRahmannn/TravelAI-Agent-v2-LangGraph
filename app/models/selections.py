@@ -3,6 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.recommendations import NonEmptyString
+from app.models.itinerary import TripPlan
+from app.models.detailed_routing import DetailedRoutingPlan
 
 SelectionStatus = Literal["not_required", "required", "selected", "unavailable"]
 
@@ -31,16 +33,43 @@ class TravelSelections(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     selected_flight_id: NonEmptyString | None = None
+    selected_outbound_flight_id: NonEmptyString | None = None
+    selected_return_flight_id: NonEmptyString | None = None
     selected_hotels: list[SelectedHotelStay] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_unique_stays(self) -> "TravelSelections":
-        if self.selected_flight_id is None and not self.selected_hotels:
+        has_legacy_flight = self.selected_flight_id is not None
+        has_leg_flight = (
+            self.selected_outbound_flight_id is not None
+            or self.selected_return_flight_id is not None
+        )
+        if not has_legacy_flight and not has_leg_flight and not self.selected_hotels:
             raise ValueError("At least one travel selection is required")
+        if has_legacy_flight and has_leg_flight:
+            raise ValueError("Use either a bundled flight or separate flight legs")
+        if (
+            self.selected_outbound_flight_id is None
+        ) != (self.selected_return_flight_id is None):
+            raise ValueError("Select both outbound and return flight legs")
         stay_keys = [selection.stay_key for selection in self.selected_hotels]
         if len(stay_keys) != len(set(stay_keys)):
             raise ValueError("Only one hotel may be selected per stay")
         return self
+
+
+class ConfirmedTripSnapshot(BaseModel):
+    """Immutable traveler-confirmed pricing and routing for one trip revision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: int = Field(ge=1)
+    itinerary: TripPlan
+    selections: TravelSelections
+    cost_summary: "TripCostSummary"
+    routing_plan: DetailedRoutingPlan | None = None
+    status: Literal["current", "stale"] = "current"
+    stale_reasons: list[str] = Field(default_factory=list)
 
 
 class TripCostSummary(BaseModel):

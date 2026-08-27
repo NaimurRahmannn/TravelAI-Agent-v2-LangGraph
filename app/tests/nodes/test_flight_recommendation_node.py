@@ -263,6 +263,56 @@ def test_outbound_scope_reaches_provider_as_one_way_start_date_search(monkeypatc
     assert result["flight_search_cache"].request == provider.request
 
 
+def test_new_trip_searches_and_stores_independent_outbound_and_return_legs(
+    monkeypatch,
+):
+    class Provider:
+        requests = []
+        closed = False
+
+        async def search_flights(self, request):
+            self.requests.append(request)
+            suffix = "outbound" if len(self.requests) == 1 else "return"
+            return [_flight(suffix, 500 if suffix == "outbound" else 400)]
+
+        async def aclose(self):
+            self.closed = True
+
+    provider = Provider()
+    monkeypatch.setattr(
+        flight_recommendation,
+        "get_settings",
+        lambda: SimpleNamespace(GEOAPIFY_API_KEY="private-geoapify-key"),
+    )
+    monkeypatch.setattr(
+        flight_recommendation,
+        "build_flight_provider",
+        lambda api_key: provider,
+    )
+
+    result = asyncio.run(
+        flight_recommendation.flight_recommendation_node(
+            {
+                "itinerary": _plan(),
+                "flight_search_scope": "round_trip",
+                "turn_intent": "create_trip",
+            },
+            config={},
+        )
+    )
+
+    recommendations = result["itinerary"].recommendations
+    assert len(provider.requests) == 2
+    assert provider.requests[0].departure_date == date(2026, 9, 10)
+    assert provider.requests[0].return_date is None
+    assert provider.requests[1].departure_date == date(2026, 9, 12)
+    assert provider.requests[1].return_date is None
+    assert recommendations.outbound_flights[0].provider_offer_id == "outbound"
+    assert recommendations.return_flights[0].provider_offer_id == "return"
+    assert recommendations.flight_status.status == "available"
+    assert provider.closed is True
+
+
 @pytest.mark.parametrize("change", ["budget", "activity"])
 def test_fresh_cache_reattaches_to_new_plan_without_constructing_provider(
     monkeypatch,

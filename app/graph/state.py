@@ -4,6 +4,7 @@ from typing import Annotated, Literal, TypedDict
 from langgraph.graph import MessagesState
 from app.models import (
     DetailedRoutingPlan,
+    ConfirmedTripSnapshot,
     FlightSearchCache,
     FlightSearchScope,
     TravelSelections,
@@ -54,10 +55,13 @@ class TravelState(MessagesState):
     extension_original_end_date: date | None
     extension_base_trip: Trip | None
     extension_base_itinerary: TripPlan | None
+    extension_base_confirmed_snapshot: ConfirmedTripSnapshot | None
     extension_ready: bool
     travel_selections: TravelSelections | None
     trip_cost_summary: TripCostSummary | None
     detailed_routing_plan: DetailedRoutingPlan | None
+    confirmed_snapshot: ConfirmedTripSnapshot | None
+    archived_snapshots: list[ConfirmedTripSnapshot]
     missing_fields: list[str]
     needs_clarification: bool
     research_results: Annotated[dict[str, str], merge_research_results]

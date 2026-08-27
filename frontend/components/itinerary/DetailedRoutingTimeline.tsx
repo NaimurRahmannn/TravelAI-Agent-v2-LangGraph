@@ -65,6 +65,9 @@ export function DetailedRoutingTimeline({
 
 function DetailedRoutingDayCard({ day }: { day: DetailedRoutingDay }) {
   const events = buildTimelineEvents(day);
+  const omittedActivities = day.stops.filter(
+    (stop) => stop.stop_type === "activity" && !stop.scheduled,
+  );
   const visibleWarnings = day.warnings.filter(
     (warning) => !HIDDEN_ROUTING_WARNINGS.has(warning),
   );
@@ -104,6 +107,17 @@ function DetailedRoutingDayCard({ day }: { day: DetailedRoutingDay }) {
           </li>
         ))}
       </ol>
+
+      {omittedActivities.length > 0 ? (
+        <div className="routingWarnings" role="status">
+          <p>
+            <TriangleAlert aria-hidden="true" size={15} />
+            Removed to protect your return flight: {omittedActivities
+              .map((stop) => stop.name)
+              .join(", ")}.
+          </p>
+        </div>
+      ) : null}
 
       {visibleWarnings.length > 0 ? (
         <div className="routingWarnings" role="status">
@@ -191,7 +205,7 @@ function SourceLabel({ source }: { source: string }) {
 
 function buildTimelineEvents(day: DetailedRoutingDay): TimelineEvent[] {
   const events: TimelineEvent[] = [
-    ...day.stops.map(
+    ...day.stops.filter((stop) => stop.scheduled).map(
       (stop): TimelineEvent => ({
         kind: "stop",
         sortTime: stop.arrival_time || "9999",

@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.core.logging import get_logger
 from app.graph.builder import get_graph
 from app.models import (
+    ConfirmedTripSnapshot,
     DetailedRoutingPlan,
     TravelSelections,
     TripCostSummary,
@@ -124,9 +125,22 @@ class DetailedRoutingService:
             await _close_provider(places_provider)
             await _close_provider(routing_provider)
 
+        snapshot_update = None
+        try:
+            confirmed = ConfirmedTripSnapshot.model_validate(
+                values.get("confirmed_snapshot")
+            )
+            snapshot_update = confirmed.model_copy(
+                update={"routing_plan": detailed_plan}
+            )
+        except ValueError:
+            pass
+        update = {"detailed_routing_plan": detailed_plan}
+        if snapshot_update is not None:
+            update["confirmed_snapshot"] = snapshot_update
         await graph.aupdate_state(
             config,
-            {"detailed_routing_plan": detailed_plan},
+            update,
             as_node="memory_write",
         )
         logger.info(

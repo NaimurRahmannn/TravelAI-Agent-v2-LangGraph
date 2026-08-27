@@ -42,15 +42,26 @@ export function FlightRecommendations({
   variant = "itinerary",
 }: FlightRecommendationsProps) {
   const recommendations = itinerary.recommendations;
-  if (
-    !recommendations ||
-    recommendations.flight_status.status === "not_searched"
-  ) {
+  if (!recommendations) {
+    return null;
+  }
+  const status =
+    scope === "outbound"
+      ? recommendations.outbound_flight_status.status
+      : scope === "return"
+        ? recommendations.return_flight_status.status
+        : recommendations.flight_status.status;
+  if (status === "not_searched") {
     return null;
   }
 
   const headingId = `${idPrefix}-flights-heading`;
-  const flights = recommendations.flights;
+  const flights =
+    scope === "outbound"
+      ? recommendations.outbound_flights
+      : scope === "return"
+        ? recommendations.return_flights
+        : recommendations.flights;
   const standalone = variant === "standalone";
   const title = standalone
     ? scope === "outbound"
@@ -58,7 +69,11 @@ export function FlightRecommendations({
       : scope === "return"
         ? "Return flight options"
         : "Round-trip flight options"
-    : "Flight recommendations";
+    : scope === "outbound"
+      ? "Outbound flight recommendations"
+      : scope === "return"
+        ? "Return flight recommendations"
+        : "Flight recommendations";
 
   return (
     <section
@@ -124,7 +139,7 @@ export function FlightRecommendations({
           </div>
         </fieldset>
       ) : (
-        <FlightEmptyState status={recommendations.flight_status.status} />
+        <FlightEmptyState status={status} />
       )}
 
       <div className="flightDisclaimer">
@@ -170,7 +185,7 @@ function FlightCard({
         <label className="recommendationRadio">
           <input
             checked={isSelected}
-            name={`${idPrefix}-flight-selection`}
+            name={`${idPrefix}-flight-selection-${scope}`}
             onChange={() => onSelect?.(flight.provider_offer_id)}
             type="radio"
             value={flight.provider_offer_id}

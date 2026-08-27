@@ -6,7 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.models import (
     DetailedRoutingPlan,
+    ConfirmedTripSnapshot,
     FlightSearchScope,
+    FlightOption,
     SelectedHotelStay,
     SelectionStatus,
     TravelSelections,
@@ -65,6 +67,7 @@ class ChatResponse(BaseModel):
     travel_selections: TravelSelections | None = None
     trip_cost_summary: TripCostSummary | None = None
     detailed_routing_plan: DetailedRoutingPlan | None = None
+    confirmed_snapshot: ConfirmedTripSnapshot | None = None
     flight_selection_status: SelectionStatus = "not_required"
     hotel_selection_status: SelectionStatus = "not_required"
     missing_fields: list[str] = Field(default_factory=list)
@@ -76,8 +79,26 @@ class TravelSelectionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     thread_id: str = Field(min_length=1)
-    selected_flight_id: str = Field(min_length=1)
+    selected_flight_id: str | None = Field(default=None, min_length=1)
+    selected_outbound_flight_id: str | None = Field(default=None, min_length=1)
+    selected_return_flight_id: str | None = Field(default=None, min_length=1)
     selected_hotels: list[SelectedHotelStay] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_flight_selection(self) -> "TravelSelectionRequest":
+        legacy = self.selected_flight_id is not None
+        legs = (
+            self.selected_outbound_flight_id is not None
+            and self.selected_return_flight_id is not None
+        )
+        partial_legs = (
+            self.selected_outbound_flight_id is None
+        ) != (self.selected_return_flight_id is None)
+        if partial_legs or legacy == legs:
+            raise ValueError(
+                "Select either one bundled flight or both outbound and return flights"
+            )
+        return self
 
 
 class TravelSelectionResponse(BaseModel):
@@ -88,6 +109,27 @@ class TravelSelectionResponse(BaseModel):
     thread_id: str
     travel_selections: TravelSelections
     trip_cost_summary: TripCostSummary
+    confirmed_snapshot: ConfirmedTripSnapshot
+
+
+class FlightLegSelectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str = Field(min_length=1)
+    scope: Literal["outbound", "return"]
+    selected_flight_id: str = Field(min_length=1)
+
+
+class FlightLegSelectionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str
+    selected_flight: FlightOption
+    itinerary: TripPlan
+    travel_selections: TravelSelections
+    trip_cost_summary: TripCostSummary
+    detailed_routing_plan: DetailedRoutingPlan | None = None
+    confirmed_snapshot: ConfirmedTripSnapshot
 
 
 class DetailedRoutingRequest(BaseModel):
@@ -116,7 +158,7 @@ class FlightRefreshRequest(BaseModel):
 
 
 class FlightRefreshResponse(BaseModel):
-    """Fresh flight results and explicitly invalidated derived selections."""
+    """Fresh candidates plus the unchanged confirmed trip state."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -126,6 +168,7 @@ class FlightRefreshResponse(BaseModel):
     travel_selections: TravelSelections | None = None
     trip_cost_summary: TripCostSummary | None = None
     detailed_routing_plan: DetailedRoutingPlan | None = None
+    confirmed_snapshot: ConfirmedTripSnapshot | None = None
 
 
 class MapsConfigResponse(BaseModel):

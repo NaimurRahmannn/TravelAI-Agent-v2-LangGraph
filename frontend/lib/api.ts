@@ -233,6 +233,8 @@ export type SelectedHotelStay = {
 
 export type TravelSelections = {
   selected_flight_id?: string | null;
+  selected_outbound_flight_id?: string | null;
+  selected_return_flight_id?: string | null;
   selected_hotels: SelectedHotelStay[];
 };
 
@@ -325,11 +327,14 @@ export type FlightRefreshResponse = {
   travel_selections?: TravelSelections | null;
   trip_cost_summary?: TripCostSummary | null;
   detailed_routing_plan?: DetailedRoutingPlan | null;
+  confirmed_snapshot?: ConfirmedTripSnapshot | null;
 };
 
 export type TravelSelectionRequest = {
   thread_id: string;
-  selected_flight_id: string;
+  selected_flight_id?: string | null;
+  selected_outbound_flight_id?: string | null;
+  selected_return_flight_id?: string | null;
   selected_hotels: SelectedHotelStay[];
 };
 
@@ -337,6 +342,17 @@ export type TravelSelectionResponse = {
   thread_id: string;
   travel_selections: TravelSelections;
   trip_cost_summary: TripCostSummary;
+  confirmed_snapshot: ConfirmedTripSnapshot;
+};
+
+export type FlightLegSelectionResponse = {
+  thread_id: string;
+  selected_flight: FlightOption;
+  itinerary: TripPlan;
+  travel_selections: TravelSelections;
+  trip_cost_summary: TripCostSummary;
+  detailed_routing_plan?: DetailedRoutingPlan | null;
+  confirmed_snapshot: ConfirmedTripSnapshot;
 };
 
 export type RestaurantRecommendation = {
@@ -355,9 +371,13 @@ export type RestaurantRecommendation = {
 
 export type TravelRecommendations = {
   flights: FlightOption[];
+  outbound_flights: FlightOption[];
+  return_flights: FlightOption[];
   hotels: HotelOption[];
   restaurants: RestaurantRecommendation[];
   flight_status: RecommendationDomainState;
+  outbound_flight_status: RecommendationDomainState;
+  return_flight_status: RecommendationDomainState;
   hotel_status: RecommendationDomainState;
   restaurant_status: RecommendationDomainState;
 };
@@ -388,9 +408,20 @@ export type ChatResponse = {
   travel_selections?: TravelSelections | null;
   trip_cost_summary?: TripCostSummary | null;
   detailed_routing_plan?: DetailedRoutingPlan | null;
+  confirmed_snapshot?: ConfirmedTripSnapshot | null;
   flight_selection_status: SelectionStatus;
   hotel_selection_status: SelectionStatus;
   missing_fields: string[];
+};
+
+export type ConfirmedTripSnapshot = {
+  revision: number;
+  itinerary: TripPlan;
+  selections: TravelSelections;
+  cost_summary: TripCostSummary;
+  routing_plan?: DetailedRoutingPlan | null;
+  status: "current" | "stale";
+  stale_reasons: string[];
 };
 
 export type SelectionStatus =
@@ -488,6 +519,26 @@ export async function confirmTravelSelection(
     throw new Error(await getErrorMessage(response));
   }
 
+  return response.json();
+}
+
+export async function confirmFlightLeg(
+  threadId: string,
+  scope: "outbound" | "return",
+  selectedFlightId: string,
+): Promise<FlightLegSelectionResponse> {
+  const response = await fetch(`${API_BASE_URL}/trip/select-flight-leg`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      thread_id: threadId,
+      scope,
+      selected_flight_id: selectedFlightId,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
   return response.json();
 }
 

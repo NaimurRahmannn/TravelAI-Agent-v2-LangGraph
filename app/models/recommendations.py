@@ -270,9 +270,17 @@ class TravelRecommendations(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     flights: list[FlightOption] = Field(default_factory=list)
+    outbound_flights: list[FlightOption] = Field(default_factory=list)
+    return_flights: list[FlightOption] = Field(default_factory=list)
     hotels: list[HotelOption] = Field(default_factory=list)
     restaurants: list[RestaurantRecommendation] = Field(default_factory=list)
     flight_status: RecommendationDomainState = Field(
+        default_factory=RecommendationDomainState
+    )
+    outbound_flight_status: RecommendationDomainState = Field(
+        default_factory=RecommendationDomainState
+    )
+    return_flight_status: RecommendationDomainState = Field(
         default_factory=RecommendationDomainState
     )
     hotel_status: RecommendationDomainState = Field(

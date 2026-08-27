@@ -12,7 +12,14 @@ def build_travel_selection_status(
         return TravelSelectionStatus()
     recommendations = itinerary.recommendations
     selected_flight = bool(
-        selections is not None and selections.selected_flight_id is not None
+        selections is not None
+        and (
+            selections.selected_flight_id is not None
+            or (
+                selections.selected_outbound_flight_id is not None
+                and selections.selected_return_flight_id is not None
+            )
+        )
     )
     selected_hotels = bool(selections is not None and selections.selected_hotels)
     if recommendations is None:
@@ -21,9 +28,20 @@ def build_travel_selection_status(
             hotel="selected" if selected_hotels else "not_required",
         )
 
+    uses_split_flights = bool(
+        recommendations.outbound_flights
+        or recommendations.return_flights
+        or recommendations.outbound_flight_status.status != "not_searched"
+        or recommendations.return_flight_status.status != "not_searched"
+    )
     flight = _recommendation_selection_status(
         recommendations.flight_status.status,
-        has_complete_options=bool(recommendations.flights),
+        has_complete_options=(
+            bool(recommendations.outbound_flights)
+            and bool(recommendations.return_flights)
+            if uses_split_flights
+            else bool(recommendations.flights)
+        )
     )
 
     required_stays = derive_hotel_stays(itinerary)

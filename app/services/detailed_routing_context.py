@@ -144,6 +144,11 @@ def build_detailed_routing_context(
         activities = tuple(
             _routing_activity(day.day_number, index, activity)
             for index, activity in enumerate(day.activities, start=1)
+            if not (
+                departure is not None
+                and day.day_number == ordered_days[-1].day_number
+                and _is_departure_logistics_placeholder(activity)
+            )
         )
         days.append(
             RoutingDayContext(
@@ -282,6 +287,24 @@ def _routing_activity(
             latitude=place.latitude if trusted and place else None,
             longitude=place.longitude if trusted and place else None,
         ),
+    )
+
+
+def _is_departure_logistics_placeholder(activity: Activity) -> bool:
+    """Detect model-authored placeholders replaced by deterministic routing."""
+
+    normalized = " ".join(activity.name.strip().casefold().split())
+    return any(
+        phrase in normalized
+        for phrase in (
+            "departure logistics",
+            "airport transfer",
+            "travel to airport",
+            "transfer to airport",
+            "hotel checkout",
+            "hotel check-out",
+            "check out and depart",
+        )
     )
 
 

@@ -139,6 +139,26 @@ def test_confirmed_snapshot_reports_both_selections_as_selected():
     assert status.hotel == "selected"
 
 
+def test_partial_split_flight_candidates_cannot_be_confirmed_as_a_round_trip():
+    plan = _selectable_plan()
+    recommendations = plan.recommendations
+    assert recommendations is not None
+    recommendations.return_flights = list(recommendations.flights)
+    recommendations.return_flight_status = {
+        "status": "available",
+        "provider_result_count": 1,
+    }
+    recommendations.outbound_flights = []
+    recommendations.outbound_flight_status = {
+        "status": "no_results",
+        "provider_result_count": 0,
+    }
+
+    status = build_travel_selection_status(plan, None)
+
+    assert status.flight == "unavailable"
+
+
 def test_renderer_asks_for_selection_only_for_fresh_complete_options():
     plan = _selectable_plan()
 
