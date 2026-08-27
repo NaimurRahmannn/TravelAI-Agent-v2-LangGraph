@@ -1,14 +1,17 @@
 from datetime import date
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import MessagesState
 from app.models import (
     DetailedRoutingPlan,
     FlightSearchCache,
+    FlightSearchScope,
     TravelSelections,
     Trip,
     TripCostSummary,
     TripPlan,
+    TurnDecision,
+    TurnIntent,
 )
 
 
@@ -38,12 +41,20 @@ class TravelState(MessagesState):
 
     user_id: str | None
     planner: PlannerState
+    turn_intent: TurnIntent
+    turn_decision: TurnDecision
     trip: Trip | None
     preferences_changed: bool
     selected_start_date: date | None
     selected_end_date: date | None
     itinerary: TripPlan | None
     flight_search_cache: FlightSearchCache | None
+    flight_search_scope: FlightSearchScope | None
+    extension_days: int | None
+    extension_original_end_date: date | None
+    extension_base_trip: Trip | None
+    extension_base_itinerary: TripPlan | None
+    extension_ready: bool
     travel_selections: TravelSelections | None
     trip_cost_summary: TripCostSummary | None
     detailed_routing_plan: DetailedRoutingPlan | None

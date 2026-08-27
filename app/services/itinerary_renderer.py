@@ -8,6 +8,7 @@ from app.models import (
     TripCostSummary,
     TripPlan,
 )
+from app.models.recommendations import FlightSearchScope
 from app.services.selection_status import build_travel_selection_status
 
 _HIDDEN_ROUTING_WARNINGS = frozenset(
@@ -205,6 +206,149 @@ def render_itinerary(
         _append_detailed_routing(lines, detailed_routing_plan)
 
     return "\n".join(lines).strip()
+
+
+def render_flight_recommendations(
+    plan: TripPlan,
+    *,
+    scope: FlightSearchScope,
+) -> str:
+    """Render a focused response for an explicit conversational flight search."""
+
+    heading = {
+        "outbound": "Departure Flight Suggestions",
+        "return": "Return Flight Suggestions",
+        "round_trip": "Round-Trip Flight Suggestions",
+    }[scope]
+    lines = [f"## {heading}"]
+    if scope == "round_trip" and plan.start_date and plan.end_date:
+        lines.extend(
+            [
+                "",
+                f"Departure: **{plan.start_date}** · Return: **{plan.end_date}**",
+            ]
+        )
+    else:
+        date_label = plan.end_date if scope == "return" else plan.start_date
+        if date_label is not None:
+            lines.extend(["", f"Travel date: **{date_label}**"])
+
+    recommendations = plan.recommendations
+    status = (
+        recommendations.flight_status.status
+        if recommendations is not None
+        else "not_searched"
+    )
+    flights = recommendations.flights if recommendations is not None else []
+    if not flights:
+        message = {
+            "no_results": "No matching flights were found for this date.",
+            "unavailable": (
+                "Flight search is temporarily unavailable. Please try again shortly."
+            ),
+            "not_searched": (
+                "The current trip does not contain enough information to search flights."
+            ),
+        }.get(status, "No matching flights were found for this date.")
+        lines.extend(["", message])
+        return "\n".join(lines)
+
+    for option_number, option in enumerate(flights, start=1):
+        airline = " + ".join(option.airline_names) or "Airline unavailable"
+        lines.extend(["", f"{option_number}. **{airline}**"])
+        for index, flight_slice in enumerate(option.slices):
+            if scope == "round_trip" and len(option.slices) == 2:
+                label = "Outbound" if index == 0 else "Return"
+            elif scope == "return":
+                label = "Return"
+            else:
+                label = "Departure"
+            lines.extend(
+                [
+                    f"   - {label}: {flight_slice.origin_code} → "
+                    f"{flight_slice.destination_code}",
+                    f"   - Departs: {_format_flight_datetime(flight_slice.departure_at)}",
+                    f"   - Arrives: {_format_flight_datetime(flight_slice.arrival_at)}",
+                    f"   - {_format_stops(flight_slice.stops)}; "
+                    f"{_format_duration(flight_slice.duration_minutes)}",
+                ]
+            )
+        lines.append(
+            f"   - Total for {option.adults} adult"
+            f"{'s' if option.adults != 1 else ''}: "
+            f"{_format_money(option.total_price, option.currency)}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "Current flight-search prices from Google Flights via Swoop. "
+            "Prices and availability can change before booking.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def render_hotel_recommendations(plan: TripPlan) -> str:
+    """Render a focused response for an explicit conversational hotel search."""
+
+    lines = ["## Hotel Suggestions"]
+    recommendations = plan.recommendations
+    status = (
+        recommendations.hotel_status.status
+        if recommendations is not None
+        else "not_searched"
+    )
+    hotels = recommendations.hotels if recommendations is not None else []
+    if not hotels:
+        message = {
+            "no_results": "No matching hotel rates were found for these dates.",
+            "unavailable": (
+                "Hotel search is temporarily unavailable. Please try again shortly."
+            ),
+            "not_searched": (
+                "The current trip does not contain enough information to search hotels."
+            ),
+        }.get(status, "No matching hotel rates were found for these dates.")
+        return "\n\n".join([*lines, message])
+
+    current_stay: tuple[str, object, object] | None = None
+    for option_number, option in enumerate(hotels, start=1):
+        stay = (option.city or "This stay", option.check_in, option.check_out)
+        if stay != current_stay:
+            lines.extend(
+                [
+                    "",
+                    f"### {stay[0]} · {option.check_in} to {option.check_out}",
+                ]
+            )
+            current_stay = stay
+        lines.extend(
+            [
+                "",
+                f"{option_number}. **{option.name}**",
+                f"   - {option.nights} night"
+                f"{'s' if option.nights != 1 else ''}",
+                f"   - Total: {_format_money(option.total_price, option.currency)}",
+            ]
+        )
+        if option.price_per_night is not None:
+            lines.append(
+                "   - Per night: "
+                f"{_format_money(option.price_per_night, option.currency)}"
+            )
+    lines.extend(
+        [
+            "",
+            "Current hotel-search rates from LiteAPI / Nuitee Connect. "
+            "Prices and availability can change before booking.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _format_flight_datetime(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d %H:%M %Z").strip()
 
 
 def _append_selection_prompt(

@@ -6,6 +6,7 @@ from app.models import (
     FlightOption,
     FlightSearchCache,
     FlightSearchRequest,
+    FlightSearchScope,
     RecommendationDomainState,
     TravelRecommendations,
     TripPlan,
@@ -154,8 +155,12 @@ async def close_flight_provider(provider: FlightProvider) -> None:
         await result
 
 
-def build_flight_search_request(trip_plan: TripPlan) -> FlightSearchRequest | None:
-    """Build an adults-only round trip from authoritative itinerary endpoints."""
+def build_flight_search_request(
+    trip_plan: TripPlan,
+    *,
+    scope: FlightSearchScope = "round_trip",
+) -> FlightSearchRequest | None:
+    """Build a scoped adults-only search from authoritative itinerary endpoints."""
 
     if (
         not trip_plan.origin
@@ -169,29 +174,49 @@ def build_flight_search_request(trip_plan: TripPlan) -> FlightSearchRequest | No
 
     first_day = min(trip_plan.days, key=lambda day: day.day_number)
     last_day = max(trip_plan.days, key=lambda day: day.day_number)
-    outbound_destination = first_day.city.strip() or trip_plan.destination
-    return_origin = last_day.city.strip() or trip_plan.destination
+    first_city = first_day.city.strip() or trip_plan.destination
+    last_city = last_day.city.strip() or trip_plan.destination
+    if scope == "return":
+        return FlightSearchRequest(
+            origin=last_city,
+            destination=trip_plan.origin,
+            origin_country_hint=_day_country_code(last_day),
+            destination_country_hint=_explicit_country_code(trip_plan.origin),
+            departure_date=trip_plan.end_date,
+            adults=trip_plan.travelers,
+        )
+
     return FlightSearchRequest(
         origin=trip_plan.origin,
-        destination=outbound_destination,
-        return_origin=return_origin,
-        return_destination=trip_plan.origin,
+        destination=first_city,
+        return_origin=last_city if scope == "round_trip" else None,
+        return_destination=trip_plan.origin if scope == "round_trip" else None,
         origin_country_hint=_explicit_country_code(trip_plan.origin),
         destination_country_hint=_day_country_code(first_day),
-        return_origin_country_hint=_day_country_code(last_day),
-        return_destination_country_hint=_explicit_country_code(trip_plan.origin),
+        return_origin_country_hint=(
+            _day_country_code(last_day) if scope == "round_trip" else None
+        ),
+        return_destination_country_hint=(
+            _explicit_country_code(trip_plan.origin)
+            if scope == "round_trip"
+            else None
+        ),
         departure_date=trip_plan.start_date,
-        return_date=trip_plan.end_date,
+        return_date=trip_plan.end_date if scope == "round_trip" else None,
         adults=trip_plan.travelers,
     )
 
 
-def mark_flight_recommendations_unavailable(trip_plan: TripPlan) -> TripPlan:
+def mark_flight_recommendations_unavailable(
+    trip_plan: TripPlan,
+    *,
+    scope: FlightSearchScope = "round_trip",
+) -> TripPlan:
     """Record an optional provider outage while retaining every other result."""
 
     status = (
         build_recommendation_status(provider_available=False)
-        if build_flight_search_request(trip_plan) is not None
+        if build_flight_search_request(trip_plan, scope=scope) is not None
         else build_recommendation_status(searched=False)
     )
     return update_flight_recommendations(trip_plan, flights=[], status=status)

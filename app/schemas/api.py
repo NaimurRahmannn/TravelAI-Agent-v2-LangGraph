@@ -1,11 +1,12 @@
 import re
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import (
     DetailedRoutingPlan,
+    FlightSearchScope,
     SelectedHotelStay,
     SelectionStatus,
     TravelSelections,
@@ -50,6 +51,15 @@ class ChatResponse(BaseModel):
     """Response body returned by the travel graph."""
 
     response: str
+    response_mode: Literal[
+        "text",
+        "itinerary",
+        "flight_suggestions",
+        "hotel_suggestions",
+        "trip_extension",
+        "unsupported",
+    ] = "text"
+    flight_search_scope: FlightSearchScope | None = None
     thread_id: str
     itinerary: TripPlan | None = None
     travel_selections: TravelSelections | None = None

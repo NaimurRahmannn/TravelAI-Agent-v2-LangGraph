@@ -15,11 +15,20 @@ import {
   SquareActivity,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   approveAction,
   sendChat,
+  type ChatResponseMode,
   type DetailedRoutingPlan,
+  type FlightSearchScope,
   type SelectionStatus,
   type TravelSelections,
   type TripCostSummary,
@@ -32,6 +41,8 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  responseMode?: ChatResponseMode;
+  flightSearchScope?: FlightSearchScope | null;
   itinerary?: TripPlan | null;
   travelSelections?: TravelSelections | null;
   tripCostSummary?: TripCostSummary | null;
@@ -48,11 +59,14 @@ const SUGGESTIONS = [
 ];
 
 const TRAVELER_ID_STORAGE_KEY = "travel-ai-user-id";
+const subscribeToHydration = () => () => undefined;
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: crypto.randomUUID(),
+      id: "welcome-message",
       role: "system",
       content:
         "Start a travel request, then refine it with preferences. The same thread id will keep the conversation state.",
@@ -63,13 +77,23 @@ export default function Home() {
   const [userId, setUserId] = useState("");
   const [mapRailTarget, setMapRailTarget] = useState<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const hasHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const dateUpdateInFlightRef = useRef(false);
 
   const editableItineraryMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
-      if (messages[index].itinerary) {
+      if (
+        messages[index].itinerary &&
+        !["flight_suggestions", "hotel_suggestions"].includes(
+          messages[index].responseMode ?? "text",
+        )
+      ) {
         return messages[index].id;
       }
     }
@@ -83,7 +107,11 @@ export default function Home() {
   );
   const selectableItineraryMessageId = useMemo(() => {
     const latestMessage = messages[messages.length - 1];
-    return latestMessage?.role === "assistant" && latestMessage.itinerary
+    return latestMessage?.role === "assistant" &&
+      latestMessage.itinerary &&
+      !["flight_suggestions", "hotel_suggestions"].includes(
+        latestMessage.responseMode ?? "text",
+      )
       ? latestMessage.id
       : null;
   }, [messages]);
@@ -159,6 +187,8 @@ export default function Home() {
         id: crypto.randomUUID(),
         role: "assistant",
         content: response.response,
+        responseMode: response.response_mode,
+        flightSearchScope: response.flight_search_scope,
         itinerary: response.itinerary,
         travelSelections: response.travel_selections,
         tripCostSummary: response.trip_cost_summary,
@@ -215,6 +245,8 @@ export default function Home() {
           id: crypto.randomUUID(),
           role: "assistant",
           content: response.response,
+          responseMode: response.response_mode,
+          flightSearchScope: response.flight_search_scope,
           itinerary: response.itinerary,
           travelSelections: response.travel_selections,
           tripCostSummary: response.trip_cost_summary,
@@ -282,6 +314,8 @@ export default function Home() {
             ? {
                 ...item,
                 content: response.response,
+                responseMode: response.response_mode,
+                flightSearchScope: response.flight_search_scope,
                 itinerary: response.itinerary,
                 travelSelections: response.travel_selections,
                 tripCostSummary: response.trip_cost_summary,
@@ -481,7 +515,7 @@ export default function Home() {
           <div className="approvalRow">
             <button
               className="iconButton accept"
-              disabled={!threadId || isLoading}
+              disabled={!hasHydrated || !threadId || isLoading}
               onClick={() => handleApproval(true)}
               title="Approve"
               type="button"
@@ -490,7 +524,7 @@ export default function Home() {
             </button>
             <button
               className="iconButton reject"
-              disabled={!threadId || isLoading}
+              disabled={!hasHydrated || !threadId || isLoading}
               onClick={() => handleApproval(false)}
               title="Reject"
               type="button"
@@ -519,7 +553,18 @@ export default function Home() {
               {messages.map((message) => (
                 <article
                   className={`message ${message.role} ${
-                    message.itinerary ? "itineraryMessage" : ""
+                    message.itinerary &&
+                    !["flight_suggestions", "hotel_suggestions"].includes(
+                      message.responseMode ?? "text",
+                    )
+                      ? "itineraryMessage"
+                      : ""
+                  } ${
+                    ["flight_suggestions", "hotel_suggestions"].includes(
+                      message.responseMode ?? "text",
+                    )
+                      ? "flightSuggestionMessage"
+                      : ""
                   }`}
                   key={message.id}
                 >
@@ -527,6 +572,8 @@ export default function Home() {
                   {message.role === "assistant" ? (
                     <AssistantMessage
                       content={message.content}
+                      responseMode={message.responseMode}
+                      flightSearchScope={message.flightSearchScope}
                       detailedRoutingPlan={message.detailedRoutingPlan}
                       itinerary={message.itinerary}
                       flightSelectionStatus={message.flightSelectionStatus}

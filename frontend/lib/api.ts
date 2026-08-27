@@ -6,6 +6,15 @@ export type ChatRequest = {
   end_date?: string;
 };
 
+export type ChatResponseMode =
+  | "text"
+  | "itinerary"
+  | "flight_suggestions"
+  | "hotel_suggestions"
+  | "trip_extension"
+  | "unsupported";
+export type FlightSearchScope = "outbound" | "return" | "round_trip";
+
 export type ResolvedPlace = {
   provider: "geoapify";
   provider_place_id: string;
@@ -223,7 +232,7 @@ export type SelectedHotelStay = {
 };
 
 export type TravelSelections = {
-  selected_flight_id: string;
+  selected_flight_id?: string | null;
   selected_hotels: SelectedHotelStay[];
 };
 
@@ -318,8 +327,10 @@ export type FlightRefreshResponse = {
   detailed_routing_plan?: DetailedRoutingPlan | null;
 };
 
-export type TravelSelectionRequest = TravelSelections & {
+export type TravelSelectionRequest = {
   thread_id: string;
+  selected_flight_id: string;
+  selected_hotels: SelectedHotelStay[];
 };
 
 export type TravelSelectionResponse = {
@@ -370,6 +381,8 @@ export type TripPlan = {
 
 export type ChatResponse = {
   response: string;
+  response_mode: ChatResponseMode;
+  flight_search_scope?: FlightSearchScope | null;
   thread_id: string;
   itinerary?: TripPlan | null;
   travel_selections?: TravelSelections | null;

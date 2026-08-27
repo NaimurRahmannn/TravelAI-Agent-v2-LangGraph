@@ -10,12 +10,16 @@ def build_travel_selection_status(
 
     if itinerary is None:
         return TravelSelectionStatus()
-    if selections is not None:
-        return TravelSelectionStatus(flight="selected", hotel="selected")
-
     recommendations = itinerary.recommendations
+    selected_flight = bool(
+        selections is not None and selections.selected_flight_id is not None
+    )
+    selected_hotels = bool(selections is not None and selections.selected_hotels)
     if recommendations is None:
-        return TravelSelectionStatus()
+        return TravelSelectionStatus(
+            flight="selected" if selected_flight else "not_required",
+            hotel="selected" if selected_hotels else "not_required",
+        )
 
     flight = _recommendation_selection_status(
         recommendations.flight_status.status,
@@ -32,6 +36,18 @@ def build_travel_selection_status(
         recommendations.hotel_status.status,
         has_complete_options=hotel_options_complete,
     )
+    if selections is not None:
+        if selected_flight:
+            flight = "selected"
+        if selected_hotels:
+            selected_stay_keys = {
+                selection.stay_key for selection in selections.selected_hotels
+            }
+            hotel = (
+                "selected"
+                if required_stay_keys and required_stay_keys <= selected_stay_keys
+                else "required"
+            )
     return TravelSelectionStatus(flight=flight, hotel=hotel)
 
 

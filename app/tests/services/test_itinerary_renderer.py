@@ -14,7 +14,10 @@ from app.models import (
     TripPlan,
     build_hotel_stay_key,
 )
-from app.services.itinerary_renderer import render_itinerary
+from app.services.itinerary_renderer import (
+    render_flight_recommendations,
+    render_itinerary,
+)
 
 
 def test_renderer_outputs_structured_plan_deterministically():
@@ -242,6 +245,14 @@ def test_renderer_shows_swoop_shopping_total_and_separate_flight_legs():
     assert "Projected trip total" not in rendered
     assert "trip budget" not in rendered
     assert "Google Flights via Swoop" in rendered
+
+    focused = render_flight_recommendations(plan, scope="round_trip")
+
+    assert focused.startswith("## Round-Trip Flight Suggestions")
+    assert "Departs: 2026-09-10 09:30" in focused
+    assert "Arrives: 2026-09-16 03:20" in focused
+    assert "## Day 1" not in focused
+    assert "Base Trip Estimate" not in focused
 
 
 def test_renderer_groups_hotel_rate_as_recommendation_outside_base_estimate():

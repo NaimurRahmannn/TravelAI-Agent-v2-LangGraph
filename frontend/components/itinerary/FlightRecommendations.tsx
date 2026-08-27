@@ -1,6 +1,16 @@
-import { CircleAlert, Clock3, Loader2, Plane, RefreshCcw } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  CircleAlert,
+  Clock3,
+  Loader2,
+  Plane,
+  RefreshCcw,
+  Sparkles,
+} from "lucide-react";
 import type {
   FlightOption,
+  FlightSearchScope,
   FlightSlice,
   RecommendationStatus,
   TripPlan,
@@ -15,6 +25,8 @@ type FlightRecommendationsProps = {
   selectedFlightId?: string | null;
   selectionMode?: boolean;
   refreshing?: boolean;
+  scope?: FlightSearchScope;
+  variant?: "itinerary" | "standalone";
 };
 
 export function FlightRecommendations({
@@ -26,6 +38,8 @@ export function FlightRecommendations({
   selectedFlightId,
   selectionMode = false,
   refreshing = false,
+  scope = "round_trip",
+  variant = "itinerary",
 }: FlightRecommendationsProps) {
   const recommendations = itinerary.recommendations;
   if (
@@ -37,18 +51,36 @@ export function FlightRecommendations({
 
   const headingId = `${idPrefix}-flights-heading`;
   const flights = recommendations.flights;
+  const standalone = variant === "standalone";
+  const title = standalone
+    ? scope === "outbound"
+      ? "Departure flight options"
+      : scope === "return"
+        ? "Return flight options"
+        : "Round-trip flight options"
+    : "Flight recommendations";
 
   return (
-    <section aria-labelledby={headingId} className="flightRecommendations">
+    <section
+      aria-labelledby={headingId}
+      className={`flightRecommendations ${standalone ? "flightRecommendationsStandalone" : ""}`}
+    >
       <header className="flightSectionHeader">
         <span>
           <Plane aria-hidden="true" size={20} />
         </span>
         <div>
-          <p>Current flight search</p>
-          <h3 id={headingId}>Flight recommendations</h3>
+          <p>{standalone ? "Tailored flight shortlist" : "Current flight search"}</p>
+          <h3 id={headingId}>{title}</h3>
         </div>
-        {onRefresh ? (
+        <div className="flightHeaderActions">
+          {flights.length > 0 ? (
+            <span className="liveFareBadge">
+              <Sparkles aria-hidden="true" size={13} />
+              Live shortlist
+            </span>
+          ) : null}
+          {onRefresh ? (
           <button
             className="flightRefreshButton"
             disabled={refreshing}
@@ -62,7 +94,8 @@ export function FlightRecommendations({
             )}
             {refreshing ? "Refreshing flights..." : "Refresh flights"}
           </button>
-        ) : null}
+          ) : null}
+        </div>
       </header>
 
       {error ? (
@@ -76,7 +109,7 @@ export function FlightRecommendations({
         <fieldset className="recommendationChoiceGroup">
           <legend className="visuallyHidden">Choose one flight</legend>
           <div className="flightCardGrid">
-            {flights.map((flight) => (
+            {flights.map((flight, index) => (
               <FlightCard
                 flight={flight}
                 idPrefix={idPrefix}
@@ -84,6 +117,8 @@ export function FlightRecommendations({
                 key={flight.provider_offer_id}
                 onSelect={onSelectFlight}
                 selectionMode={selectionMode}
+                rank={index + 1}
+                scope={scope}
               />
             ))}
           </div>
@@ -106,14 +141,25 @@ function FlightCard({
   isSelected,
   onSelect,
   selectionMode,
+  rank,
+  scope,
 }: {
   flight: FlightOption;
   idPrefix: string;
   isSelected: boolean;
   onSelect?: (flightId: string) => void;
   selectionMode: boolean;
+  rank: number;
+  scope: FlightSearchScope;
 }) {
   const airlines = flight.airline_names.join(" + ") || "Airline unavailable";
+  const airlineMark = airlines
+    .split(/\s|\+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
   const route = flight.slices
     .map((slice) => `${slice.origin_code} → ${slice.destination_code}`)
     .join(" · ");
@@ -133,11 +179,19 @@ function FlightCard({
         </label>
       ) : null}
       <header className="flightCardHeader">
-        <div>
-          <span className="fareEstimateTag">Flight recommendation</span>
-          <p className="flightAirline">{airlines}</p>
+        <div className="flightAirlineIdentity">
+          <span className="airlineMark" aria-hidden="true">{airlineMark}</span>
+          <div>
+            <span className="fareEstimateTag">
+              {rank === 1 ? "Top recommendation" : `Option ${rank}`}
+            </span>
+            <p className="flightAirline">{airlines}</p>
+          </div>
         </div>
-        <p className="flightMarketRoute">{route}</p>
+        <p className="flightMarketRoute">
+          <span>{route}</span>
+          <ArrowRight aria-hidden="true" size={14} />
+        </p>
       </header>
 
       <div className="fareLegs">
@@ -146,6 +200,7 @@ function FlightCard({
             index={index}
             key={`${slice.origin_code}-${slice.destination_code}-${index}`}
             slice={slice}
+            scope={scope}
             totalSlices={flight.slices.length}
           />
         ))}
@@ -158,6 +213,10 @@ function FlightCard({
           </span>
           <strong>{formatMoney(flight.total_price, flight.currency)}</strong>
         </div>
+        <span className="fareFreshness">
+          <CalendarDays aria-hidden="true" size={14} />
+          Date-matched fare
+        </span>
       </footer>
     </article>
   );
@@ -166,14 +225,23 @@ function FlightCard({
 function FlightSliceRow({
   index,
   slice,
+  scope,
   totalSlices,
 }: {
   index: number;
   slice: FlightSlice;
+  scope: FlightSearchScope;
   totalSlices: number;
 }) {
-  const label =
-    totalSlices === 2 ? (index === 0 ? "Outbound" : "Return") : `Leg ${index + 1}`;
+  const label = totalSlices === 2
+    ? index === 0
+      ? "Outbound"
+      : "Return"
+    : scope === "outbound"
+      ? "Departure"
+      : scope === "return"
+        ? "Return"
+        : `Leg ${index + 1}`;
   const segmentAirlines = Array.from(
     new Set(
       slice.segments
@@ -200,7 +268,11 @@ function FlightSliceRow({
           <strong>{slice.origin_code}</strong>
           <small>{formatFlightTime(slice.departure_at)}</small>
         </div>
-        <span>→</span>
+        <span className="flightRouteTrack">
+          <i />
+          <Plane aria-hidden="true" size={12} />
+          <i />
+        </span>
         <div>
           <strong>{slice.destination_code}</strong>
           <small>{formatFlightTime(slice.arrival_at)}</small>

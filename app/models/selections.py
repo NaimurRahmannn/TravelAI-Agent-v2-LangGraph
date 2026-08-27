@@ -30,11 +30,13 @@ class TravelSelections(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    selected_flight_id: NonEmptyString
-    selected_hotels: list[SelectedHotelStay] = Field(min_length=1)
+    selected_flight_id: NonEmptyString | None = None
+    selected_hotels: list[SelectedHotelStay] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_unique_stays(self) -> "TravelSelections":
+        if self.selected_flight_id is None and not self.selected_hotels:
+            raise ValueError("At least one travel selection is required")
         stay_keys = [selection.stay_key for selection in self.selected_hotels]
         if len(stay_keys) != len(set(stay_keys)):
             raise ValueError("Only one hotel may be selected per stay")

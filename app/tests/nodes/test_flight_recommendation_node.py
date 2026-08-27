@@ -231,6 +231,38 @@ def test_successful_empty_swoop_search_is_no_results_and_provider_is_closed(
     assert provider.closed is True
 
 
+def test_outbound_scope_reaches_provider_as_one_way_start_date_search(monkeypatch):
+    class Provider:
+        request = None
+
+        async def search_flights(self, request):
+            self.request = request
+            return []
+
+    provider = Provider()
+    monkeypatch.setattr(
+        flight_recommendation,
+        "get_settings",
+        lambda: SimpleNamespace(GEOAPIFY_API_KEY="private-geoapify-key"),
+    )
+    monkeypatch.setattr(
+        flight_recommendation,
+        "build_flight_provider",
+        lambda api_key: provider,
+    )
+
+    result = asyncio.run(
+        flight_recommendation.flight_recommendation_node(
+            {"itinerary": _plan(), "flight_search_scope": "outbound"},
+            config={},
+        )
+    )
+
+    assert provider.request.departure_date == date(2026, 9, 10)
+    assert provider.request.return_date is None
+    assert result["flight_search_cache"].request == provider.request
+
+
 @pytest.mark.parametrize("change", ["budget", "activity"])
 def test_fresh_cache_reattaches_to_new_plan_without_constructing_provider(
     monkeypatch,

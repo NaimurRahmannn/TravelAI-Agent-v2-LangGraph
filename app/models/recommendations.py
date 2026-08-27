@@ -21,6 +21,7 @@ RecommendationStatus = Literal[
     "unavailable",
 ]
 FlightPriceType = Literal["shopping_total"]
+FlightSearchScope = Literal["outbound", "return", "round_trip"]
 
 
 class _ProviderOption(BaseModel):

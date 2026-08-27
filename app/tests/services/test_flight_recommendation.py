@@ -143,6 +143,29 @@ def test_search_request_uses_first_last_cities_selected_dates_and_adults():
     assert request.adults == 2
 
 
+def test_outbound_search_uses_start_date_without_return_leg():
+    request = build_flight_search_request(_plan(), scope="outbound")
+
+    assert request is not None
+    assert request.origin == "Dhaka"
+    assert request.destination == "Tokyo"
+    assert request.departure_date == date(2026, 9, 10)
+    assert request.return_date is None
+    assert request.return_origin is None
+    assert request.return_destination is None
+
+
+def test_return_search_uses_last_city_and_end_date_as_one_way_leg():
+    request = build_flight_search_request(_plan(), scope="return")
+
+    assert request is not None
+    assert request.origin == "Osaka"
+    assert request.destination == "Dhaka"
+    assert request.origin_country_hint == "JP"
+    assert request.departure_date == date(2026, 9, 15)
+    assert request.return_date is None
+
+
 def test_results_are_ranked_and_available_regardless_of_user_budget():
     provider = Provider(
         [

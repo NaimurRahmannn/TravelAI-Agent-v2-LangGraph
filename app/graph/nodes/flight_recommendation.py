@@ -1,12 +1,18 @@
 from datetime import UTC, datetime
 from time import perf_counter
+from typing import cast
 
 from langchain_core.runnables import RunnableConfig
 
 from app.config import get_settings
 from app.core.logging import get_logger
 from app.graph.state import TravelState
-from app.models import FlightSearchCache, FlightSearchRequest, TripPlan
+from app.models import (
+    FlightSearchCache,
+    FlightSearchRequest,
+    FlightSearchScope,
+    TripPlan,
+)
 from app.services.flight_recommendation import (
     build_flight_provider,
     build_flight_search_cache,
@@ -37,7 +43,8 @@ async def flight_recommendation_node(
     if itinerary is None:
         return {"itinerary": None}
 
-    current_request = build_flight_search_request(itinerary)
+    scope = _validated_scope(state.get("flight_search_scope"))
+    current_request = build_flight_search_request(itinerary, scope=scope)
     if current_request is None:
         return {
             "itinerary": update_flight_recommendations(
@@ -74,7 +81,12 @@ async def flight_recommendation_node(
     geoapify_api_key = get_settings().GEOAPIFY_API_KEY
     if not geoapify_api_key or not geoapify_api_key.strip():
         logger.warning("flight_recommendation_skipped reason=missing_geoapify_key")
-        return {"itinerary": mark_flight_recommendations_unavailable(itinerary)}
+        return {
+            "itinerary": mark_flight_recommendations_unavailable(
+                itinerary,
+                scope=scope,
+            )
+        }
 
     provider: FlightProvider | None = None
     stored_cache: FlightSearchCache | None = None
@@ -96,7 +108,7 @@ async def flight_recommendation_node(
             "flight_recommendation_unavailable error_type=%s",
             type(exc).__name__,
         )
-        enriched = mark_flight_recommendations_unavailable(itinerary)
+        enriched = mark_flight_recommendations_unavailable(itinerary, scope=scope)
     finally:
         if provider is not None:
             try:
@@ -115,6 +127,12 @@ async def flight_recommendation_node(
     if stored_cache is not None:
         result["flight_search_cache"] = stored_cache
     return result
+
+
+def _validated_scope(value: object) -> FlightSearchScope:
+    if value in {"outbound", "return", "round_trip"}:
+        return cast(FlightSearchScope, value)
+    return "round_trip"
 
 
 def _validated_cache(value: object) -> FlightSearchCache | None:

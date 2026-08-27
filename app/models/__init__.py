@@ -26,6 +26,7 @@ from .recommendations import (
     FlightLayover,
     FlightOption,
     FlightPriceType,
+    FlightSearchScope,
     FlightSearchCache,
     FlightSearchRequest,
     FlightSegment,
@@ -46,6 +47,7 @@ from .selections import (
     TripCostSummary,
 )
 from .trip import Trip, TripExtraction
+from .turn import ChangedTripField, TurnDecision, TurnIntent
 
 __all__ = [
     "Activity",
@@ -60,6 +62,7 @@ __all__ = [
     "FlightLayover",
     "FlightOption",
     "FlightPriceType",
+    "FlightSearchScope",
     "FlightSearchCache",
     "FlightSearchRequest",
     "FlightSegment",
@@ -82,6 +85,9 @@ __all__ = [
     "TravelMode",
     "Trip",
     "TripExtraction",
+    "ChangedTripField",
+    "TurnDecision",
+    "TurnIntent",
     "TripPlan",
     "TravelRecommendations",
     "TravelSelections",

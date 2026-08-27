@@ -1,16 +1,22 @@
 import { MarkdownContent } from "@/app/MarkdownContent";
 import type {
+  ChatResponseMode,
   DetailedRoutingPlan,
+  FlightSearchScope,
   SelectionStatus,
   TravelSelections,
   TripCostSummary,
   TripPlan,
 } from "@/lib/api";
 import { TripItinerary } from "./itinerary/TripItinerary";
+import { FlightRecommendations } from "./itinerary/FlightRecommendations";
+import { HotelRecommendations } from "./itinerary/HotelRecommendations";
 import { TravelDatePicker } from "./TravelDatePicker";
 
 type AssistantMessageProps = {
   content: string;
+  responseMode?: ChatResponseMode;
+  flightSearchScope?: FlightSearchScope | null;
   itinerary?: TripPlan | null;
   missingFields?: string[];
   isLoading?: boolean;
@@ -35,6 +41,7 @@ type AssistantMessageProps = {
 export function AssistantMessage({
   content,
   detailedRoutingPlan,
+  flightSearchScope,
   flightSelectionStatus,
   hotelSelectionStatus,
   itinerary,
@@ -46,12 +53,53 @@ export function AssistantMessage({
   onDetailedRoutingGenerated,
   onFlightsRefreshed,
   onTravelSelectionConfirmed,
+  responseMode = "text",
   showMap = true,
   threadId,
   travelSelections,
   tripCostSummary,
 }: AssistantMessageProps) {
-  if (itinerary) {
+  if (responseMode === "flight_suggestions") {
+    if (itinerary) {
+      return (
+        <FlightRecommendations
+          idPrefix={`focused-${itinerary.destination.replace(/\s+/g, "-").toLowerCase()}`}
+          itinerary={itinerary}
+          scope={flightSearchScope ?? "round_trip"}
+          variant="standalone"
+        />
+      );
+    }
+    return (
+      <div className="assistantResponse">
+        <MarkdownContent content={content} />
+      </div>
+    );
+  }
+
+  if (responseMode === "hotel_suggestions") {
+    if (
+      itinerary &&
+      itinerary.recommendations?.hotel_status.status !== "not_searched"
+    ) {
+      return (
+        <HotelRecommendations
+          idPrefix={`focused-${itinerary.destination.replace(/\s+/g, "-").toLowerCase()}`}
+          itinerary={itinerary}
+        />
+      );
+    }
+    return (
+      <div className="assistantResponse">
+        <MarkdownContent content={content} />
+      </div>
+    );
+  }
+
+  if (
+    itinerary &&
+    (responseMode === "itinerary" || responseMode === "trip_extension")
+  ) {
     return (
       <TripItinerary
         detailedRoutingPlan={detailedRoutingPlan}

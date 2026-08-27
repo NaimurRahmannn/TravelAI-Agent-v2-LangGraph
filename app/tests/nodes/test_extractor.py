@@ -56,6 +56,19 @@ def test_thailand_request_recovers_destination_and_duration():
     ]
 
 
+def test_compact_budget_and_traveler_clarification_extracts_both_values():
+    extraction = _apply_deterministic_fallback(
+        _empty_extraction(),
+        "$2000 2",
+        missing_fields=["budget", "travelers"],
+        is_clarification_reply=True,
+    )
+
+    assert extraction.budget == 2000
+    assert extraction.currency == "USD"
+    assert extraction.travelers == 2
+
+
 def test_preference_fallback_recovers_mountain_and_river_preferences():
     extraction = _apply_deterministic_fallback(
         _empty_extraction(),

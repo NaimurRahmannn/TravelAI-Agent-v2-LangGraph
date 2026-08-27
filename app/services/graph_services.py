@@ -91,15 +91,67 @@ class GraphService:
                 else None
             )
             selection_status = build_travel_selection_status(itinerary, selections)
+            turn_intent = result.get("turn_intent")
+            is_flight_follow_up = turn_intent in {
+                "suggest_outbound_flights",
+                "suggest_return_flights",
+                "suggest_round_trip_flights",
+            }
+            is_hotel_follow_up = turn_intent == "suggest_hotels"
+            is_extension = turn_intent == "extend_trip"
+            extension_succeeded = is_extension and result.get("extension_ready") is True
+            is_text_only = turn_intent in {"answer_question", "unsupported"} or (
+                is_extension and not extension_succeeded
+            )
+            response_mode = (
+                "flight_suggestions"
+                if is_flight_follow_up
+                else "hotel_suggestions"
+                if is_hotel_follow_up
+                else "trip_extension"
+                if extension_succeeded and itinerary is not None
+                else "unsupported"
+                if turn_intent == "unsupported"
+                else "text"
+                if is_text_only
+                else "itinerary"
+                if itinerary is not None
+                else "text"
+            )
+            is_focused_recommendation = is_flight_follow_up or is_hotel_follow_up
             return ChatResponse(
                 response=result.get("response", ""),
+                response_mode=response_mode,
+                flight_search_scope=(
+                    result.get("flight_search_scope")
+                    if is_flight_follow_up
+                    else None
+                ),
                 thread_id=thread_id,
-                itinerary=itinerary,
+                # The frontend uses response_mode to render only the shared
+                # flight-card component for a focused flight response.
+                itinerary=None if is_text_only else itinerary,
                 travel_selections=selections,
-                trip_cost_summary=result.get("trip_cost_summary"),
-                detailed_routing_plan=result.get("detailed_routing_plan"),
-                flight_selection_status=selection_status.flight,
-                hotel_selection_status=selection_status.hotel,
+                trip_cost_summary=(
+                    None
+                    if is_focused_recommendation or is_extension
+                    else result.get("trip_cost_summary")
+                ),
+                detailed_routing_plan=(
+                    None
+                    if is_focused_recommendation or is_extension
+                    else result.get("detailed_routing_plan")
+                ),
+                flight_selection_status=(
+                    "not_required"
+                    if is_hotel_follow_up or is_text_only
+                    else selection_status.flight
+                ),
+                hotel_selection_status=(
+                    "not_required"
+                    if is_flight_follow_up or is_text_only
+                    else selection_status.hotel
+                ),
                 missing_fields=result.get("missing_fields", []),
             )
         except Exception as exc:

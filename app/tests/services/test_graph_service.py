@@ -51,6 +51,8 @@ def test_chat_response_schema_supports_optional_itinerary():
     response = ChatResponse(response="Question?", thread_id="thread-1")
 
     assert response.itinerary is None
+    assert response.flight_search_scope is None
+    assert response.response_mode == "text"
     assert response.model_dump(mode="json")["itinerary"] is None
     assert response.missing_fields == []
     assert response.travel_selections is None
@@ -150,12 +152,131 @@ def test_graph_service_returns_structured_itinerary(monkeypatch):
     )
 
     assert response.response == "# Thailand Plan"
+    assert response.response_mode == "itinerary"
     assert response.thread_id == "t-1"
     assert response.itinerary == plan
     assert response.travel_selections == selections
     assert response.trip_cost_summary == summary
     assert response.flight_selection_status == "selected"
     assert response.hotel_selection_status == "selected"
+
+
+def test_flight_follow_up_keeps_plan_in_graph_but_returns_focused_payload(
+    monkeypatch,
+):
+    plan = _plan()
+
+    class FakeGraph:
+        async def aget_state(self, config):
+            return None
+
+        async def ainvoke(self, graph_input, *, config):
+            return {
+                "response": "## Departure Flight Suggestions\n\n1. Example Airways",
+                "turn_intent": "suggest_outbound_flights",
+                "flight_search_scope": "outbound",
+                "itinerary": plan,
+                "missing_fields": [],
+            }
+
+    async def get_fake_graph():
+        return FakeGraph()
+
+    monkeypatch.setattr(GraphService, "_get_graph", staticmethod(get_fake_graph))
+
+    response = asyncio.run(
+        GraphService().ainvoke(
+            ChatRequest(message="Suggest departure flights", thread_id="flight-thread")
+        )
+    )
+
+    assert response.response_mode == "flight_suggestions"
+    assert response.response.startswith("## Departure Flight Suggestions")
+    assert response.itinerary == plan
+    assert response.flight_search_scope == "outbound"
+    assert response.travel_selections is None
+    assert response.trip_cost_summary is None
+    assert response.detailed_routing_plan is None
+    assert response.flight_selection_status == "not_required"
+    assert response.hotel_selection_status == "not_required"
+
+
+@pytest.mark.parametrize(
+    ("turn_intent", "expected_mode"),
+    [
+        ("answer_question", "text"),
+        ("unsupported", "unsupported"),
+    ],
+)
+def test_text_only_turn_does_not_return_checkpointed_itinerary_card(
+    monkeypatch,
+    turn_intent,
+    expected_mode,
+):
+    plan = _plan()
+
+    class FakeGraph:
+        async def aget_state(self, config):
+            return None
+
+        async def ainvoke(self, graph_input, *, config):
+            return {
+                "response": "Focused answer",
+                "turn_intent": turn_intent,
+                # The graph state still carries this checkpointed value.
+                "itinerary": plan,
+                "missing_fields": [],
+            }
+
+    async def get_fake_graph():
+        return FakeGraph()
+
+    monkeypatch.setattr(GraphService, "_get_graph", staticmethod(get_fake_graph))
+
+    response = asyncio.run(
+        GraphService().ainvoke(ChatRequest(message="A question", thread_id="t-text"))
+    )
+
+    assert response.response_mode == expected_mode
+    assert response.response == "Focused answer"
+    assert response.itinerary is None
+
+
+def test_hotel_follow_up_returns_hotel_only_mode_and_preserved_flight_selection(
+    monkeypatch,
+):
+    plan = _plan()
+    selections = TravelSelections(selected_flight_id="flight-a")
+
+    class FakeGraph:
+        async def aget_state(self, config):
+            return None
+
+        async def ainvoke(self, graph_input, *, config):
+            return {
+                "response": "## Hotel Suggestions",
+                "turn_intent": "suggest_hotels",
+                "itinerary": plan,
+                "travel_selections": selections,
+                "missing_fields": [],
+            }
+
+    async def get_fake_graph():
+        return FakeGraph()
+
+    monkeypatch.setattr(GraphService, "_get_graph", staticmethod(get_fake_graph))
+
+    response = asyncio.run(
+        GraphService().ainvoke(
+            ChatRequest(message="Suggest hotels", thread_id="hotel-thread")
+        )
+    )
+
+    assert response.response_mode == "hotel_suggestions"
+    assert response.itinerary == plan
+    assert response.travel_selections == selections
+    assert response.trip_cost_summary is None
+    assert response.flight_selection_status == "not_required"
 
 
 def test_date_update_keeps_thread_and_uses_structured_date_fields(monkeypatch):

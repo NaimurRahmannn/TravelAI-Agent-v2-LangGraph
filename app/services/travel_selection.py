@@ -159,6 +159,11 @@ def validate_travel_selections(
 ) -> tuple[FlightOption, list[HotelOption]]:
     """Resolve a complete IDs-only selection against the current snapshot."""
 
+    if selections.selected_flight_id is None or not selections.selected_hotels:
+        raise TravelSelectionError(
+            409,
+            "Select one flight and one hotel for every required stay before confirming.",
+        )
     recommendations = trip_plan.recommendations
     if (
         recommendations is None
