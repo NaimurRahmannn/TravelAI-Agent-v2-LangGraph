@@ -186,6 +186,33 @@ final_response
 
 ## Quick Start
 
+### PostgreSQL setup
+
+This project now supports an async PostgreSQL foundation for future application tables. Use a local PostgreSQL instance or Docker Compose for development.
+
+Start PostgreSQL with Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+Configure the backend connection in `app/.env`:
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/travelai
+TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/travelai_test
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+DB_POOL_TIMEOUT=30
+DB_POOL_RECYCLE=1800
+```
+
+Apply the migration metadata:
+
+```bash
+alembic upgrade head
+```
+
 ### 1. Set up the backend
 
 From the repository root, create and activate a virtual environment:

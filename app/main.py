@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,10 +12,21 @@ from app.api.routes.flight_refresh import router as flight_refresh_router
 from app.api.routes.flight_leg_selection import router as flight_leg_selection_router
 from app.api.routes.health import router as health_router
 from app.api.routes.travel_selection import router as travel_selection_router
+from app.db.session import dispose_db_engine
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Initialize and dispose the application-level database infrastructure."""
+
+    yield
+    await dispose_db_engine()
+
 
 app = FastAPI(
     title="Travel AI Agent",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
